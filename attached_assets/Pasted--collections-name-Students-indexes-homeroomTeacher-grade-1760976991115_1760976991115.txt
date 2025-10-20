@@ -1,0 +1,194 @@
+{
+  "collections": [
+    {
+      "name": "Students",
+      "indexes": ["homeroomTeacher", "grade"],
+      "schema": {
+        "type": "object",
+        "required": ["firstName", "lastName", "grade", "homeroomTeacher"],
+        "properties": {
+          "firstName": {"type": "string"},
+          "lastName": {"type": "string"},
+          "grade": {"type": "string"},
+          "homeroomTeacher": {"type": "string"},
+          "guardianContacts": {
+            "type": "array",
+            "items": {"type": "object", "properties": {
+              "name":{"type":"string"},
+              "email":{"type":"string","format":"email"},
+              "phone":{"type":"string"}
+            }}
+          },
+          "status": {"type": "string", "enum": ["active", "deleted"], "default": "active"}
+        }
+      }
+    },
+    {
+      "name": "Placements",
+      "indexes": ["studentId", "status", "startDate"],
+      "schema": {
+        "type": "object",
+        "required": ["studentId", "reason", "daysAssigned", "startDate", "status"],
+        "properties": {
+          "studentId": {"type": "string", "relation": "Students"},
+          "homeroomTeacherId": {"type": "string"},
+          "reason": {"type": "string"},
+          "daysAssigned": {"type": "integer", "minimum": 1, "maximum": 15},
+          "startDate": {"type": "string", "format": "date"},
+          "status": {"type": "string", "enum": ["active", "completed"], "default": "active"},
+          "createdBy": {"type": "string"},
+          "createdAt": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "name": "DailyLogs",
+      "indexes": ["placementId", "date"],
+      "schema": {
+        "type": "object",
+        "required": ["placementId", "date"],
+        "properties": {
+          "placementId": {"type": "string", "relation": "Placements"},
+          "date": {"type": "string", "format": "date"},
+          "positiveTotal": {"type": "integer", "default": 0},
+          "negativeTotal": {"type": "integer", "default": 0},
+          "dailyTotal": {"type": "integer", "default": 0},
+          "readiness": {"type": "string", "enum": ["ready", "continue"], "default": "continue"},
+          "finalizedBy": {"type": "string"},
+          "finalizedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "uniques": [["placementId", "date"]]
+    },
+    {
+      "name": "PointEvents",
+      "indexes": ["studentId", "placementId", "date", "type", "code"],
+      "schema": {
+        "type": "object",
+        "required": ["studentId", "placementId", "date", "type", "code", "value"],
+        "properties": {
+          "studentId": {"type": "string", "relation": "Students"},
+          "placementId": {"type": "string", "relation": "Placements"},
+          "date": {"type": "string", "format": "date"},
+          "type": {"type": "string", "enum": ["positive", "negative"]},
+          "code": {
+            "type": "string",
+            "enum": [
+              "REPAIR_WRITTEN","REPAIR_VERBAL","COMPLETE_ASSIGNMENT","READ_CHAPTER",
+              "CLEAN_ROOM","MEET_COUNSELOR","HELPFUL_TASK",
+              "NEG_REDIRECTION","NEG_GAMES","NEG_REFUSAL","NEG_SLEEPING",
+              "NEG_LEAVING","NEG_DISRESPECT","NEG_DISRUPTIVE"
+            ]
+          },
+          "value": {"type": "integer"},
+          "notes": {"type": "string"},
+          "createdBy": {"type": "string"},
+          "createdAt": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "name": "Assignments",
+      "indexes": ["studentId", "dueDate", "status"],
+      "schema": {
+        "type": "object",
+        "required": ["studentId", "title"],
+        "properties": {
+          "studentId": {"type": "string", "relation": "Students"},
+          "teacherId": {"type": "string"},
+          "placementId": {"type": "string", "relation": "Placements"},
+          "title": {"type": "string"},
+          "linkOrFileRef": {"type": "string"},
+          "dueDate": {"type": "string", "format": "date"},
+          "status": {"type": "string", "enum": ["assigned", "in_progress", "completed"], "default": "assigned"},
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "Notes",
+      "indexes": ["studentId", "createdAt"],
+      "schema": {
+        "type": "object",
+        "required": ["studentId", "authorId", "text"],
+        "properties": {
+          "studentId": {"type": "string", "relation": "Students"},
+          "authorId": {"type": "string"},
+          "text": {"type": "string"},
+          "shareWithParent": {"type": "boolean", "default": false},
+          "createdAt": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  ],
+  "defaults": {
+    "positivePointMenu": [
+      {"label":"Repair the harm – Written","code":"REPAIR_WRITTEN","value":1,"limit":"once_per_placement"},
+      {"label":"Repair the harm – Verbal","code":"REPAIR_VERBAL","value":2,"limit":"once_per_placement"},
+      {"label":"Complete an assignment","code":"COMPLETE_ASSIGNMENT","value":1},
+      {"label":"Read a chapter","code":"READ_CHAPTER","value":1,"dailyCap":4},
+      {"label":"Grotto clean & damage-free","code":"CLEAN_ROOM","value":1,"dailyCap":1},
+      {"label":"Meet with a counselor","code":"MEET_COUNSELOR","value":1,"dailyCap":1},
+      {"label":"Complete a helpful task","code":"HELPFUL_TASK","value":1}
+    ],
+    "negativePointMenu": [
+      {"label":"Behavior redirection from staff","code":"NEG_REDIRECTION","value":-1},
+      {"label":"Playing games without permission","code":"NEG_GAMES","value":-1},
+      {"label":"Refusing to do classwork","code":"NEG_REFUSAL","value":-1},
+      {"label":"Sleeping or resting head on desk","code":"NEG_SLEEPING","value":-1},
+      {"label":"Leaving The Grotto without permission","code":"NEG_LEAVING","value":-1},
+      {"label":"Disrespect toward others","code":"NEG_DISRESPECT","value":-1},
+      {"label":"Disruptive or loud behavior","code":"NEG_DISRUPTIVE","value":-1}
+    ]
+  },
+  "uiHints": {
+    "dashboardTitle": "Grotto Dashboard",
+    "studentCard": ["name","grade","homeroomTeacher","daysAssignedRemaining","todaysPointsBadge","quickActions"],
+    "material": {
+      "spacing": "8pt grid",
+      "elevation": {"list": 1, "activeCard": 2},
+      "buttons": "filled/tonal with ripple",
+      "typeface": "Roboto"
+    }
+  },
+  "automations": [
+    {
+      "on": "Placement.created",
+      "action": "notify",
+      "to": "homeroomTeacher",
+      "template": "[Student] placed in The Grotto starting {{startDate}} for {{daysAssigned}} days. Reason: {{reason}}."
+    },
+    {
+      "on": "DailyLog.finalized",
+      "action": ["recalculateTotals","notify"],
+      "to": ["homeroomTeacher","guardianDigest?"],
+      "template": "Daily summary for {{student}}: total {{dailyTotal}}, readiness {{readiness}}."
+    },
+    {
+      "on": "Placement.completed",
+      "action": "notify",
+      "to": ["homeroomTeacher","guardian?"],
+      "template": "{{student}} completed The Grotto. Final cumulative total: {{cumulative}}."
+    },
+    {
+      "on": "Assignment.created",
+      "action": "notify",
+      "to": "supervisorOnDuty",
+      "template": "New assignment for {{student}}: {{title}} (due {{dueDate}})."
+    }
+  ],
+  "computedNotes": [
+    "Today’s Points = sum(PointEvents.value where date=today).",
+    "Cumulative = sum(DailyLogs.dailyTotal for placement).",
+    "Enforce caps in logic: READ_CHAPTER ≤ 4/day; REPAIR_* once per placement; CLEAN_ROOM and MEET_COUNSELOR once per day.",
+    "If no DailyLog exists for today when adding a PointEvent, auto-create it."
+  ],
+  "safety": {
+    "deletion": {
+      "students": {
+        "mode": "hard_or_soft",
+        "cascade": ["Placements","DailyLogs","PointEvents","Assignments","Notes"]
+      }
+    }
+  }
+}

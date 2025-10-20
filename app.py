@@ -1,18 +1,30 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
-from data_manager import DataManager
+from db_manager import DatabaseManager
 from point_system import PointSystem
+from analytics import AnalyticsEngine
+from import_export import ImportExportManager
+from notifications import NotificationManager
 from utils import format_date, calculate_days_remaining, get_status_color
 
 # Initialize session state
 if 'data_manager' not in st.session_state:
-    st.session_state.data_manager = DataManager()
+    st.session_state.data_manager = DatabaseManager()
 if 'point_system' not in st.session_state:
     st.session_state.point_system = PointSystem()
+if 'analytics_engine' not in st.session_state:
+    st.session_state.analytics_engine = AnalyticsEngine(st.session_state.data_manager)
+if 'import_export_manager' not in st.session_state:
+    st.session_state.import_export_manager = ImportExportManager(st.session_state.data_manager)
+if 'notification_manager' not in st.session_state:
+    st.session_state.notification_manager = NotificationManager(st.session_state.data_manager)
 
 dm = st.session_state.data_manager
 ps = st.session_state.point_system
+analytics = st.session_state.analytics_engine
+import_export = st.session_state.import_export_manager
+notifications = st.session_state.notification_manager
 
 # Page configuration
 st.set_page_config(
@@ -29,8 +41,14 @@ st.title("🏫 Grotto Dashboard")
 st.sidebar.title("Navigation")
 page = st.sidebar.selectbox(
     "Select a page:",
-    ["Dashboard", "Students", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes"]
+    ["Dashboard", "Students", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export", "Parent Portal"]
 )
+
+# Show notification badge in sidebar
+all_notifs = notifications.get_all_notifications()
+warning_count = len([n for n in all_notifs if n.get('severity') == 'warning'])
+if warning_count > 0:
+    st.sidebar.warning(f"⚠️ {warning_count} notifications require attention")
 
 # Dashboard Page
 if page == "Dashboard":
@@ -524,6 +542,523 @@ elif page == "Notes":
                         st.rerun()
                     else:
                         st.error("Please fill in all required fields marked with *")
+
+# Reports & Analytics Page
+elif page == "Reports & Analytics":
+    st.header("📊 Reports & Analytics")
+    
+    # Get all analytics data
+    placement_stats = analytics.get_placement_statistics()
+    student_stats = analytics.get_student_statistics()
+    behavior_patterns = analytics.get_behavior_patterns()
+    assignment_stats = analytics.get_assignment_statistics()
+    daily_log_compliance = analytics.get_daily_log_compliance()
+    
+    # Overview metrics
+    st.subheader("Overview Metrics")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Students", student_stats['active_students'])
+        st.metric("Total Placements", placement_stats['total_placements'])
+    
+    with col2:
+        st.metric("Active Placements", placement_stats['active_placements'])
+        st.metric("Completed Placements", placement_stats['completed_placements'])
+    
+    with col3:
+        st.metric("Completion Rate", f"{placement_stats['completion_rate']}%")
+        st.metric("Avg Days Assigned", placement_stats['average_days_assigned'])
+    
+    with col4:
+        st.metric("Assignment Completion", f"{assignment_stats['completion_rate']}%")
+        st.metric("Daily Log Compliance", f"{daily_log_compliance['compliance_rate']}%")
+    
+    st.divider()
+    
+    # Student Performance Summary
+    st.subheader("Student Performance Summary")
+    performance_data = analytics.get_student_performance_summary()
+    
+    if performance_data:
+        df_performance = pd.DataFrame(performance_data)
+        st.dataframe(
+            df_performance[[
+                'student_name', 'grade', 'homeroom_teacher', 
+                'cumulative_points', 'avg_daily_points', 
+                'positive_events', 'negative_events', 'total_events'
+            ]],
+            use_container_width=True
+        )
+    else:
+        st.info("No active placements to display.")
+    
+    st.divider()
+    
+    # Behavior Patterns
+    st.subheader("Behavior Pattern Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Top Positive Behaviors**")
+        if behavior_patterns['top_positive_behaviors']:
+            for code, count in behavior_patterns['top_positive_behaviors']:
+                point_item = ps.get_point_item_by_code(code)
+                st.write(f"• {point_item['label']}: {count} occurrences")
+        else:
+            st.info("No positive behaviors recorded yet.")
+        
+        st.metric("Total Positive Events", behavior_patterns['total_positive_events'])
+    
+    with col2:
+        st.write("**Top Negative Behaviors**")
+        if behavior_patterns['top_negative_behaviors']:
+            for code, count in behavior_patterns['top_negative_behaviors']:
+                point_item = ps.get_point_item_by_code(code)
+                st.write(f"• {point_item['label']}: {count} occurrences")
+        else:
+            st.info("No negative behaviors recorded yet.")
+        
+        st.metric("Total Negative Events", behavior_patterns['total_negative_events'])
+    
+    st.divider()
+    
+    # Point Trends
+    st.subheader("Point Trends (Last 30 Days)")
+    point_trends = analytics.get_point_trends(days=30)
+    
+    if point_trends['daily_totals']:
+        # Create DataFrame for visualization
+        dates = sorted(point_trends['daily_totals'].keys())
+        daily_data = {
+            'Date': dates,
+            'Total Points': [point_trends['daily_totals'][d] for d in dates],
+            'Positive Points': [point_trends['positive_by_day'].get(d, 0) for d in dates],
+            'Negative Points': [point_trends['negative_by_day'].get(d, 0) for d in dates]
+        }
+        df_trends = pd.DataFrame(daily_data)
+        
+        st.line_chart(df_trends.set_index('Date'))
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Point Events", point_trends['total_events'])
+        with col2:
+            total_positive = sum(point_trends['positive_by_day'].values())
+            st.metric("Total Positive Points", total_positive)
+        with col3:
+            total_negative = sum(point_trends['negative_by_day'].values())
+            st.metric("Total Negative Points", total_negative)
+    else:
+        st.info("No point event data available for the selected period.")
+    
+    st.divider()
+    
+    # Assignment Statistics
+    st.subheader("Assignment Statistics")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Total Assignments", assignment_stats['total_assignments'])
+        st.metric("Assigned", assignment_stats['assigned'])
+    
+    with col2:
+        st.metric("In Progress", assignment_stats['in_progress'])
+        st.metric("Completed", assignment_stats['completed'])
+    
+    with col3:
+        st.metric("Completion Rate", f"{assignment_stats['completion_rate']}%")
+        st.metric("Overdue", assignment_stats['overdue'], 
+                 delta=f"-{assignment_stats['overdue']}" if assignment_stats['overdue'] > 0 else "0",
+                 delta_color="inverse")
+    
+    st.divider()
+    
+    # Daily Log Compliance
+    st.subheader("Daily Log Finalization")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Total Logs (30 days)", daily_log_compliance['total_logs'])
+        st.metric("Finalized", daily_log_compliance['finalized'])
+    
+    with col2:
+        st.metric("Pending", daily_log_compliance['pending'],
+                 delta=f"-{daily_log_compliance['pending']}" if daily_log_compliance['pending'] > 0 else "0",
+                 delta_color="inverse")
+        st.metric("Compliance Rate", f"{daily_log_compliance['compliance_rate']}%")
+    
+    with col3:
+        st.write("**Readiness Status**")
+        readiness = daily_log_compliance['readiness_counts']
+        st.write(f"• Ready: {readiness.get('ready', 0)}")
+        st.write(f"• Continue: {readiness.get('continue', 0)}")
+    
+    st.divider()
+    
+    # Grade Distribution
+    st.subheader("Student Grade Distribution")
+    
+    if student_stats['grade_distribution']:
+        grade_df = pd.DataFrame([
+            {'Grade': grade, 'Count': count} 
+            for grade, count in sorted(student_stats['grade_distribution'].items())
+        ])
+        st.bar_chart(grade_df.set_index('Grade'))
+    else:
+        st.info("No student grade data available.")
+
+# Import/Export Page
+elif page == "Import/Export":
+    st.header("📥📤 Import/Export Data")
+    
+    st.write("Bulk import and export data for students, placements, point events, assignments, notes, and daily logs.")
+    
+    tab1, tab2 = st.tabs(["Export Data", "Import Data"])
+    
+    with tab1:
+        st.subheader("Export Data to CSV")
+        st.write("Download your data in CSV format for backup or analysis.")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Student Data**")
+            if st.button("Export Students"):
+                csv_data = import_export.export_students_csv()
+                if csv_data:
+                    st.download_button(
+                        label="Download Students CSV",
+                        data=csv_data,
+                        file_name=f"students_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No students to export.")
+            
+            st.write("**Placement Data**")
+            if st.button("Export Placements"):
+                csv_data = import_export.export_placements_csv()
+                if csv_data:
+                    st.download_button(
+                        label="Download Placements CSV",
+                        data=csv_data,
+                        file_name=f"placements_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No placements to export.")
+            
+            st.write("**Assignment Data**")
+            if st.button("Export Assignments"):
+                csv_data = import_export.export_assignments_csv()
+                if csv_data:
+                    st.download_button(
+                        label="Download Assignments CSV",
+                        data=csv_data,
+                        file_name=f"assignments_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No assignments to export.")
+        
+        with col2:
+            st.write("**Point Event Data**")
+            if st.button("Export Point Events"):
+                csv_data = import_export.export_point_events_csv()
+                if csv_data:
+                    st.download_button(
+                        label="Download Point Events CSV",
+                        data=csv_data,
+                        file_name=f"point_events_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No point events to export.")
+            
+            st.write("**Notes Data**")
+            if st.button("Export Notes"):
+                csv_data = import_export.export_notes_csv()
+                if csv_data:
+                    st.download_button(
+                        label="Download Notes CSV",
+                        data=csv_data,
+                        file_name=f"notes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No notes to export.")
+            
+            st.write("**Daily Log Data**")
+            if st.button("Export Daily Logs"):
+                csv_data = import_export.export_daily_logs_csv()
+                if csv_data:
+                    st.download_button(
+                        label="Download Daily Logs CSV",
+                        data=csv_data,
+                        file_name=f"daily_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.info("No daily logs to export.")
+    
+    with tab2:
+        st.subheader("Import Data from CSV")
+        st.write("Upload CSV files to bulk import data.")
+        
+        # Student Import
+        st.write("**Import Students**")
+        st.write("Upload a CSV file with columns: firstName, lastName, grade, homeroomTeacher")
+        
+        # Download template
+        template_csv = import_export.get_student_template_csv()
+        st.download_button(
+            label="Download Student Template CSV",
+            data=template_csv,
+            file_name="student_template.csv",
+            mime="text/csv"
+        )
+        
+        uploaded_file = st.file_uploader("Choose a CSV file to import students", type=['csv'], key='student_import')
+        
+        if uploaded_file is not None:
+            try:
+                csv_content = uploaded_file.getvalue().decode('utf-8')
+                
+                if st.button("Import Students from CSV"):
+                    with st.spinner("Importing students..."):
+                        results = import_export.import_students_csv(csv_content)
+                    
+                    if results['success_count'] > 0:
+                        st.success(f"Successfully imported {results['success_count']} students!")
+                    
+                    if results['error_count'] > 0:
+                        st.error(f"Failed to import {results['error_count']} students.")
+                        with st.expander("View Errors"):
+                            for error in results['errors']:
+                                st.write(f"• {error}")
+                    
+                    if results['success_count'] > 0:
+                        st.rerun()
+            
+            except Exception as e:
+                st.error(f"Error reading file: {str(e)}")
+        
+        st.divider()
+        
+        st.info("""
+        **Import Guidelines:**
+        - Download the template CSV to see the required format
+        - Ensure all required fields are filled
+        - CSV files must be UTF-8 encoded
+        - For best results, export existing data first to see the format
+        """)
+
+# Notifications Page
+elif page == "Notifications":
+    st.header("🔔 Notifications")
+    
+    st.write("Stay informed about placement events, daily summaries, and important updates.")
+    
+    # Get all notifications grouped by severity
+    grouped_notifications = notifications.get_notifications_by_severity()
+    
+    # Summary metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("⚠️ Warnings", len(grouped_notifications['warning']))
+    with col2:
+        st.metric("ℹ️ Info", len(grouped_notifications['info']))
+    with col3:
+        st.metric("✅ Success", len(grouped_notifications['success']))
+    
+    st.divider()
+    
+    # Display notifications by severity
+    tab1, tab2, tab3, tab4 = st.tabs(["All", "Warnings", "Info", "Success"])
+    
+    with tab1:
+        all_notifications = notifications.get_all_notifications()
+        if all_notifications:
+            for notif in all_notifications:
+                severity_icon = {
+                    'warning': '⚠️',
+                    'info': 'ℹ️',
+                    'success': '✅'
+                }.get(notif['severity'], 'ℹ️')
+                
+                with st.container():
+                    col_icon, col_content = st.columns([1, 11])
+                    with col_icon:
+                        st.write(severity_icon)
+                    with col_content:
+                        st.write(f"**{notif['title']}**")
+                        st.write(notif['message'])
+                        if notif.get('timestamp'):
+                            st.caption(f"Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
+                    st.divider()
+        else:
+            st.info("No notifications at this time.")
+    
+    with tab2:
+        warning_notifs = grouped_notifications['warning']
+        if warning_notifs:
+            for notif in warning_notifs:
+                with st.container():
+                    st.warning(f"**{notif['title']}**\n\n{notif['message']}")
+                    if notif.get('timestamp'):
+                        st.caption(f"Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
+                    st.divider()
+        else:
+            st.success("No warnings at this time.")
+    
+    with tab3:
+        info_notifs = grouped_notifications['info']
+        if info_notifs:
+            for notif in info_notifs:
+                with st.container():
+                    st.info(f"**{notif['title']}**\n\n{notif['message']}")
+                    if notif.get('timestamp'):
+                        st.caption(f"Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
+                    st.divider()
+        else:
+            st.info("No info notifications at this time.")
+    
+    with tab4:
+        success_notifs = grouped_notifications['success']
+        if success_notifs:
+            for notif in success_notifs:
+                with st.container():
+                    st.success(f"**{notif['title']}**\n\n{notif['message']}")
+                    if notif.get('timestamp'):
+                        st.caption(f"Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
+                    st.divider()
+        else:
+            st.info("No success notifications at this time.")
+
+# Parent Portal Page
+elif page == "Parent Portal":
+    st.header("👪 Parent Portal")
+    
+    st.write("View shared notes and placement progress for your student.")
+    
+    # Student selection (simulating parent login - in production would use actual auth)
+    all_students = dm.get_all_students()
+    
+    if not all_students:
+        st.warning("No students found in the system.")
+    else:
+        st.info("💡 **Portal Access:** In production, parents would log in with credentials to view their student's information. This demo allows viewing any student.")
+        
+        student_options = [f"{s['firstName']} {s['lastName']}" for s in all_students]
+        selected_student_name = st.selectbox("Select Student", student_options)
+        
+        if selected_student_name:
+            student = next(s for s in all_students if f"{s['firstName']} {s['lastName']}" == selected_student_name)
+            
+            st.subheader(f"Information for {student['firstName']} {student['lastName']}")
+            
+            # Student info
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Grade:** {student['grade']}")
+                st.write(f"**Homeroom Teacher:** {student['homeroomTeacher']}")
+            
+            with col2:
+                # Guardian contacts
+                if student.get('guardianContacts'):
+                    st.write("**Guardian Contacts:**")
+                    for contact in student['guardianContacts']:
+                        st.write(f"• {contact.get('name', 'N/A')}")
+            
+            st.divider()
+            
+            # Active placements
+            st.subheader("Current Placement Status")
+            
+            session = dm.get_session()
+            try:
+                from db_manager import Placement, PlacementStatus
+                
+                active_placement = session.query(Placement).filter(
+                    Placement.student_id == student['_id'],
+                    Placement.status == PlacementStatus.active
+                ).first()
+                
+                if active_placement:
+                    placement_dict = dm._placement_to_dict(active_placement)
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.metric("Days Assigned", placement_dict['daysAssigned'])
+                    
+                    with col2:
+                        days_remaining = calculate_days_remaining(placement_dict['startDate'], placement_dict['daysAssigned'])
+                        st.metric("Days Remaining", days_remaining)
+                    
+                    with col3:
+                        cumulative = dm.get_cumulative_total(placement_dict['_id'])
+                        st.metric("Total Points", cumulative)
+                    
+                    st.write(f"**Start Date:** {format_date(placement_dict['startDate'])}")
+                    st.write(f"**Reason:** {placement_dict['reason']}")
+                    
+                    # Daily progress chart
+                    st.subheader("Daily Point Progress")
+                    
+                    point_events = dm.get_all_point_events_for_placement(placement_dict['_id'])
+                    
+                    if point_events:
+                        # Group by date
+                        daily_totals = {}
+                        for event in point_events:
+                            event_date = event['date']
+                            if event_date not in daily_totals:
+                                daily_totals[event_date] = 0
+                            daily_totals[event_date] += event['value']
+                        
+                        # Create DataFrame
+                        df_progress = pd.DataFrame([
+                            {'Date': date_str, 'Points': total}
+                            for date_str, total in sorted(daily_totals.items())
+                        ])
+                        
+                        st.line_chart(df_progress.set_index('Date'))
+                    else:
+                        st.info("No point events recorded yet.")
+                    
+                else:
+                    st.success("No active placement at this time.")
+            finally:
+                session.close()
+            
+            st.divider()
+            
+            # Shared notes
+            st.subheader("Shared Notes from Staff")
+            
+            session = dm.get_session()
+            try:
+                from db_manager import Note
+                
+                shared_notes = session.query(Note).filter(
+                    Note.student_id == student['_id'],
+                    Note.share_with_parent == True
+                ).order_by(Note.created_at.desc()).all()
+                
+                if shared_notes:
+                    for note in shared_notes:
+                        with st.expander(f"Note from {note.author_id} - {note.created_at.strftime('%m/%d/%Y')}"):
+                            st.write(note.text)
+                            st.caption(f"Created: {note.created_at.strftime('%m/%d/%Y %I:%M %p')}")
+                else:
+                    st.info("No shared notes available at this time.")
+            finally:
+                session.close()
 
 # Handle editing student (if triggered from students page)
 if hasattr(st.session_state, 'editing_student'):

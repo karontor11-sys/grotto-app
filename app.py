@@ -90,7 +90,7 @@ if page == "Dashboard":
                         st.info(f"Cumulative Total: {cumulative_total}")
                         
                         # Quick actions
-                        if st.button(f"Daily Logs - {student['firstName']}", key=f"daily_logs_{placement['_id']}"):
+                        if st.button("Daily Logs", key=f"daily_logs_{placement['_id']}"):
                             st.session_state.selected_placement_for_daily_logs = placement['_id']
                             st.session_state.navigate_to_daily_logs = True
                             st.rerun()

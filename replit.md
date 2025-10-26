@@ -1,4 +1,4 @@
-# Grotto Dashboard - Student Placement Management System
+# Grotto Dashboard - Student Placement Manager System
 
 ## Overview
 

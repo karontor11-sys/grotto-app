@@ -155,7 +155,7 @@ elif page == "Students":
 
 # Placements Page
 elif page == "Placements":
-    st.header("Placement Management")
+    st.header("Placement Manager")
     
     tab1, tab2 = st.tabs(["Active Placements", "Create Placement"])
     

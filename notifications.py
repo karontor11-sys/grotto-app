@@ -35,6 +35,10 @@ class NotificationManager:
                     })
             
             return notifications
+        except Exception as e:
+            # Log error but don't crash - return empty list
+            print(f"Error fetching placement notifications: {e}")
+            return []
         finally:
             session.close()
     
@@ -70,6 +74,9 @@ class NotificationManager:
                     })
             
             return notifications
+        except Exception as e:
+            print(f"Error fetching completion notifications: {e}")
+            return []
         finally:
             session.close()
     
@@ -107,6 +114,9 @@ class NotificationManager:
                         })
             
             return notifications
+        except Exception as e:
+            print(f"Error fetching daily log notifications: {e}")
+            return []
         finally:
             session.close()
     
@@ -142,6 +152,9 @@ class NotificationManager:
                         })
             
             return notifications
+        except Exception as e:
+            print(f"Error fetching pending daily logs: {e}")
+            return []
         finally:
             session.close()
     
@@ -176,35 +189,42 @@ class NotificationManager:
                     })
             
             return notifications
+        except Exception as e:
+            print(f"Error fetching overdue assignments: {e}")
+            return []
         finally:
             session.close()
     
     def get_placement_ending_soon(self, days_threshold: int = 2) -> List[Dict[str, Any]]:
         """Get notifications for placements ending soon."""
-        active_placements = self.db.get_active_placements_with_students()
-        
-        notifications = []
-        today = date.today()
-        
-        for placement in active_placements:
-            student = placement['student']
-            start_date = datetime.fromisoformat(placement['startDate']).date() if isinstance(placement['startDate'], str) else placement['startDate']
-            end_date = start_date + timedelta(days=placement['daysAssigned'])
-            days_remaining = (end_date - today).days
+        try:
+            active_placements = self.db.get_active_placements_with_students()
             
-            if 0 <= days_remaining <= days_threshold:
-                notifications.append({
-                    'type': 'placement_ending_soon',
-                    'severity': 'info',
-                    'timestamp': datetime.now(),
-                    'title': 'Placement Ending Soon',
-                    'message': f"{student['firstName']} {student['lastName']}'s placement ends in {days_remaining} day(s)",
-                    'student_id': student['_id'],
-                    'student_name': f"{student['firstName']} {student['lastName']}",
-                    'days_remaining': days_remaining
-                })
-        
-        return notifications
+            notifications = []
+            today = date.today()
+            
+            for placement in active_placements:
+                student = placement['student']
+                start_date = datetime.fromisoformat(placement['startDate']).date() if isinstance(placement['startDate'], str) else placement['startDate']
+                end_date = start_date + timedelta(days=placement['daysAssigned'])
+                days_remaining = (end_date - today).days
+                
+                if 0 <= days_remaining <= days_threshold:
+                    notifications.append({
+                        'type': 'placement_ending_soon',
+                        'severity': 'info',
+                        'timestamp': datetime.now(),
+                        'title': 'Placement Ending Soon',
+                        'message': f"{student['firstName']} {student['lastName']}'s placement ends in {days_remaining} day(s)",
+                        'student_id': student['_id'],
+                        'student_name': f"{student['firstName']} {student['lastName']}",
+                        'days_remaining': days_remaining
+                    })
+            
+            return notifications
+        except Exception as e:
+            print(f"Error fetching placements ending soon: {e}")
+            return []
     
     def get_all_notifications(self) -> List[Dict[str, Any]]:
         """Get all notifications sorted by timestamp."""

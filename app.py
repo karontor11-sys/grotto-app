@@ -41,7 +41,7 @@ st.title("🏫 Grotto Dashboard")
 st.sidebar.title("Navigation")
 page = st.sidebar.selectbox(
     "Select a page:",
-    ["Dashboard", "Students", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export", "Parent Portal"]
+    ["Dashboard", "Students", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"]
 )
 
 # Show notification badge in sidebar
@@ -505,7 +505,6 @@ elif page == "Notes":
                 student = note['student']
                 with st.expander(f"Note for {student['firstName']} {student['lastName']} - {note.get('createdAt', 'Unknown date')}"):
                     st.write(f"**Author:** {note.get('authorId', 'Unknown')}")
-                    st.write(f"**Share with Parent:** {'Yes' if note.get('shareWithParent', False) else 'No'}")
                     st.write(f"**Note:**")
                     st.write(note['text'])
         else:
@@ -524,7 +523,6 @@ elif page == "Notes":
                 
                 author_id = st.text_input("Author ID*", value="Staff")
                 text = st.text_area("Note Text*")
-                share_with_parent = st.checkbox("Share with Parent")
                 
                 if st.form_submit_button("Add Note"):
                     if selected_student and author_id and text:
@@ -534,7 +532,7 @@ elif page == "Notes":
                             'studentId': student_data['_id'],
                             'authorId': author_id,
                             'text': text,
-                            'shareWithParent': share_with_parent,
+                            'shareWithParent': False,
                             'createdAt': datetime.now().isoformat()
                         }
                         dm.add_note(note_data)
@@ -939,126 +937,6 @@ elif page == "Notifications":
         else:
             st.info("No success notifications at this time.")
 
-# Parent Portal Page
-elif page == "Parent Portal":
-    st.header("👪 Parent Portal")
-    
-    st.write("View shared notes and placement progress for your student.")
-    
-    # Student selection (simulating parent login - in production would use actual auth)
-    all_students = dm.get_all_students()
-    
-    if not all_students:
-        st.warning("No students found in the system.")
-    else:
-        st.info("💡 **Portal Access:** In production, parents would log in with credentials to view their student's information. This demo allows viewing any student.")
-        
-        student_options = [f"{s['firstName']} {s['lastName']}" for s in all_students]
-        selected_student_name = st.selectbox("Select Student", student_options)
-        
-        if selected_student_name:
-            student = next(s for s in all_students if f"{s['firstName']} {s['lastName']}" == selected_student_name)
-            
-            st.subheader(f"Information for {student['firstName']} {student['lastName']}")
-            
-            # Student info
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(f"**Grade:** {student['grade']}")
-                st.write(f"**Homeroom Teacher:** {student['homeroomTeacher']}")
-            
-            with col2:
-                # Guardian contacts
-                if student.get('guardianContacts'):
-                    st.write("**Guardian Contacts:**")
-                    for contact in student['guardianContacts']:
-                        st.write(f"• {contact.get('name', 'N/A')}")
-            
-            st.divider()
-            
-            # Active placements
-            st.subheader("Current Placement Status")
-            
-            session = dm.get_session()
-            try:
-                from db_manager import Placement, PlacementStatus
-                
-                active_placement = session.query(Placement).filter(
-                    Placement.student_id == student['_id'],
-                    Placement.status == PlacementStatus.active
-                ).first()
-                
-                if active_placement:
-                    placement_dict = dm._placement_to_dict(active_placement)
-                    
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric("Days Assigned", placement_dict['daysAssigned'])
-                    
-                    with col2:
-                        days_remaining = calculate_days_remaining(placement_dict['startDate'], placement_dict['daysAssigned'])
-                        st.metric("Days Remaining", days_remaining)
-                    
-                    with col3:
-                        cumulative = dm.get_cumulative_total(placement_dict['_id'])
-                        st.metric("Total Points", cumulative)
-                    
-                    st.write(f"**Start Date:** {format_date(placement_dict['startDate'])}")
-                    st.write(f"**Reason:** {placement_dict['reason']}")
-                    
-                    # Daily progress chart
-                    st.subheader("Daily Point Progress")
-                    
-                    point_events = dm.get_all_point_events_for_placement(placement_dict['_id'])
-                    
-                    if point_events:
-                        # Group by date
-                        daily_totals = {}
-                        for event in point_events:
-                            event_date = event['date']
-                            if event_date not in daily_totals:
-                                daily_totals[event_date] = 0
-                            daily_totals[event_date] += event['value']
-                        
-                        # Create DataFrame
-                        df_progress = pd.DataFrame([
-                            {'Date': date_str, 'Points': total}
-                            for date_str, total in sorted(daily_totals.items())
-                        ])
-                        
-                        st.line_chart(df_progress.set_index('Date'))
-                    else:
-                        st.info("No point events recorded yet.")
-                    
-                else:
-                    st.success("No active placement at this time.")
-            finally:
-                session.close()
-            
-            st.divider()
-            
-            # Shared notes
-            st.subheader("Shared Notes from Staff")
-            
-            session = dm.get_session()
-            try:
-                from db_manager import Note
-                
-                shared_notes = session.query(Note).filter(
-                    Note.student_id == student['_id'],
-                    Note.share_with_parent == True
-                ).order_by(Note.created_at.desc()).all()
-                
-                if shared_notes:
-                    for note in shared_notes:
-                        with st.expander(f"Note from {note.author_id} - {note.created_at.strftime('%m/%d/%Y')}"):
-                            st.write(note.text)
-                            st.caption(f"Created: {note.created_at.strftime('%m/%d/%Y %I:%M %p')}")
-                else:
-                    st.info("No shared notes available at this time.")
-            finally:
-                session.close()
 
 # Handle editing student (if triggered from students page)
 if hasattr(st.session_state, 'editing_student'):

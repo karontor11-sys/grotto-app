@@ -78,6 +78,7 @@ if page == "Dashboard":
                         st.subheader(f"{student['firstName']} {student['lastName']}")
                         st.write(f"**Grade:** {student['grade']}")
                         st.write(f"**Homeroom Teacher:** {student['homeroomTeacher']}")
+                        st.write(f"**Start Date:** {format_date(placement['startDate'])}")
                         st.write(f"**Days Remaining:** {days_remaining}")
                         
                         # Points badge
@@ -89,9 +90,9 @@ if page == "Dashboard":
                         st.info(f"Cumulative Total: {cumulative_total}")
                         
                         # Quick actions
-                        if st.button(f"Add Points - {student['firstName']}", key=f"quick_points_{placement['_id']}"):
-                            st.session_state.selected_placement_for_points = placement['_id']
-                            st.session_state.selected_student_for_points = student['_id']
+                        if st.button(f"Daily Logs - {student['firstName']}", key=f"daily_logs_{placement['_id']}"):
+                            st.session_state.selected_placement_for_daily_logs = placement['_id']
+                            st.session_state.navigate_to_daily_logs = True
                             st.rerun()
 
 # Students Page
@@ -232,6 +233,16 @@ elif page == "Placements":
 elif page == "Daily Logs":
     st.header("Daily Log Management")
     
+    # Check if we navigated from Dashboard
+    selected_placement_id = None
+    if st.session_state.get('navigate_to_daily_logs'):
+        selected_placement_id = st.session_state.get('selected_placement_for_daily_logs')
+        # Clear the flags
+        del st.session_state.navigate_to_daily_logs
+        if 'selected_placement_for_daily_logs' in st.session_state:
+            del st.session_state.selected_placement_for_daily_logs
+        st.info("📋 Showing daily log for selected student")
+    
     # Date selector
     selected_date = st.date_input("Select Date", value=date.today())
     
@@ -247,7 +258,10 @@ elif page == "Daily Logs":
             student = placement['student']
             daily_log = dm.get_or_create_daily_log(placement['_id'], selected_date.isoformat())
             
-            with st.expander(f"{student['firstName']} {student['lastName']}", expanded=True):
+            # Expand only the selected student's log, or all by default
+            is_expanded = True if selected_placement_id is None else (placement['_id'] == selected_placement_id)
+            
+            with st.expander(f"{student['firstName']} {student['lastName']}", expanded=is_expanded):
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:

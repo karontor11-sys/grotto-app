@@ -113,6 +113,11 @@ Preferred communication style: Simple, everyday language.
 - Dashboard and Placements pages now display accurate days remaining based on daily fulfillment
 - Save Fulfillment button always visible when dropdown selection is made (disabled only when value unchanged)
 
+**Guardian Contacts Removal (October 26, 2025)**:
+- Removed Guardian contacts fields from Student Management Add Student form
+- Database field `guardian_contacts` retained for schema compatibility but set to empty array for new students
+- Simplified student creation process to only essential fields: First Name, Last Name, Grade, Homeroom Teacher
+
 **Parent Portal Removal**:
 - Removed Parent Portal page from navigation and application
 - Removed "Share with Parent" checkbox from Notes interface

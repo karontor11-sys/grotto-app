@@ -137,18 +137,6 @@ elif page == "Students":
             grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
             homeroom_teacher = st.text_input("Homeroom Teacher*")
             
-            st.subheader("Guardian Contacts")
-            num_guardians = st.number_input("Number of guardians", min_value=0, max_value=5, value=1)
-            
-            guardians = []
-            for i in range(num_guardians):
-                st.write(f"Guardian {i+1}:")
-                name = st.text_input(f"Name", key=f"guardian_name_{i}")
-                email = st.text_input(f"Email", key=f"guardian_email_{i}")
-                phone = st.text_input(f"Phone", key=f"guardian_phone_{i}")
-                if name:
-                    guardians.append({"name": name, "email": email, "phone": phone})
-            
             if st.form_submit_button("Add Student"):
                 if first_name and last_name and grade and homeroom_teacher:
                     student_data = {
@@ -156,7 +144,7 @@ elif page == "Students":
                         "lastName": last_name,
                         "grade": grade,
                         "homeroomTeacher": homeroom_teacher,
-                        "guardianContacts": guardians,
+                        "guardianContacts": [],
                         "status": "active"
                     }
                     dm.add_student(student_data)

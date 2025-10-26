@@ -73,7 +73,7 @@ Preferred communication style: Simple, everyday language.
 - Defensive parsing with fallbacks for malformed data
 
 **Key Utilities**:
-- `calculate_days_remaining()`: Business logic for placement duration tracking
+- `calculate_days_remaining()`: Business logic for placement duration tracking (now accounts for days_completed from daily fulfillment)
 - `get_status_color()`: UI theming based on entity states
 - Format helpers abstract presentation concerns from business logic
 
@@ -85,10 +85,10 @@ Preferred communication style: Simple, everyday language.
 - Responsive grid layout through Streamlit columns
 
 **Information Architecture**:
-1. **Dashboard**: At-a-glance student status and active placements with point totals
+1. **Dashboard**: At-a-glance student status and active placements with point totals and accurate days remaining (accounting for daily fulfillment)
 2. **Students**: CRUD operations for student records (note: update functionality UI exists but backend method incomplete)
-3. **Placements**: Intervention period management with status tracking
-4. **Daily Logs**: Attendance and daily status tracking with readiness levels
+3. **Placements**: Intervention period management with status tracking and days remaining based on fulfillment
+4. **Daily Logs**: Manual point entry system with finalize workflow and daily fulfillment tracking (Yes/No) that reduces ISS days or flags alerts
 5. **Point Events**: Behavioral event recording with positive/negative categorization
 6. **Assignments**: Academic task management with due dates and status
 7. **Notes**: General documentation and observations
@@ -97,6 +97,21 @@ Preferred communication style: Simple, everyday language.
 10. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
 
 ### Recent Changes (October 2025)
+
+**Daily Logs Redesign (October 26, 2025)**:
+- Complete rebuild of Daily Logs page with manual point controls replacing read-only metrics
+- Point inputs use number controls with +/- buttons for positive and negative points
+- Finalize button disabled until at least one point value is non-zero
+- Added Daily Fulfillment system with explicit Yes/No dropdown (defaults to "-- Select --", no auto-selection)
+- Daily Fulfillment Yes reduces ISS days by incrementing placement.days_completed
+- Daily Fulfillment No sets alert_flag for supervisor review
+- Database schema changes:
+  - Added `days_completed` INTEGER column to placements table (tracks fulfilled days)
+  - Added `daily_fulfillment` VARCHAR column to daily_logs table (stores 'yes' or 'no')
+  - Added `alert_flag` BOOLEAN column to daily_logs table (flags logs requiring review)
+- Updated `calculate_days_remaining()` utility to subtract days_completed from days_assigned
+- Dashboard and Placements pages now display accurate days remaining based on daily fulfillment
+- Save Fulfillment button always visible when dropdown selection is made (disabled only when value unchanged)
 
 **Parent Portal Removal**:
 - Removed Parent Portal page from navigation and application

@@ -69,7 +69,8 @@ if page == "Dashboard":
                     student = placement['student']
                     
                     # Calculate metrics
-                    days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'])
+                    days_completed = placement.get('daysCompleted', 0)
+                    days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
                     todays_points = dm.get_todays_points(placement['_id'])
                     cumulative_total = dm.get_cumulative_total(placement['_id'])
                     
@@ -182,7 +183,8 @@ elif page == "Placements":
                         st.write(f"**Days Assigned:** {placement['daysAssigned']}")
                         st.write(f"**Created By:** {placement.get('createdBy', 'Unknown')}")
                     with col2:
-                        days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'])
+                        days_completed = placement.get('daysCompleted', 0)
+                        days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
                         st.write(f"**Days Remaining:** {days_remaining}")
                         st.write(f"**Status:** {placement['status']}")
                         
@@ -262,34 +264,113 @@ elif page == "Daily Logs":
             is_expanded = True if selected_placement_id is None else (placement['_id'] == selected_placement_id)
             
             with st.expander(f"{student['firstName']} {student['lastName']}", expanded=is_expanded):
+                # Check if log is finalized
+                is_finalized = daily_log.get('finalizedBy') is not None
+                
+                # Display alert indicator if present
+                if daily_log.get('alertFlag'):
+                    st.error("⚠️ ALERT: Daily Fulfillment marked as NO - Requires supervisor review")
+                
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.metric("Positive Points", daily_log['positiveTotal'])
-                    st.metric("Negative Points", daily_log['negativeTotal'])
+                    st.subheader("Points Control")
+                    
+                    # Positive Points
+                    if not is_finalized:
+                        positive_points = st.number_input(
+                            "Positive Points", 
+                            min_value=0,
+                            value=daily_log['positiveTotal'],
+                            step=1,
+                            key=f"pos_{daily_log['_id']}"
+                        )
+                    else:
+                        st.metric("Positive Points", daily_log['positiveTotal'])
+                        positive_points = daily_log['positiveTotal']
+                    
+                    # Negative Points
+                    if not is_finalized:
+                        negative_points = st.number_input(
+                            "Negative Points", 
+                            value=daily_log['negativeTotal'],
+                            step=1,
+                            key=f"neg_{daily_log['_id']}"
+                        )
+                    else:
+                        st.metric("Negative Points", daily_log['negativeTotal'])
+                        negative_points = daily_log['negativeTotal']
+                    
+                    # Update points button (only if not finalized)
+                    if not is_finalized:
+                        if st.button("Update Points", key=f"update_pts_{daily_log['_id']}"):
+                            dm.update_daily_log_points(daily_log['_id'], positive_points, negative_points)
+                            st.success("Points updated!")
+                            st.rerun()
                 
                 with col2:
-                    st.metric("Daily Total", daily_log['dailyTotal'])
-                    readiness = daily_log.get('readiness', 'continue')
-                    st.write(f"**Readiness:** {readiness}")
-                
-                with col3:
-                    if not daily_log.get('finalizedBy'):
-                        readiness_options = ["continue", "ready"]
-                        new_readiness = st.selectbox(
-                            "Set Readiness", 
-                            readiness_options, 
-                            index=readiness_options.index(readiness),
-                            key=f"readiness_{daily_log['_id']}"
-                        )
-                        
-                        if st.button(f"Finalize Log", key=f"finalize_{daily_log['_id']}"):
-                            dm.finalize_daily_log(daily_log['_id'], new_readiness, "Staff")
+                    st.subheader("Daily Summary")
+                    # Compute daily total
+                    computed_total = positive_points + negative_points
+                    st.metric("Daily Total", computed_total)
+                    
+                    # Finalize button (disabled if both points are 0 or null)
+                    if not is_finalized:
+                        can_finalize = (positive_points != 0 or negative_points != 0)
+                        if st.button(
+                            "Finalize Log", 
+                            key=f"finalize_{daily_log['_id']}",
+                            disabled=not can_finalize,
+                            help="Points must be set (not both zero) to finalize"
+                        ):
+                            dm.finalize_daily_log(daily_log['_id'], "Staff")
                             st.success("Daily log finalized!")
                             st.rerun()
                     else:
-                        st.success(f"Finalized by: {daily_log['finalizedBy']}")
-                        st.write(f"At: {daily_log.get('finalizedAt', 'Unknown')}")
+                        st.success(f"✓ Finalized by: {daily_log['finalizedBy']}")
+                        st.caption(f"At: {daily_log.get('finalizedAt', 'Unknown')}")
+                
+                with col3:
+                    st.subheader("Daily Fulfillment")
+                    
+                    # Daily Fulfillment dropdown (only enabled after finalization)
+                    current_fulfillment = daily_log.get('dailyFulfillment')
+                    
+                    if is_finalized:
+                        fulfillment_options = ["-- Select --", "Yes", "No"]
+                        if current_fulfillment == 'yes':
+                            default_index = 1
+                        elif current_fulfillment == 'no':
+                            default_index = 2
+                        else:
+                            default_index = 0
+                        
+                        new_fulfillment = st.selectbox(
+                            "Daily Fulfillment",
+                            fulfillment_options,
+                            index=default_index,
+                            disabled=False,
+                            key=f"fulfill_{daily_log['_id']}",
+                            help="Yes = reduces remaining days by 1, No = flags for review"
+                        )
+                        
+                        # Button to save fulfillment choice
+                        if new_fulfillment != "-- Select --":
+                            # Only enable button if value is different from current
+                            is_changed = current_fulfillment != new_fulfillment.lower()
+                            
+                            if st.button("Save Fulfillment", key=f"save_fulfill_{daily_log['_id']}", disabled=not is_changed):
+                                dm.set_daily_fulfillment(daily_log['_id'], new_fulfillment)
+                                if new_fulfillment.lower() == 'yes':
+                                    st.success("Fulfillment set to YES - Days reduced by 1")
+                                else:
+                                    st.warning("Fulfillment set to NO - Alert flagged for review")
+                                st.rerun()
+                            
+                            if not is_changed and current_fulfillment:
+                                st.info(f"Current: {current_fulfillment.upper()}")
+                    else:
+                        st.info("Finalize the log first to set Daily Fulfillment")
 
 # Point Events Page
 elif page == "Point Events":

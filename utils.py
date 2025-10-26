@@ -14,11 +14,13 @@ def format_date(date_obj: date) -> str:
     
     return str(date_obj)
 
-def calculate_days_remaining(start_date: str, days_assigned: int) -> int:
-    """Calculate how many days remain in a placement."""
+def calculate_days_remaining(start_date: str, days_assigned: int, days_completed: int = 0) -> int:
+    """Calculate how many days remain in a placement, accounting for completed days through daily fulfillment."""
     try:
         start = datetime.fromisoformat(start_date).date()
-        end_date = start + timedelta(days=days_assigned)
+        # Subtract days_completed from days_assigned to get effective days
+        effective_days = max(0, days_assigned - days_completed)
+        end_date = start + timedelta(days=effective_days)
         today = date.today()
         
         if today > end_date:

@@ -51,6 +51,7 @@ class Placement(Base):
     homeroom_teacher_id = Column(String)
     reason = Column(Text, nullable=False)
     days_assigned = Column(Integer, nullable=False)
+    days_completed = Column(Integer, default=0)  # Days earned through Daily Fulfillment = Yes
     start_date = Column(Date, nullable=False)
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
@@ -66,6 +67,8 @@ class DailyLog(Base):
     negative_total = Column(Integer, default=0)
     daily_total = Column(Integer, default=0)
     readiness = Column(String, default='continue')
+    daily_fulfillment = Column(String)  # 'yes' or 'no', null until set
+    alert_flag = Column(Boolean, default=False)
     finalized_by = Column(String)
     finalized_at = Column(DateTime)
     
@@ -293,18 +296,65 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def finalize_daily_log(self, log_id: str, readiness: str, finalized_by: str) -> bool:
+    def update_daily_log_points(self, log_id: str, positive_points: int, negative_points: int) -> bool:
+        """Update positive and negative points for a daily log."""
+        session = self.get_session()
+        try:
+            log = session.query(DailyLog).filter(DailyLog.id == log_id).first()
+            if log:
+                log.positive_total = positive_points
+                log.negative_total = negative_points
+                log.daily_total = positive_points + negative_points
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+    
+    def finalize_daily_log(self, log_id: str, finalized_by: str) -> bool:
         """Finalize a daily log."""
         session = self.get_session()
         try:
             log = session.query(DailyLog).filter(DailyLog.id == log_id).first()
             if log:
-                log.readiness = readiness
                 log.finalized_by = finalized_by
                 log.finalized_at = datetime.now()
                 session.commit()
                 return True
             return False
+        finally:
+            session.close()
+    
+    def set_daily_fulfillment(self, log_id: str, fulfillment: str) -> bool:
+        """Set daily fulfillment (yes/no) and handle days reduction or alert."""
+        session = self.get_session()
+        try:
+            log = session.query(DailyLog).filter(DailyLog.id == log_id).first()
+            if not log or not log.finalized_by:
+                return False  # Can only set fulfillment after finalization
+            
+            # Check if we're changing the fulfillment value
+            old_fulfillment = log.daily_fulfillment
+            log.daily_fulfillment = fulfillment.lower()
+            
+            # Get the placement to update days_completed
+            placement = session.query(Placement).filter(Placement.id == log.placement_id).first()
+            if not placement:
+                return False
+            
+            if fulfillment.lower() == 'yes':
+                log.alert_flag = False
+                # Increment days_completed if this is a new 'yes' or changed from 'no'
+                if old_fulfillment != 'yes':
+                    placement.days_completed = (placement.days_completed or 0) + 1
+            else:  # 'no'
+                log.alert_flag = True
+                # Decrement days_completed if we're changing from 'yes' to 'no'
+                if old_fulfillment == 'yes':
+                    placement.days_completed = max(0, (placement.days_completed or 0) - 1)
+            
+            session.commit()
+            return True
         finally:
             session.close()
     
@@ -522,6 +572,7 @@ class DatabaseManager:
             'homeroomTeacherId': placement.homeroom_teacher_id,
             'reason': placement.reason,
             'daysAssigned': placement.days_assigned,
+            'daysCompleted': placement.days_completed or 0,
             'startDate': placement.start_date.isoformat(),
             'status': placement.status.value,
             'createdBy': placement.created_by,
@@ -538,6 +589,8 @@ class DatabaseManager:
             'negativeTotal': log.negative_total,
             'dailyTotal': log.daily_total,
             'readiness': log.readiness,
+            'dailyFulfillment': log.daily_fulfillment,
+            'alertFlag': log.alert_flag,
             'finalizedBy': log.finalized_by,
             'finalizedAt': log.finalized_at.isoformat() if log.finalized_at else None
         }

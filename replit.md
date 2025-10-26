@@ -15,8 +15,8 @@ Preferred communication style: Simple, everyday language.
 **Rationale**: Streamlit provides rapid development of data-centric web applications with minimal frontend code. It's ideal for internal educational tools where the focus is on functionality over complex UI interactions.
 
 **Architecture Pattern**: Multi-page application with session state management
-- Main navigation through sidebar with 7 core sections: Dashboard, Students, Placements, Daily Logs, Point Events, Assignments, and Notes
-- Session state maintains persistent instances of DatabaseManager and PointSystem throughout user interactions
+- Main navigation through sidebar with 10 core sections: Dashboard, Students, Placements, Daily Logs, Point Events, Assignments, Notes, Notifications, Reports & Analytics, and Import/Export
+- Session state maintains persistent instances of DatabaseManager, PointSystem, AnalyticsEngine, ImportExportManager, and NotificationManager throughout user interactions
 - Wide layout configuration optimized for data-rich dashboards
 
 ### Data Layer Migration
@@ -31,12 +31,12 @@ Preferred communication style: Simple, everyday language.
 4. **JSON Storage**: Guardian contacts stored as JSON arrays for flexible contact information without separate tables
 
 **Core Entities**:
-- **Students**: Primary entity with soft-delete support, grade and homeroom tracking
+- **Students**: Primary entity with soft-delete support, grade and homeroom tracking, guardian contacts
 - **Placements**: Time-bound assignments (1-15 days) linking students to intervention periods
-- **DailyLogs**: Date-stamped records per placement for attendance/status tracking
+- **DailyLogs**: Date-stamped records per placement for attendance/status tracking, with readiness levels
 - **PointEvents**: Behavioral tracking with positive/negative categorization
 - **Assignments**: Task management with status workflow (assigned → in_progress → completed)
-- **Notes**: Free-form documentation system
+- **Notes**: Free-form documentation system (share_with_parent field exists but UI removed)
 
 ### Business Logic Layer
 
@@ -85,13 +85,29 @@ Preferred communication style: Simple, everyday language.
 - Responsive grid layout through Streamlit columns
 
 **Information Architecture**:
-1. **Dashboard**: At-a-glance student status and active placements
-2. **Students**: CRUD operations for student records
-3. **Placements**: Intervention period management
-4. **Daily Logs**: Attendance and daily status tracking
-5. **Point Events**: Behavioral event recording
-6. **Assignments**: Academic task management
+1. **Dashboard**: At-a-glance student status and active placements with point totals
+2. **Students**: CRUD operations for student records (note: update functionality UI exists but backend method incomplete)
+3. **Placements**: Intervention period management with status tracking
+4. **Daily Logs**: Attendance and daily status tracking with readiness levels
+5. **Point Events**: Behavioral event recording with positive/negative categorization
+6. **Assignments**: Academic task management with due dates and status
 7. **Notes**: General documentation and observations
+8. **Notifications**: Real-time event notifications for placements, daily logs, assignments (with graceful error handling for database connection issues)
+9. **Reports & Analytics**: Comprehensive analytics dashboard with placement statistics, behavior patterns, and student performance metrics
+10. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
+
+### Recent Changes (October 2025)
+
+**Parent Portal Removal**:
+- Removed Parent Portal page from navigation and application
+- Removed "Share with Parent" checkbox from Notes interface
+- Database field `share_with_parent` retained for schema compatibility but forced to false on new notes
+- Legacy notes with share_with_parent=true remain in database but have no UI exposure
+
+**Database Error Handling**:
+- Added comprehensive error handling to NotificationManager to prevent SSL connection errors from crashing the application
+- All notification query methods now catch exceptions and return empty lists gracefully
+- Error logging added via print statements for debugging (future enhancement: structured logging)
 
 ## External Dependencies
 

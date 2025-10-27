@@ -39,9 +39,18 @@ st.title("🏫 The Grotto")
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
+
+# Check if we need to navigate to Create Placement
+if st.session_state.get('navigate_to_create_placement'):
+    default_page = "Placements"
+    del st.session_state.navigate_to_create_placement
+else:
+    default_page = "Dashboard"
+
 page = st.sidebar.selectbox(
     "Select a page:",
-    ["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"]
+    ["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"],
+    index=["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"].index(default_page) if default_page != "Dashboard" else 0
 )
 
 # Show notification badge in sidebar
@@ -53,6 +62,12 @@ if warning_count > 0:
 # Dashboard Page
 if page == "Dashboard":
     st.header("Dashboard")
+    
+    # Create New Placement button
+    if st.button("Create New Placement", type="primary"):
+        st.session_state.navigate_to_create_placement = True
+        st.rerun()
+    
     st.markdown("### Active Placements")
     
     # Get all active placements with student info

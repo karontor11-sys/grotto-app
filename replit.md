@@ -85,7 +85,7 @@ Preferred communication style: Simple, everyday language.
 - Responsive grid layout through Streamlit columns
 
 **Information Architecture**:
-1. **Dashboard**: At-a-glance student status and active placements with point totals and accurate days remaining (accounting for daily fulfillment)
+1. **Dashboard**: At-a-glance student status and active placements with point totals and accurate days remaining (accounting for daily fulfillment). Includes "Create New Placement" button for quick access to placement creation form
 2. **Placement Manager**: Three-tab system for placement lifecycle management
    - **Create Placement**: Combined student and placement creation form with dropdown to select existing student or add new student inline
    - **Active Placements**: Current ISS assignments with days remaining and completion option

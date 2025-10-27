@@ -6,23 +6,26 @@ class PointSystem:
     def __init__(self):
         """Initialize the point system with predefined menus."""
         self.positive_point_menu = [
-            {"label": "Repair the harm – Written", "code": "REPAIR_WRITTEN", "value": 1, "limit": "once_per_placement"},
-            {"label": "Repair the harm – Verbal", "code": "REPAIR_VERBAL", "value": 2, "limit": "once_per_placement"},
-            {"label": "Complete an assignment", "code": "COMPLETE_ASSIGNMENT", "value": 1},
-            {"label": "Read a chapter", "code": "READ_CHAPTER", "value": 1, "dailyCap": 4},
-            {"label": "Grotto clean & damage-free", "code": "CLEAN_ROOM", "value": 1, "dailyCap": 1},
-            {"label": "Meet with a counselor", "code": "MEET_COUNSELOR", "value": 1, "dailyCap": 1},
-            {"label": "Complete a helpful task", "code": "HELPFUL_TASK", "value": 1}
+            {"label": "Repair the harm – written (+1)", "code": "REPAIR_WRITTEN", "value": 1, "limit": "once_per_placement", "mutex": "REPAIR_VERBAL"},
+            {"label": "Repair the harm – verbal (+2)", "code": "REPAIR_VERBAL", "value": 2, "limit": "once_per_placement", "mutex": "REPAIR_WRITTEN"},
+            {"label": "Complete an assignment (+1)", "code": "COMPLETE_ASSIGNMENT", "value": 1},
+            {"label": "Read a chapter (+1)", "code": "READ_CHAPTER", "value": 1, "totalCap": 4},
+            {"label": "Meet with counselor (+1)", "code": "MEET_COUNSELOR", "value": 1},
+            {"label": "Restorative discussion (+1)", "code": "RESTORATIVE_DISCUSSION", "value": 1},
+            {"label": "Helpful task (+1)", "code": "HELPFUL_TASK", "value": 1},
+            {"label": "Grotto is clean & damage free (+1)", "code": "CLEAN_ROOM", "value": 1},
+            {"label": "Other (+1)", "code": "OTHER_POSITIVE", "value": 1}
         ]
         
         self.negative_point_menu = [
-            {"label": "Behavior redirection from staff", "code": "NEG_REDIRECTION", "value": -1},
-            {"label": "Playing games without permission", "code": "NEG_GAMES", "value": -1},
-            {"label": "Refusing to do classwork", "code": "NEG_REFUSAL", "value": -1},
-            {"label": "Sleeping or resting head on desk", "code": "NEG_SLEEPING", "value": -1},
-            {"label": "Leaving The Grotto without permission", "code": "NEG_LEAVING", "value": -1},
-            {"label": "Disrespect toward others", "code": "NEG_DISRESPECT", "value": -1},
-            {"label": "Disruptive or loud behavior", "code": "NEG_DISRUPTIVE", "value": -1}
+            {"label": "Behavior redirection (–1)", "code": "NEG_REDIRECTION", "value": -1},
+            {"label": "Unauthorized computer use (–1)", "code": "NEG_COMPUTER", "value": -1},
+            {"label": "Refusing to do classwork (–1)", "code": "NEG_REFUSAL", "value": -1},
+            {"label": "Sleeping or head on desk (–1)", "code": "NEG_SLEEPING", "value": -1},
+            {"label": "Leaving without permission (–1)", "code": "NEG_LEAVING", "value": -1},
+            {"label": "Disrespectful behavior or language (–1)", "code": "NEG_DISRESPECT", "value": -1},
+            {"label": "Disruptive or loud behavior (–1)", "code": "NEG_DISRUPTIVE", "value": -1},
+            {"label": "Other (–1)", "code": "OTHER_NEGATIVE", "value": -1}
         ]
         
         # Create a combined lookup dictionary
@@ -53,11 +56,25 @@ class PointSystem:
         if not point_item:
             return False, "Invalid point code"
         
+        existing_events = dm.get_all_point_events_for_placement(placement_id)
+        
         # Check placement-level limits (once per placement)
         if point_item.get('limit') == 'once_per_placement':
-            existing_events = dm.get_all_point_events_for_placement(placement_id)
             if any(event['code'] == code for event in existing_events):
-                return False, f"This action can only be performed once per placement"
+                return False, f"Already used during this placement"
+            
+            # Check mutex (mutually exclusive) - if one is used, the other can't be
+            mutex_code = point_item.get('mutex')
+            if mutex_code and any(event['code'] == mutex_code for event in existing_events):
+                return False, f"Cannot use both repair options"
+        
+        # Check total caps (total times across entire placement)
+        if 'totalCap' in point_item:
+            total_cap = point_item['totalCap']
+            total_count = len([event for event in existing_events if event['code'] == code])
+            
+            if total_count >= total_cap:
+                return False, f"Max {total_cap} times per placement"
         
         # Check daily caps
         if 'dailyCap' in point_item:

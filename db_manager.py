@@ -489,6 +489,25 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def delete_point_event(self, event_id: str) -> bool:
+        """Delete a point event by ID."""
+        session = self.get_session()
+        try:
+            event = session.query(PointEvent).filter(PointEvent.id == event_id).first()
+            if event:
+                placement_id = event.placement_id
+                event_date = event.date.isoformat()
+                session.delete(event)
+                session.commit()
+                
+                # Update daily log totals after deletion
+                self.update_daily_log_totals(placement_id, event_date)
+                
+                return True
+            return False
+        finally:
+            session.close()
+    
     def get_todays_points(self, placement_id: str) -> int:
         """Get today's total points for a placement."""
         today = date.today().isoformat()

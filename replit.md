@@ -99,10 +99,19 @@ Preferred communication style: Simple, everyday language.
 
 ### Recent Changes (October 2025)
 
-**Daily Logs Redesign (October 26, 2025)**:
-- Complete rebuild of Daily Logs page with manual point controls replacing read-only metrics
-- Point inputs use number controls with +/- buttons for positive and negative points
-- Finalize button disabled until at least one point value is non-zero
+**Daily Logs Redesign (October 26-27, 2025)**:
+- Complete rebuild of Daily Logs page with dropdown-based behavior selection system
+- Replaced number inputs with dropdown menus listing specific positive and negative behaviors
+- **Positive Behaviors**: Repair the harm (written/verbal), Complete an assignment, Read a chapter, Meet with counselor, Restorative discussion, Helpful task, Grotto clean & damage free, Other
+- **Negative Behaviors**: Behavior redirection, Unauthorized computer use, Refusing to do classwork, Sleeping/head on desk, Leaving without permission, Disrespectful behavior/language, Disruptive/loud behavior, Other
+- **Behavior Limiting System**:
+  - "Repair the harm" options: Once per placement, mutually exclusive (using one blocks the other)
+  - "Read a chapter": Maximum 4 times total per placement
+  - Unavailable behaviors shown with 🔒 icon, strikethrough, and reason
+- **Interface**: Select behavior from dropdown → Click "➕ Add Positive/Negative" → Behavior appears in "Today's Behaviors" list
+- Can add same behavior multiple times (e.g., "Read a chapter" 4 times on same day)
+- Each behavior has ✕ remove button
+- Daily Total auto-calculates from all behaviors in today's list
 - Added Daily Fulfillment system with explicit Yes/No dropdown (defaults to "-- Select --", no auto-selection)
 - Daily Fulfillment Yes reduces ISS days by incrementing placement.days_completed
 - Daily Fulfillment No sets alert_flag for supervisor review

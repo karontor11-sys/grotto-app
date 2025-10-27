@@ -40,18 +40,26 @@ st.title("🏫 The Grotto")
 # Sidebar navigation
 st.sidebar.title("Navigation")
 
-# Check if we need to navigate to Create Placement
+# Check if we need to navigate to a specific page
 if st.session_state.get('navigate_to_create_placement'):
-    default_page = "Placements"
+    st.session_state.current_page = "Placements"
     del st.session_state.navigate_to_create_placement
-else:
-    default_page = "Dashboard"
+elif st.session_state.get('navigate_to_dashboard'):
+    st.session_state.current_page = "Dashboard"
+    del st.session_state.navigate_to_dashboard
+elif 'current_page' not in st.session_state:
+    st.session_state.current_page = "Dashboard"
 
 page = st.sidebar.selectbox(
     "Select a page:",
     ["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"],
-    index=["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"].index(default_page) if default_page != "Dashboard" else 0
+    index=["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"].index(st.session_state.current_page),
+    key="page_selector"
 )
+
+# Update current_page when user manually selects a page
+if page != st.session_state.current_page:
+    st.session_state.current_page = page
 
 # Show notification badge in sidebar
 all_notifs = notifications.get_all_notifications()
@@ -62,6 +70,11 @@ if warning_count > 0:
 # Dashboard Page
 if page == "Dashboard":
     st.header("Dashboard")
+    
+    # Show success message if placement was just created
+    if st.session_state.get('placement_created'):
+        st.success("✅ Placement created successfully! The new placement appears below.")
+        del st.session_state.placement_created
     
     # Create New Placement button
     if st.button("Create New Placement", type="primary"):
@@ -207,7 +220,8 @@ elif page == "Placements":
                             "createdAt": datetime.now().isoformat()
                         }
                         dm.add_placement(placement_data)
-                        st.success(f"Student {first_name} {last_name} and placement created successfully!")
+                        st.session_state.placement_created = True
+                        st.session_state.navigate_to_dashboard = True
                         st.rerun()
                 else:
                     # Use existing student
@@ -225,7 +239,8 @@ elif page == "Placements":
                             "createdAt": datetime.now().isoformat()
                         }
                         dm.add_placement(placement_data)
-                        st.success("Placement created successfully!")
+                        st.session_state.placement_created = True
+                        st.session_state.navigate_to_dashboard = True
                         st.rerun()
     
     # Tab 2: Completed Placements

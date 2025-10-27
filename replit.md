@@ -87,7 +87,7 @@ Preferred communication style: Simple, everyday language.
 **Information Architecture**:
 1. **Dashboard**: At-a-glance student status and active placements with point totals and accurate days remaining (accounting for daily fulfillment)
 2. **Placement Manager**: Three-tab system for placement lifecycle management
-   - **Create Placement**: New placement creation form
+   - **Create Placement**: Combined student and placement creation form with dropdown to select existing student or add new student inline
    - **Active Placements**: Current ISS assignments with days remaining and completion option
    - **Completed Placements**: Historical archive with search by Name/Reason, displays total points earned, allows restoration to active
 3. **Daily Logs**: Manual point entry system with finalize workflow and daily fulfillment tracking (Yes/No) that reduces ISS days or flags alerts
@@ -128,11 +128,14 @@ Preferred communication style: Simple, everyday language.
 - New methods: `get_completed_placements_with_students()`, `restore_placement_to_active()`
 - Complete Placement button now sets end_date to today's date
 
-**Student Management Page Removal (October 27, 2025)**:
-- Removed Student Management page from application navigation
-- Student CRUD operations no longer accessible through UI
-- Students can still be added/managed through Import/Export functionality or database directly
-- Database schema and student-related methods in DatabaseManager remain intact for backward compatibility
+**Combined Placement and Student Creation (October 27, 2025)**:
+- Merged Student Management functionality into Placement Manager
+- Create Placement form now includes student selection dropdown with "Add New Student" option
+- When adding new student: First Name, Last Name, Grade, Homeroom Teacher fields are editable
+- When selecting existing student: Student information auto-fills as disabled fields
+- Single form captures both student and placement details: Name, Grade, Homeroom Teacher, Reason, Start Date, Number of Days, Created By
+- Eliminates need for separate Student Management page
+- Database schema and student-related methods in DatabaseManager remain intact
 
 **Guardian Contacts Removal (October 26, 2025)**:
 - Removed Guardian contacts fields from Student Management Add Student form (page now removed entirely)

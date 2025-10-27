@@ -115,23 +115,95 @@ elif page == "Placements":
     # Tab 1: Create Placement
     with tab1:
         students = dm.get_all_students()
-        if not students:
-            st.warning("No students available. Please add students first.")
-        else:
-            with st.form("create_placement_form"):
-                st.subheader("Create New Placement")
-                student_options = [f"{s['firstName']} {s['lastName']}" for s in students]
-                selected_student = st.selectbox("Select Student*", student_options)
-                
-                reason = st.text_area("Reason for Placement*")
-                days_assigned = st.slider("Days Assigned*", min_value=1, max_value=15, value=5)
+        
+        with st.form("create_placement_form"):
+            st.subheader("Create New Placement")
+            
+            # Student selection dropdown
+            student_options = ["-- Add New Student --"] + [f"{s['firstName']} {s['lastName']}" for s in students]
+            selected_student_option = st.selectbox("Select Student*", student_options)
+            
+            # Determine if we're adding a new student or using existing
+            is_new_student = selected_student_option == "-- Add New Student --"
+            
+            # Initialize variables
+            first_name = ""
+            last_name = ""
+            grade = "K"
+            homeroom_teacher = ""
+            student_data = None
+            
+            # Student information section
+            st.markdown("### Student Information")
+            col1, col2 = st.columns(2)
+            
+            if is_new_student:
+                # New student - editable fields
+                with col1:
+                    first_name = st.text_input("First Name*")
+                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                with col2:
+                    last_name = st.text_input("Last Name*")
+                    homeroom_teacher = st.text_input("Homeroom Teacher*")
+            else:
+                # Existing student - display their info
+                student_data = next(s for s in students if f"{s['firstName']} {s['lastName']}" == selected_student_option)
+                with col1:
+                    st.text_input("First Name*", value=student_data['firstName'], disabled=True)
+                    st.text_input("Grade*", value=student_data['grade'], disabled=True)
+                with col2:
+                    st.text_input("Last Name*", value=student_data['lastName'], disabled=True)
+                    st.text_input("Homeroom Teacher*", value=student_data['homeroomTeacher'], disabled=True)
+            
+            # Placement information section
+            st.markdown("### Placement Details")
+            reason = st.text_area("Reason for Placement*")
+            
+            col3, col4 = st.columns(2)
+            with col3:
                 start_date = st.date_input("Start Date*", value=date.today())
-                created_by = st.text_input("Created By*", value="Staff")
-                
-                if st.form_submit_button("Create Placement"):
-                    if selected_student and reason and created_by:
-                        student_data = next(s for s in students if f"{s['firstName']} {s['lastName']}" == selected_student)
+            with col4:
+                days_assigned = st.slider("Number of Days*", min_value=1, max_value=15, value=5)
+            
+            created_by = st.text_input("Created By*", value="Staff")
+            
+            # Submit button
+            if st.form_submit_button("Create Placement"):
+                # Validate fields
+                if is_new_student:
+                    if not all([first_name, last_name, grade, homeroom_teacher, reason, created_by]):
+                        st.error("Please fill in all required fields marked with *")
+                    else:
+                        # Create new student first
+                        new_student_data = {
+                            "firstName": first_name,
+                            "lastName": last_name,
+                            "grade": grade,
+                            "homeroomTeacher": homeroom_teacher,
+                            "guardianContacts": [],
+                            "status": "active"
+                        }
+                        student_id = dm.add_student(new_student_data)
                         
+                        # Create placement with new student
+                        placement_data = {
+                            "studentId": student_id,
+                            "homeroomTeacherId": homeroom_teacher,
+                            "reason": reason,
+                            "daysAssigned": days_assigned,
+                            "startDate": start_date.isoformat(),
+                            "status": "active",
+                            "createdBy": created_by,
+                            "createdAt": datetime.now().isoformat()
+                        }
+                        dm.add_placement(placement_data)
+                        st.success(f"Student {first_name} {last_name} and placement created successfully!")
+                        st.rerun()
+                else:
+                    # Use existing student
+                    if not all([reason, created_by]):
+                        st.error("Please fill in all required fields marked with *")
+                    elif student_data is not None:
                         placement_data = {
                             "studentId": student_data['_id'],
                             "homeroomTeacherId": student_data['homeroomTeacher'],
@@ -145,8 +217,6 @@ elif page == "Placements":
                         dm.add_placement(placement_data)
                         st.success("Placement created successfully!")
                         st.rerun()
-                    else:
-                        st.error("Please fill in all required fields marked with *")
     
     # Tab 2: Active Placements
     with tab2:

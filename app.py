@@ -28,14 +28,14 @@ notifications = st.session_state.notification_manager
 
 # Page configuration
 st.set_page_config(
-    page_title="Grotto Dashboard",
+    page_title="The Grotto",
     page_icon="🏫",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Main title
-st.title("🏫 Grotto Dashboard")
+st.title("🏫 The Grotto")
 
 # Sidebar navigation
 st.sidebar.title("Navigation")

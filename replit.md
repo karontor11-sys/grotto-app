@@ -1,8 +1,8 @@
-# Grotto Dashboard - Student Placement Manager System
+# The Grotto - Student Placement Manager System
 
 ## Overview
 
-The Grotto Dashboard is a student placement and behavior tracking system designed for educational institutions. It manages student placements in "The Grotto" (likely an alternative learning environment or intervention space), tracks daily attendance and behavior through a point-based system, manages assignments, and maintains communication logs. The system provides educators with tools to monitor student progress, document interventions, and track behavioral patterns during placement periods.
+The Grotto is a student placement and behavior tracking system designed for educational institutions. It manages student placements in "The Grotto" (an alternative learning environment or intervention space), tracks daily attendance and behavior through a point-based system, manages assignments, and maintains communication logs. The system provides educators with tools to monitor student progress, document interventions, and track behavioral patterns during placement periods.
 
 ## User Preferences
 

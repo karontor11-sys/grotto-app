@@ -86,18 +86,17 @@ Preferred communication style: Simple, everyday language.
 
 **Information Architecture**:
 1. **Dashboard**: At-a-glance student status and active placements with point totals and accurate days remaining (accounting for daily fulfillment)
-2. **Students**: CRUD operations for student records (note: update functionality UI exists but backend method incomplete)
-3. **Placement Manager**: Three-tab system for placement lifecycle management
+2. **Placement Manager**: Three-tab system for placement lifecycle management
    - **Create Placement**: New placement creation form
    - **Active Placements**: Current ISS assignments with days remaining and completion option
    - **Completed Placements**: Historical archive with search by Name/Reason, displays total points earned, allows restoration to active
-4. **Daily Logs**: Manual point entry system with finalize workflow and daily fulfillment tracking (Yes/No) that reduces ISS days or flags alerts
-5. **Point Events**: Behavioral event recording with positive/negative categorization
-6. **Assignments**: Academic task management with due dates and status
-7. **Notes**: General documentation and observations
-8. **Notifications**: Real-time event notifications for placements, daily logs, assignments (with graceful error handling for database connection issues)
-9. **Reports & Analytics**: Comprehensive analytics dashboard with placement statistics, behavior patterns, and student performance metrics
-10. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
+3. **Daily Logs**: Manual point entry system with finalize workflow and daily fulfillment tracking (Yes/No) that reduces ISS days or flags alerts
+4. **Point Events**: Behavioral event recording with positive/negative categorization
+5. **Assignments**: Academic task management with due dates and status
+6. **Notes**: General documentation and observations
+7. **Notifications**: Real-time event notifications for placements, daily logs, assignments (with graceful error handling for database connection issues)
+8. **Reports & Analytics**: Comprehensive analytics dashboard with placement statistics, behavior patterns, and student performance metrics
+9. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
 
 ### Recent Changes (October 2025)
 
@@ -129,10 +128,15 @@ Preferred communication style: Simple, everyday language.
 - New methods: `get_completed_placements_with_students()`, `restore_placement_to_active()`
 - Complete Placement button now sets end_date to today's date
 
+**Student Management Page Removal (October 27, 2025)**:
+- Removed Student Management page from application navigation
+- Student CRUD operations no longer accessible through UI
+- Students can still be added/managed through Import/Export functionality or database directly
+- Database schema and student-related methods in DatabaseManager remain intact for backward compatibility
+
 **Guardian Contacts Removal (October 26, 2025)**:
-- Removed Guardian contacts fields from Student Management Add Student form
+- Removed Guardian contacts fields from Student Management Add Student form (page now removed entirely)
 - Database field `guardian_contacts` retained for schema compatibility but set to empty array for new students
-- Simplified student creation process to only essential fields: First Name, Last Name, Grade, Homeroom Teacher
 
 **Parent Portal Removal**:
 - Removed Parent Portal page from navigation and application

@@ -41,7 +41,7 @@ st.title("🏫 The Grotto")
 st.sidebar.title("Navigation")
 page = st.sidebar.selectbox(
     "Select a page:",
-    ["Dashboard", "Students", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"]
+    ["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"]
 )
 
 # Show notification badge in sidebar
@@ -95,63 +95,6 @@ if page == "Dashboard":
                             st.session_state.selected_placement_for_daily_logs = placement['_id']
                             st.session_state.navigate_to_daily_logs = True
                             st.rerun()
-
-# Students Page
-elif page == "Students":
-    st.header("Student Management")
-    
-    tab1, tab2 = st.tabs(["View Students", "Add Student"])
-    
-    with tab1:
-        students = dm.get_all_students()
-        if students:
-            df = pd.DataFrame(students)
-            df = df[['firstName', 'lastName', 'grade', 'homeroomTeacher', 'status']]
-            st.dataframe(df, use_container_width=True)
-            
-            # Edit/Delete options
-            selected_student = st.selectbox("Select student to edit/delete:", 
-                                          [f"{s['firstName']} {s['lastName']}" for s in students])
-            if selected_student:
-                student_data = next(s for s in students if f"{s['firstName']} {s['lastName']}" == selected_student)
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Edit Student"):
-                        st.session_state.editing_student = student_data
-                        st.rerun()
-                
-                with col2:
-                    if st.button("Delete Student", type="secondary"):
-                        dm.delete_student(student_data['_id'])
-                        st.success("Student deleted successfully!")
-                        st.rerun()
-        else:
-            st.info("No students found.")
-    
-    with tab2:
-        with st.form("add_student_form"):
-            st.subheader("Add New Student")
-            first_name = st.text_input("First Name*")
-            last_name = st.text_input("Last Name*")
-            grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
-            homeroom_teacher = st.text_input("Homeroom Teacher*")
-            
-            if st.form_submit_button("Add Student"):
-                if first_name and last_name and grade and homeroom_teacher:
-                    student_data = {
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "grade": grade,
-                        "homeroomTeacher": homeroom_teacher,
-                        "guardianContacts": [],
-                        "status": "active"
-                    }
-                    dm.add_student(student_data)
-                    st.success("Student added successfully!")
-                    st.rerun()
-                else:
-                    st.error("Please fill in all required fields marked with *")
 
 # Placements Page
 elif page == "Placements":

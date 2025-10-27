@@ -331,7 +331,7 @@ elif page == "Daily Logs":
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.subheader("Points Control")
+                    st.subheader("Add Points")
                     
                     # Positive Points
                     if not is_finalized:

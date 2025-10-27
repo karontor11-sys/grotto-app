@@ -53,6 +53,7 @@ class Placement(Base):
     days_assigned = Column(Integer, nullable=False)
     days_completed = Column(Integer, default=0)  # Days earned through Daily Fulfillment = Yes
     start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=True)  # Set when placement is completed
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now)
@@ -258,9 +259,45 @@ class DatabaseManager:
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
             if placement:
                 placement.status = PlacementStatus.completed
+                placement.end_date = date.today()
                 session.commit()
                 return True
             return False
+        finally:
+            session.close()
+    
+    def restore_placement_to_active(self, placement_id: str) -> bool:
+        """Restore a completed placement back to active status."""
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if placement and placement.status == PlacementStatus.completed:
+                placement.status = PlacementStatus.active
+                placement.end_date = None
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+    
+    def get_completed_placements_with_students(self) -> List[Dict[str, Any]]:
+        """Get all completed placements with student info."""
+        session = self.get_session()
+        try:
+            placements = session.query(Placement).filter(
+                Placement.status == PlacementStatus.completed
+            ).order_by(Placement.end_date.desc()).all()
+            
+            result = []
+            for placement in placements:
+                placement_dict = self._placement_to_dict(placement)
+                student = self.get_student(placement.student_id)
+                if student:
+                    placement_dict['student'] = student
+                    placement_dict['totalPoints'] = self.get_cumulative_total(placement.id)
+                    result.append(placement_dict)
+            
+            return result
         finally:
             session.close()
     
@@ -574,6 +611,7 @@ class DatabaseManager:
             'daysAssigned': placement.days_assigned,
             'daysCompleted': placement.days_completed or 0,
             'startDate': placement.start_date.isoformat(),
+            'endDate': placement.end_date.isoformat() if placement.end_date else None,
             'status': placement.status.value,
             'createdBy': placement.created_by,
             'createdAt': placement.created_at.isoformat() if placement.created_at else None

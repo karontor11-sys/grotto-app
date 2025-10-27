@@ -157,34 +157,20 @@ elif page == "Students":
 elif page == "Placements":
     st.header("Placement Manager")
     
-    tab1, tab2 = st.tabs(["Active Placements", "Create Placement"])
+    # Get counts for badges
+    active_placements = dm.get_active_placements_with_students()
+    completed_placements = dm.get_completed_placements_with_students()
+    active_count = len(active_placements)
+    completed_count = len(completed_placements)
     
+    tab1, tab2, tab3 = st.tabs([
+        "Create Placement", 
+        f"Active Placements ({active_count})", 
+        f"Completed Placements ({completed_count})"
+    ])
+    
+    # Tab 1: Create Placement
     with tab1:
-        placements = dm.get_active_placements_with_students()
-        if placements:
-            for placement in placements:
-                student = placement['student']
-                with st.expander(f"{student['firstName']} {student['lastName']} - {placement['reason']}"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Start Date:** {placement['startDate']}")
-                        st.write(f"**Days Assigned:** {placement['daysAssigned']}")
-                        st.write(f"**Created By:** {placement.get('createdBy', 'Unknown')}")
-                    with col2:
-                        days_completed = placement.get('daysCompleted', 0)
-                        days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
-                        st.write(f"**Days Remaining:** {days_remaining}")
-                        st.write(f"**Status:** {placement['status']}")
-                        
-                        if days_remaining <= 0 and placement['status'] == 'active':
-                            if st.button(f"Complete Placement", key=f"complete_{placement['_id']}"):
-                                dm.complete_placement(placement['_id'])
-                                st.success("Placement completed!")
-                                st.rerun()
-        else:
-            st.info("No active placements found.")
-    
-    with tab2:
         students = dm.get_all_students()
         if not students:
             st.warning("No students available. Please add students first.")
@@ -218,6 +204,75 @@ elif page == "Placements":
                         st.rerun()
                     else:
                         st.error("Please fill in all required fields marked with *")
+    
+    # Tab 2: Active Placements
+    with tab2:
+        if active_placements:
+            for placement in active_placements:
+                student = placement['student']
+                with st.expander(f"{student['firstName']} {student['lastName']} - {placement['reason']}"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Start Date:** {placement['startDate']}")
+                        st.write(f"**Days Assigned:** {placement['daysAssigned']}")
+                        st.write(f"**Created By:** {placement.get('createdBy', 'Unknown')}")
+                    with col2:
+                        days_completed = placement.get('daysCompleted', 0)
+                        days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
+                        st.write(f"**Days Remaining:** {days_remaining}")
+                        st.write(f"**Status:** {placement['status']}")
+                        
+                        if st.button(f"Complete Placement", key=f"complete_{placement['_id']}"):
+                            dm.complete_placement(placement['_id'])
+                            st.success("Placement completed!")
+                            st.rerun()
+        else:
+            st.info("No active placements found.")
+    
+    # Tab 3: Completed Placements
+    with tab3:
+        if completed_placements:
+            # Search filters
+            st.subheader("Search Completed Placements")
+            col1, col2 = st.columns(2)
+            with col1:
+                search_name = st.text_input("Search by Name", "")
+            with col2:
+                search_reason = st.text_input("Search by Reason", "")
+            
+            # Filter placements
+            filtered_placements = completed_placements
+            if search_name:
+                filtered_placements = [p for p in filtered_placements 
+                                     if search_name.lower() in f"{p['student']['firstName']} {p['student']['lastName']}".lower()]
+            if search_reason:
+                filtered_placements = [p for p in filtered_placements 
+                                     if search_reason.lower() in p['reason'].lower()]
+            
+            st.write(f"**Showing {len(filtered_placements)} of {completed_count} completed placements**")
+            st.markdown("---")
+            
+            # Display completed placements
+            for placement in filtered_placements:
+                student = placement['student']
+                with st.expander(f"{student['firstName']} {student['lastName']} - {placement['reason']}"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Name:** {student['firstName']} {student['lastName']}")
+                        st.write(f"**Start Date:** {format_date(placement['startDate'])}")
+                        st.write(f"**Reason:** {placement['reason']}")
+                    with col2:
+                        st.write(f"**Number of Days:** {placement['daysAssigned']}")
+                        st.write(f"**End Date:** {format_date(placement.get('endDate', 'N/A'))}")
+                        st.write(f"**Total Points Earned:** {placement.get('totalPoints', 0)}")
+                    
+                    # Restore button
+                    if st.button(f"Restore to Active", key=f"restore_{placement['_id']}"):
+                        dm.restore_placement_to_active(placement['_id'])
+                        st.success("Placement restored to active!")
+                        st.rerun()
+        else:
+            st.info("No completed placements found.")
 
 # Daily Logs Page
 elif page == "Daily Logs":

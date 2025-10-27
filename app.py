@@ -289,7 +289,7 @@ elif page == "Placements":
 
 # Daily Logs Page
 elif page == "Daily Logs":
-    st.header("Daily Log Management")
+    st.header("Daily Log Manager")
     
     # Check if we navigated from Dashboard
     selected_placement_id = None

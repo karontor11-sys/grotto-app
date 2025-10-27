@@ -86,9 +86,8 @@ Preferred communication style: Simple, everyday language.
 
 **Information Architecture**:
 1. **Dashboard**: At-a-glance student status and active placements with point totals and accurate days remaining (accounting for daily fulfillment). Includes "Create New Placement" button for quick access to placement creation form
-2. **Placement Manager**: Three-tab system for placement lifecycle management
+2. **Placement Manager**: Two-tab system for placement lifecycle management
    - **Create Placement**: Combined student and placement creation form with dropdown to select existing student or add new student inline
-   - **Active Placements**: Current ISS assignments with days remaining and completion option
    - **Completed Placements**: Historical archive with search by Name/Reason, displays total points earned, allows restoration to active
 3. **Daily Logs**: Manual point entry system with finalize workflow and daily fulfillment tracking (Yes/No) that reduces ISS days or flags alerts
 4. **Point Events**: Behavioral event recording with positive/negative categorization
@@ -117,8 +116,8 @@ Preferred communication style: Simple, everyday language.
 
 **Completed Placements Feature (October 27, 2025)**:
 - Added Completed Placements tab to Placement Manager showing archived ISS sentences
-- Reordered tabs: Create Placement → Active Placements → Completed Placements
-- Tab badges display counts (e.g., "Active Placements (9)")
+- Tab structure: Create Placement → Completed Placements (Active Placements tab removed)
+- Tab badges display counts (e.g., "Completed Placements (9)")
 - Completed Placements displays: Name, Start Date, Reason, Number of Days, End Date, Total Points Earned
 - Search functionality by student Name and placement Reason
 - Restore to Active feature allows supervisors to reactivate mistakenly completed placements
@@ -126,7 +125,7 @@ Preferred communication style: Simple, everyday language.
   - Added `end_date` DATE column to placements table (set when status changes to completed)
   - Updated Placement ORM model to include end_date attribute
 - New methods: `get_completed_placements_with_students()`, `restore_placement_to_active()`
-- Complete Placement button now sets end_date to today's date
+- Complete Placement button location to be determined (temporarily removed from UI)
 
 **Combined Placement and Student Creation (October 27, 2025)**:
 - Merged Student Management functionality into Placement Manager

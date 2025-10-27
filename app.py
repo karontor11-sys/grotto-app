@@ -114,14 +114,11 @@ elif page == "Placements":
     st.header("Placement Manager")
     
     # Get counts for badges
-    active_placements = dm.get_active_placements_with_students()
     completed_placements = dm.get_completed_placements_with_students()
-    active_count = len(active_placements)
     completed_count = len(completed_placements)
     
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2 = st.tabs([
         "Create Placement", 
-        f"Active Placements ({active_count})", 
         f"Completed Placements ({completed_count})"
     ])
     
@@ -231,32 +228,8 @@ elif page == "Placements":
                         st.success("Placement created successfully!")
                         st.rerun()
     
-    # Tab 2: Active Placements
+    # Tab 2: Completed Placements
     with tab2:
-        if active_placements:
-            for placement in active_placements:
-                student = placement['student']
-                with st.expander(f"{student['firstName']} {student['lastName']} - {placement['reason']}"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Start Date:** {placement['startDate']}")
-                        st.write(f"**Days Assigned:** {placement['daysAssigned']}")
-                        st.write(f"**Created By:** {placement.get('createdBy', 'Unknown')}")
-                    with col2:
-                        days_completed = placement.get('daysCompleted', 0)
-                        days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
-                        st.write(f"**Days Remaining:** {days_remaining}")
-                        st.write(f"**Status:** {placement['status']}")
-                        
-                        if st.button(f"Complete Placement", key=f"complete_{placement['_id']}"):
-                            dm.complete_placement(placement['_id'])
-                            st.success("Placement completed!")
-                            st.rerun()
-        else:
-            st.info("No active placements found.")
-    
-    # Tab 3: Completed Placements
-    with tab3:
         if completed_placements:
             # Search filters
             st.subheader("Search Completed Placements")

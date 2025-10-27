@@ -72,7 +72,6 @@ if page == "Dashboard":
                     days_completed = placement.get('daysCompleted', 0)
                     days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
                     todays_points = dm.get_todays_points(placement['_id'])
-                    cumulative_total = dm.get_cumulative_total(placement['_id'])
                     
                     # Student card
                     with st.container():
@@ -87,8 +86,6 @@ if page == "Dashboard":
                             st.success(f"Today's Points: +{todays_points}")
                         else:
                             st.error(f"Today's Points: {todays_points}")
-                        
-                        st.info(f"Cumulative Total: {cumulative_total}")
                         
                         # Quick actions
                         if st.button("Daily Logs", key=f"daily_logs_{placement['_id']}"):

@@ -52,7 +52,7 @@ if warning_count > 0:
 
 # Dashboard Page
 if page == "Dashboard":
-    st.header("Student Overview")
+    st.header("Dashboard")
     
     # Get all active placements with student info
     active_placements = dm.get_active_placements_with_students()

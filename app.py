@@ -34,8 +34,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Main title
-st.title("🏫 The Grotto")
+# Main title with logo
+col_logo, col_title = st.columns([1, 4])
+with col_logo:
+    st.image("attached_assets/Bobcats_1761658497832.png", width=150)
+with col_title:
+    st.title("The Grotto")
+    st.caption("Brooklyn 08 Middle School - Student Placement Manager")
 
 # Sidebar navigation
 st.sidebar.title("Navigation")

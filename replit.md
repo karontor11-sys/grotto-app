@@ -15,7 +15,7 @@ Preferred communication style: Simple, everyday language.
 **Rationale**: Streamlit provides rapid development of data-centric web applications with minimal frontend code. It's ideal for internal educational tools where the focus is on functionality over complex UI interactions.
 
 **Architecture Pattern**: Multi-page application with session state management
-- Main navigation through sidebar with 10 core sections: Dashboard, Students, Placements, Daily Logs, Point Events, Assignments, Notes, Notifications, Reports & Analytics, and Import/Export
+- Main navigation through sidebar with 9 core sections: Dashboard, Placements, Daily Logs, Assignments, Notes, Notifications, Reports & Analytics, and Import/Export
 - Session state maintains persistent instances of DatabaseManager, PointSystem, AnalyticsEngine, ImportExportManager, and NotificationManager throughout user interactions
 - Wide layout configuration optimized for data-rich dashboards
 
@@ -89,17 +89,16 @@ Preferred communication style: Simple, everyday language.
 2. **Placement Manager**: Two-tab system for placement lifecycle management
    - **Create Placement**: Combined student and placement creation form with dropdown to select existing student or add new student inline
    - **Completed Placements**: Historical archive with search by Name/Reason, displays total points earned, allows restoration to active
-3. **Daily Logs**: Manual point entry system with finalize workflow and daily fulfillment tracking (Yes/No) that reduces ISS days or flags alerts
-4. **Point Events**: Behavioral event recording with positive/negative categorization
-5. **Assignments**: Academic task management with due dates and status
-6. **Notes**: General documentation and observations
-7. **Notifications**: Real-time event notifications for placements, daily logs, assignments (with graceful error handling for database connection issues)
-8. **Reports & Analytics**: Comprehensive analytics dashboard with placement statistics, behavior patterns, and student performance metrics
-9. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
+3. **Daily Logs**: Comprehensive point tracking interface with dropdown-based behavior selection, two-column layout showing Points controls and Today's Behaviors list, finalize workflow
+4. **Assignments**: Academic task management with due dates and status
+5. **Notes**: General documentation and observations
+6. **Notifications**: Real-time event notifications for placements, daily logs, assignments (with graceful error handling for database connection issues)
+7. **Reports & Analytics**: Comprehensive analytics dashboard with placement statistics, behavior patterns, and student performance metrics
+8. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
 
 ### Recent Changes (October 2025)
 
-**Daily Logs Redesign (October 26-27, 2025)**:
+**Daily Logs Redesign (October 26-28, 2025)**:
 - Complete rebuild of Daily Logs page with dropdown-based behavior selection system
 - Replaced number inputs with dropdown menus listing specific positive and negative behaviors
 - **Positive Behaviors**: Repair the harm (written/verbal), Complete an assignment, Read a chapter, Meet with counselor, Restorative discussion, Helpful task, Grotto clean & damage free, Other
@@ -107,21 +106,20 @@ Preferred communication style: Simple, everyday language.
 - **Behavior Limiting System**:
   - "Repair the harm" options: Once per placement, mutually exclusive (using one blocks the other)
   - "Read a chapter": Maximum 4 times total per placement
-  - Unavailable behaviors shown with 🔒 icon, strikethrough, and reason
-- **Interface**: Select behavior from dropdown → Click "➕ Add Positive/Negative" → Behavior appears in "Today's Behaviors" list
+  - Unavailable behaviors shown with 🔒 icon directly in dropdown (no separate explanatory text)
+- **Two-Column Layout**:
+  - **Left Column (Points)**: Add Positive Behavior dropdown, Add Negative Behavior dropdown, Daily Total section with point value and Finalize Log button
+  - **Right Column (Today's Behaviors)**: List of all behaviors added for the day with ✕ remove buttons
+- **Interface**: Select behavior from dropdown → Click "➕ Add Positive/Negative" → Behavior appears in "Today's Behaviors" list on right
 - Can add same behavior multiple times (e.g., "Read a chapter" 4 times on same day)
-- Each behavior has ✕ remove button
 - Daily Total auto-calculates from all behaviors in today's list
-- Added Daily Fulfillment system with explicit Yes/No dropdown (defaults to "-- Select --", no auto-selection)
-- Daily Fulfillment Yes reduces ISS days by incrementing placement.days_completed
-- Daily Fulfillment No sets alert_flag for supervisor review
+- Daily Fulfillment feature temporarily removed from Daily Logs (location to be determined later)
 - Database schema changes:
   - Added `days_completed` INTEGER column to placements table (tracks fulfilled days)
   - Added `daily_fulfillment` VARCHAR column to daily_logs table (stores 'yes' or 'no')
   - Added `alert_flag` BOOLEAN column to daily_logs table (flags logs requiring review)
 - Updated `calculate_days_remaining()` utility to subtract days_completed from days_assigned
-- Dashboard and Placements pages now display accurate days remaining based on daily fulfillment
-- Save Fulfillment button always visible when dropdown selection is made (disabled only when value unchanged)
+- Dashboard and Placements pages display accurate days remaining based on daily fulfillment
 
 **Completed Placements Feature (October 27, 2025)**:
 - Added Completed Placements tab to Placement Manager showing archived ISS sentences
@@ -151,6 +149,12 @@ Preferred communication style: Simple, everyday language.
 **Guardian Contacts Removal (October 26, 2025)**:
 - Removed Guardian contacts fields from Student Management Add Student form (page now removed entirely)
 - Database field `guardian_contacts` retained for schema compatibility but set to empty array for new students
+
+**Point Events Page Removal (October 28, 2025)**:
+- Removed Point Events page entirely from navigation and application
+- All point tracking functionality consolidated into Daily Logs page with dropdown-based behavior selection
+- PointEvents database table and backend methods retained for data integrity
+- Daily Logs now serves as the single interface for all behavioral tracking
 
 **Parent Portal Removal**:
 - Removed Parent Portal page from navigation and application

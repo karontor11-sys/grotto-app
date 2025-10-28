@@ -52,8 +52,8 @@ elif 'current_page' not in st.session_state:
 
 page = st.sidebar.selectbox(
     "Select a page:",
-    ["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"],
-    index=["Dashboard", "Placements", "Daily Logs", "Point Events", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"].index(st.session_state.current_page),
+    ["Dashboard", "Placements", "Daily Logs", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"],
+    index=["Dashboard", "Placements", "Daily Logs", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"].index(st.session_state.current_page),
     key="page_selector"
 )
 
@@ -470,131 +470,6 @@ elif page == "Daily Logs":
                                         st.rerun()
                     else:
                         st.info("No behaviors added yet")
-
-# Point Events Page
-elif page == "Point Events":
-    st.header("Point Event Tracking")
-    
-    # Check if we have a selected placement from quick actions
-    if 'selected_placement_for_points' in st.session_state:
-        placement_id = st.session_state.selected_placement_for_points
-        student_id = st.session_state.selected_student_for_points
-        
-        # Clear the selection
-        del st.session_state.selected_placement_for_points
-        del st.session_state.selected_student_for_points
-        
-        st.info("Adding points for selected student...")
-    else:
-        # Regular placement selection
-        active_placements = dm.get_active_placements_with_students()
-        if not active_placements:
-            st.warning("No active placements found.")
-            placement_id = None
-            student_id = None
-        else:
-            student_options = [f"{p['student']['firstName']} {p['student']['lastName']}" for p in active_placements]
-            selected_student = st.selectbox("Select Student", student_options)
-            
-            if selected_student:
-                placement = next(p for p in active_placements if f"{p['student']['firstName']} {p['student']['lastName']}" == selected_student)
-                placement_id = placement['_id']
-                student_id = placement['student']['_id']
-            else:
-                placement_id = None
-                student_id = None
-    
-    if placement_id and student_id:
-        tab1, tab2, tab3 = st.tabs(["Add Points", "Today's Events", "Point History"])
-        
-        with tab1:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("Positive Points")
-                positive_menu = ps.get_positive_point_menu()
-                
-                for item in positive_menu:
-                    # Check if this action can be performed
-                    can_add, reason = ps.can_add_point_event(
-                        placement_id, student_id, item['code'], date.today().isoformat()
-                    )
-                    
-                    button_disabled = not can_add
-                    help_text = reason if not can_add else None
-                    
-                    if st.button(
-                        f"{item['label']} (+{item['value']})", 
-                        key=f"pos_{item['code']}",
-                        disabled=button_disabled,
-                        help=help_text
-                    ):
-                        notes = st.text_input(f"Notes for {item['label']}", key=f"notes_pos_{item['code']}")
-                        dm.add_point_event({
-                            'studentId': student_id,
-                            'placementId': placement_id,
-                            'date': date.today().isoformat(),
-                            'type': 'positive',
-                            'code': item['code'],
-                            'value': item['value'],
-                            'notes': notes,
-                            'createdBy': 'Staff',
-                            'createdAt': datetime.now().isoformat()
-                        })
-                        st.success(f"Added {item['label']} (+{item['value']} points)")
-                        st.rerun()
-            
-            with col2:
-                st.subheader("Negative Points")
-                negative_menu = ps.get_negative_point_menu()
-                
-                for item in negative_menu:
-                    if st.button(f"{item['label']} ({item['value']})", key=f"neg_{item['code']}"):
-                        notes = st.text_input(f"Notes for {item['label']}", key=f"notes_neg_{item['code']}")
-                        dm.add_point_event({
-                            'studentId': student_id,
-                            'placementId': placement_id,
-                            'date': date.today().isoformat(),
-                            'type': 'negative',
-                            'code': item['code'],
-                            'value': item['value'],
-                            'notes': notes,
-                            'createdBy': 'Staff',
-                            'createdAt': datetime.now().isoformat()
-                        })
-                        st.success(f"Added {item['label']} ({item['value']} points)")
-                        st.rerun()
-        
-        with tab2:
-            st.subheader("Today's Point Events")
-            todays_events = dm.get_point_events_for_date(placement_id, date.today().isoformat())
-            
-            if todays_events:
-                for event in todays_events:
-                    point_item = ps.get_point_item_by_code(event['code'])
-                    color = "green" if event['type'] == 'positive' else "red"
-                    
-                    with st.container():
-                        st.markdown(f"**{point_item['label']}** - {event['value']} points")
-                        if event.get('notes'):
-                            st.write(f"Notes: {event['notes']}")
-                        st.write(f"Added by: {event.get('createdBy', 'Unknown')} at {event.get('createdAt', 'Unknown')}")
-                        st.divider()
-            else:
-                st.info("No point events recorded for today.")
-        
-        with tab3:
-            st.subheader("Point Event History")
-            all_events = dm.get_all_point_events_for_placement(placement_id)
-            
-            if all_events:
-                df = pd.DataFrame(all_events)
-                df['label'] = df['code'].apply(lambda x: ps.get_point_item_by_code(x)['label'])
-                df_display = df[['date', 'type', 'label', 'value', 'notes', 'createdBy']].copy()
-                df_display.columns = ['Date', 'Type', 'Action', 'Points', 'Notes', 'Created By']
-                st.dataframe(df_display, use_container_width=True)
-            else:
-                st.info("No point events found for this placement.")
 
 # Assignments Page
 elif page == "Assignments":

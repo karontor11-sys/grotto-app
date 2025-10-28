@@ -457,11 +457,11 @@ elif page == "Daily Logs":
                 positive_points = sum([e['value'] for e in todays_events if e['type'] == 'positive'])
                 negative_points = sum([e['value'] for e in todays_events if e['type'] == 'negative'])
                 
-                # Daily Summary section
-                st.subheader("Daily Summary")
+                # Daily Total section
+                st.subheader("Daily Total")
                 # Compute daily total
                 computed_total = positive_points + negative_points
-                st.metric("Daily Total", computed_total)
+                st.markdown(f"<h1 style='text-align: left; margin: 0;'>{computed_total}</h1>", unsafe_allow_html=True)
                 
                 # Finalize button (disabled if both points are 0 or null)
                 if not is_finalized:

@@ -110,7 +110,7 @@ Preferred communication style: Simple, everyday language.
 - **Two-Column Layout**:
   - **Left Column (Points)**: Add Positive Behavior dropdown, Add Negative Behavior dropdown, Daily Total section with point value and Finalize Log button
   - **Right Column (Today's Behaviors)**: List of all behaviors added for the day with ✕ remove buttons
-- **Interface**: Select behavior from dropdown → Click "➕ Add Positive/Negative" → Behavior appears in "Today's Behaviors" list on right
+- **Interface**: Select behavior from dropdown → Behavior automatically added and appears in "Today's Behaviors" list on right (no separate add button needed)
 - Can add same behavior multiple times (e.g., "Read a chapter" 4 times on same day)
 - Daily Total auto-calculates from all behaviors in today's list
 - Daily Fulfillment feature temporarily removed from Daily Logs (location to be determined later)

@@ -372,24 +372,22 @@ elif page == "Daily Logs":
                         )
                         
                         if selected_positive_behavior != "-- Select Behavior --":
-                            if st.button("➕ Add Positive", key=f"add_pos_{daily_log['_id']}"):
-                                item, can_add = available_map[selected_positive_behavior]
-                                
-                                if can_add:
-                                    # Add point event
-                                    dm.add_point_event({
-                                        'placementId': placement['_id'],
-                                        'studentId': student['_id'],
-                                        'code': item['code'],
-                                        'type': 'positive',
-                                        'value': item['value'],
-                                        'date': selected_date.isoformat(),
-                                        'notes': f"{item['label']}"
-                                    })
-                                    st.success(f"Added: {item['label']}")
-                                    st.rerun()
-                                else:
-                                    st.error("This behavior is not available")
+                            item, can_add = available_map[selected_positive_behavior]
+                            
+                            if can_add:
+                                # Add point event
+                                dm.add_point_event({
+                                    'placementId': placement['_id'],
+                                    'studentId': student['_id'],
+                                    'code': item['code'],
+                                    'type': 'positive',
+                                    'value': item['value'],
+                                    'date': selected_date.isoformat(),
+                                    'notes': f"{item['label']}"
+                                })
+                                st.rerun()
+                            else:
+                                st.error("This behavior is not available")
                         
                         st.markdown("---")
                         
@@ -406,22 +404,20 @@ elif page == "Daily Logs":
                         )
                         
                         if selected_negative_behavior != "-- Select Behavior --":
-                            if st.button("➕ Add Negative", key=f"add_neg_{daily_log['_id']}"):
-                                # Find the selected item
-                                selected_item = next(item for item in negative_menu if item['label'] == selected_negative_behavior)
-                                
-                                # Add point event
-                                dm.add_point_event({
-                                    'placementId': placement['_id'],
-                                    'studentId': student['_id'],
-                                    'code': selected_item['code'],
-                                    'type': 'negative',
-                                    'value': selected_item['value'],
-                                    'date': selected_date.isoformat(),
-                                    'notes': f"{selected_item['label']}"
-                                })
-                                st.success(f"Added: {selected_item['label']}")
-                                st.rerun()
+                            # Find the selected item
+                            selected_item = next(item for item in negative_menu if item['label'] == selected_negative_behavior)
+                            
+                            # Add point event
+                            dm.add_point_event({
+                                'placementId': placement['_id'],
+                                'studentId': student['_id'],
+                                'code': selected_item['code'],
+                                'type': 'negative',
+                                'value': selected_item['value'],
+                                'date': selected_date.isoformat(),
+                                'notes': f"{selected_item['label']}"
+                            })
+                            st.rerun()
                         
                         st.markdown("---")
                     else:

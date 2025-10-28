@@ -343,9 +343,9 @@ elif page == "Daily Logs":
                         st.markdown("**Add Positive Behavior**")
                         positive_menu = ps.get_positive_point_menu()
                         
-                        # Build available options
-                        available_positive = []
-                        disabled_positive = []
+                        # Build options with availability status
+                        positive_options = ["-- Select Behavior --"]
+                        available_map = {}  # Maps display label to (item, can_add)
                         
                         for item in positive_menu:
                             can_add, reason = ps.can_add_point_event(
@@ -356,42 +356,40 @@ elif page == "Daily Logs":
                             )
                             
                             if can_add:
-                                available_positive.append(item)
+                                display_label = item['label']
+                                available_map[display_label] = (item, True)
                             else:
-                                disabled_positive.append((item, reason))
-                        
-                        if available_positive:
-                            positive_options = ["-- Select Behavior --"] + [item['label'] for item in available_positive]
-                            selected_positive_behavior = st.selectbox(
-                                "Choose positive behavior to add:",
-                                positive_options,
-                                key=f"pos_select_{daily_log['_id']}",
-                                label_visibility="collapsed"
-                            )
+                                display_label = f"🔒 {item['label']}"
+                                available_map[display_label] = (item, False)
                             
-                            if selected_positive_behavior != "-- Select Behavior --":
-                                if st.button("➕ Add Positive", key=f"add_pos_{daily_log['_id']}"):
-                                    # Find the selected item
-                                    selected_item = next(item for item in available_positive if item['label'] == selected_positive_behavior)
-                                    
+                            positive_options.append(display_label)
+                        
+                        selected_positive_behavior = st.selectbox(
+                            "Choose positive behavior to add:",
+                            positive_options,
+                            key=f"pos_select_{daily_log['_id']}",
+                            label_visibility="collapsed"
+                        )
+                        
+                        if selected_positive_behavior != "-- Select Behavior --":
+                            if st.button("➕ Add Positive", key=f"add_pos_{daily_log['_id']}"):
+                                item, can_add = available_map[selected_positive_behavior]
+                                
+                                if can_add:
                                     # Add point event
                                     dm.add_point_event({
                                         'placementId': placement['_id'],
                                         'studentId': student['_id'],
-                                        'code': selected_item['code'],
+                                        'code': item['code'],
                                         'type': 'positive',
-                                        'value': selected_item['value'],
+                                        'value': item['value'],
                                         'date': selected_date.isoformat(),
-                                        'notes': f"{selected_item['label']}"
+                                        'notes': f"{item['label']}"
                                     })
-                                    st.success(f"Added: {selected_item['label']}")
+                                    st.success(f"Added: {item['label']}")
                                     st.rerun()
-                        
-                        # Show disabled items
-                        if disabled_positive:
-                            st.caption("🔒 Unavailable:")
-                            for item, reason in disabled_positive:
-                                st.caption(f"  ~~{item['label']}~~ - {reason}")
+                                else:
+                                    st.error("This behavior is not available")
                         
                         st.markdown("---")
                         

@@ -328,15 +328,137 @@ elif page == "Daily Logs":
                 if daily_log.get('alertFlag'):
                     st.error("⚠️ ALERT: Daily Fulfillment marked as NO - Requires supervisor review")
                 
-                st.subheader("Add Points")
+                # Calculate current totals for display
+                todays_events = dm.get_point_events_for_date(placement['_id'], selected_date.isoformat())
+                positive_points = sum([e['value'] for e in todays_events if e['type'] == 'positive'])
+                negative_points = sum([e['value'] for e in todays_events if e['type'] == 'negative'])
                 
-                if not is_finalized:
-                    # Get today's point events for this placement
-                    todays_events = dm.get_point_events_for_date(placement['_id'], selected_date.isoformat())
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Add Points")
                     
-                    # Show currently recorded behaviors
+                    if not is_finalized:
+                        # Positive Behaviors - Dropdown to add
+                        st.markdown("**Add Positive Behavior**")
+                        positive_menu = ps.get_positive_point_menu()
+                        
+                        # Build available options
+                        available_positive = []
+                        disabled_positive = []
+                        
+                        for item in positive_menu:
+                            can_add, reason = ps.can_add_point_event(
+                                placement['_id'], 
+                                student['_id'], 
+                                item['code'], 
+                                selected_date.isoformat()
+                            )
+                            
+                            if can_add:
+                                available_positive.append(item)
+                            else:
+                                disabled_positive.append((item, reason))
+                        
+                        if available_positive:
+                            positive_options = ["-- Select Behavior --"] + [item['label'] for item in available_positive]
+                            selected_positive_behavior = st.selectbox(
+                                "Choose positive behavior to add:",
+                                positive_options,
+                                key=f"pos_select_{daily_log['_id']}",
+                                label_visibility="collapsed"
+                            )
+                            
+                            if selected_positive_behavior != "-- Select Behavior --":
+                                if st.button("➕ Add Positive", key=f"add_pos_{daily_log['_id']}"):
+                                    # Find the selected item
+                                    selected_item = next(item for item in available_positive if item['label'] == selected_positive_behavior)
+                                    
+                                    # Add point event
+                                    dm.add_point_event({
+                                        'placementId': placement['_id'],
+                                        'studentId': student['_id'],
+                                        'code': selected_item['code'],
+                                        'type': 'positive',
+                                        'value': selected_item['value'],
+                                        'date': selected_date.isoformat(),
+                                        'notes': f"{selected_item['label']}"
+                                    })
+                                    st.success(f"Added: {selected_item['label']}")
+                                    st.rerun()
+                        
+                        # Show disabled items
+                        if disabled_positive:
+                            st.caption("🔒 Unavailable:")
+                            for item, reason in disabled_positive:
+                                st.caption(f"  ~~{item['label']}~~ - {reason}")
+                        
+                        st.markdown("---")
+                        
+                        # Negative Behaviors - Dropdown to add
+                        st.markdown("**Add Negative Behavior**")
+                        negative_menu = ps.get_negative_point_menu()
+                        
+                        negative_options = ["-- Select Behavior --"] + [item['label'] for item in negative_menu]
+                        selected_negative_behavior = st.selectbox(
+                            "Choose negative behavior to add:",
+                            negative_options,
+                            key=f"neg_select_{daily_log['_id']}",
+                            label_visibility="collapsed"
+                        )
+                        
+                        if selected_negative_behavior != "-- Select Behavior --":
+                            if st.button("➕ Add Negative", key=f"add_neg_{daily_log['_id']}"):
+                                # Find the selected item
+                                selected_item = next(item for item in negative_menu if item['label'] == selected_negative_behavior)
+                                
+                                # Add point event
+                                dm.add_point_event({
+                                    'placementId': placement['_id'],
+                                    'studentId': student['_id'],
+                                    'code': selected_item['code'],
+                                    'type': 'negative',
+                                    'value': selected_item['value'],
+                                    'date': selected_date.isoformat(),
+                                    'notes': f"{selected_item['label']}"
+                                })
+                                st.success(f"Added: {selected_item['label']}")
+                                st.rerun()
+                        
+                        st.markdown("---")
+                    else:
+                        # Show finalized metrics
+                        st.metric("Positive Points", daily_log['positiveTotal'])
+                        st.metric("Negative Points", daily_log['negativeTotal'])
+                        
+                        st.markdown("---")
+                    
+                    # Daily Total section
+                    st.subheader("Daily Total")
+                    # Compute daily total
+                    computed_total = positive_points + negative_points
+                    st.markdown(f"<h1 style='text-align: left; margin: 0;'>{computed_total}</h1>", unsafe_allow_html=True)
+                    
+                    # Finalize button (disabled if both points are 0 or null)
+                    if not is_finalized:
+                        can_finalize = (positive_points != 0 or negative_points != 0)
+                        if st.button(
+                            "Finalize Log", 
+                            key=f"finalize_{daily_log['_id']}",
+                            disabled=not can_finalize,
+                            help="Points must be set (not both zero) to finalize"
+                        ):
+                            dm.finalize_daily_log(daily_log['_id'], "Staff")
+                            st.success("Daily log finalized!")
+                            st.rerun()
+                    else:
+                        st.success(f"✓ Finalized by: {daily_log['finalizedBy']}")
+                        st.caption(f"At: {daily_log.get('finalizedAt', 'Unknown')}")
+                
+                with col2:
+                    st.subheader("Today's Behaviors")
+                    
                     if todays_events:
-                        st.markdown("**Today's Behaviors:**")
                         for idx, event in enumerate(todays_events):
                             item = ps.get_point_item_by_code(event['code'])
                             icon = "✅" if event['type'] == 'positive' else "❌"
@@ -344,140 +466,12 @@ elif page == "Daily Logs":
                             with col_behavior:
                                 st.caption(f"{icon} {item['label']}")
                             with col_remove:
-                                if st.button("✕", key=f"remove_{event['_id']}", help="Remove this behavior"):
-                                    dm.delete_point_event(event['_id'])
-                                    st.rerun()
-                        st.markdown("---")
-                    
-                    # Positive Behaviors - Dropdown to add
-                    st.markdown("**Add Positive Behavior**")
-                    positive_menu = ps.get_positive_point_menu()
-                    
-                    # Build available options
-                    available_positive = []
-                    disabled_positive = []
-                    
-                    for item in positive_menu:
-                        can_add, reason = ps.can_add_point_event(
-                            placement['_id'], 
-                            student['_id'], 
-                            item['code'], 
-                            selected_date.isoformat()
-                        )
-                        
-                        if can_add:
-                            available_positive.append(item)
-                        else:
-                            disabled_positive.append((item, reason))
-                    
-                    if available_positive:
-                        positive_options = ["-- Select Behavior --"] + [item['label'] for item in available_positive]
-                        selected_positive_behavior = st.selectbox(
-                            "Choose positive behavior to add:",
-                            positive_options,
-                            key=f"pos_select_{daily_log['_id']}",
-                            label_visibility="collapsed"
-                        )
-                        
-                        if selected_positive_behavior != "-- Select Behavior --":
-                            if st.button("➕ Add Positive", key=f"add_pos_{daily_log['_id']}"):
-                                # Find the selected item
-                                selected_item = next(item for item in available_positive if item['label'] == selected_positive_behavior)
-                                
-                                # Add point event
-                                dm.add_point_event({
-                                    'placementId': placement['_id'],
-                                    'studentId': student['_id'],
-                                    'code': selected_item['code'],
-                                    'type': 'positive',
-                                    'value': selected_item['value'],
-                                    'date': selected_date.isoformat(),
-                                    'notes': f"{selected_item['label']}"
-                                })
-                                st.success(f"Added: {selected_item['label']}")
-                                st.rerun()
-                    
-                    # Show disabled items
-                    if disabled_positive:
-                        st.caption("🔒 Unavailable:")
-                        for item, reason in disabled_positive:
-                            st.caption(f"  ~~{item['label']}~~ - {reason}")
-                    
-                    st.markdown("---")
-                    
-                    # Negative Behaviors - Dropdown to add
-                    st.markdown("**Add Negative Behavior**")
-                    negative_menu = ps.get_negative_point_menu()
-                    
-                    negative_options = ["-- Select Behavior --"] + [item['label'] for item in negative_menu]
-                    selected_negative_behavior = st.selectbox(
-                        "Choose negative behavior to add:",
-                        negative_options,
-                        key=f"neg_select_{daily_log['_id']}",
-                        label_visibility="collapsed"
-                    )
-                    
-                    if selected_negative_behavior != "-- Select Behavior --":
-                        if st.button("➕ Add Negative", key=f"add_neg_{daily_log['_id']}"):
-                            # Find the selected item
-                            selected_item = next(item for item in negative_menu if item['label'] == selected_negative_behavior)
-                            
-                            # Add point event
-                            dm.add_point_event({
-                                'placementId': placement['_id'],
-                                'studentId': student['_id'],
-                                'code': selected_item['code'],
-                                'type': 'negative',
-                                'value': selected_item['value'],
-                                'date': selected_date.isoformat(),
-                                'notes': f"{selected_item['label']}"
-                            })
-                            st.success(f"Added: {selected_item['label']}")
-                            st.rerun()
-                    
-                    st.markdown("---")
-                else:
-                    # Show finalized metrics
-                    st.metric("Positive Points", daily_log['positiveTotal'])
-                    st.metric("Negative Points", daily_log['negativeTotal'])
-                    
-                    # Show which behaviors were recorded
-                    todays_events = dm.get_point_events_for_date(placement['_id'], selected_date.isoformat())
-                    if todays_events:
-                        st.markdown("**Recorded behaviors:**")
-                        for event in todays_events:
-                            item = ps.get_point_item_by_code(event['code'])
-                            icon = "✅" if event['type'] == 'positive' else "❌"
-                            st.caption(f"{icon} {item['label']}")
-                    
-                    st.markdown("---")
-                
-                # Calculate current totals for display
-                todays_events = dm.get_point_events_for_date(placement['_id'], selected_date.isoformat())
-                positive_points = sum([e['value'] for e in todays_events if e['type'] == 'positive'])
-                negative_points = sum([e['value'] for e in todays_events if e['type'] == 'negative'])
-                
-                # Daily Total section
-                st.subheader("Daily Total")
-                # Compute daily total
-                computed_total = positive_points + negative_points
-                st.markdown(f"<h1 style='text-align: left; margin: 0;'>{computed_total}</h1>", unsafe_allow_html=True)
-                
-                # Finalize button (disabled if both points are 0 or null)
-                if not is_finalized:
-                    can_finalize = (positive_points != 0 or negative_points != 0)
-                    if st.button(
-                        "Finalize Log", 
-                        key=f"finalize_{daily_log['_id']}",
-                        disabled=not can_finalize,
-                        help="Points must be set (not both zero) to finalize"
-                    ):
-                        dm.finalize_daily_log(daily_log['_id'], "Staff")
-                        st.success("Daily log finalized!")
-                        st.rerun()
-                else:
-                    st.success(f"✓ Finalized by: {daily_log['finalizedBy']}")
-                    st.caption(f"At: {daily_log.get('finalizedAt', 'Unknown')}")
+                                if not is_finalized:
+                                    if st.button("✕", key=f"remove_{event['_id']}", help="Remove this behavior"):
+                                        dm.delete_point_event(event['_id'])
+                                        st.rerun()
+                    else:
+                        st.info("No behaviors added yet")
 
 # Point Events Page
 elif page == "Point Events":

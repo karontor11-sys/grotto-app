@@ -336,7 +336,7 @@ elif page == "Daily Logs":
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.subheader("Add Points")
+                    st.subheader("Points")
                     
                     if not is_finalized:
                         # Positive Behaviors - Dropdown to add

@@ -328,7 +328,7 @@ elif page == "Daily Logs":
                 if daily_log.get('alertFlag'):
                     st.error("⚠️ ALERT: Daily Fulfillment marked as NO - Requires supervisor review")
                 
-                col1, col2, col3 = st.columns(3)
+                col1, col2 = st.columns(2)
                 
                 with col1:
                     st.subheader("Add Points")
@@ -477,48 +477,6 @@ elif page == "Daily Logs":
                     else:
                         st.success(f"✓ Finalized by: {daily_log['finalizedBy']}")
                         st.caption(f"At: {daily_log.get('finalizedAt', 'Unknown')}")
-                
-                with col3:
-                    st.subheader("Daily Fulfillment")
-                    
-                    # Daily Fulfillment dropdown (only enabled after finalization)
-                    current_fulfillment = daily_log.get('dailyFulfillment')
-                    
-                    if is_finalized:
-                        fulfillment_options = ["-- Select --", "Yes", "No"]
-                        if current_fulfillment == 'yes':
-                            default_index = 1
-                        elif current_fulfillment == 'no':
-                            default_index = 2
-                        else:
-                            default_index = 0
-                        
-                        new_fulfillment = st.selectbox(
-                            "Daily Fulfillment",
-                            fulfillment_options,
-                            index=default_index,
-                            disabled=False,
-                            key=f"fulfill_{daily_log['_id']}",
-                            help="Yes = reduces remaining days by 1, No = flags for review"
-                        )
-                        
-                        # Button to save fulfillment choice
-                        if new_fulfillment != "-- Select --":
-                            # Only enable button if value is different from current
-                            is_changed = current_fulfillment != new_fulfillment.lower()
-                            
-                            if st.button("Save Fulfillment", key=f"save_fulfill_{daily_log['_id']}", disabled=not is_changed):
-                                dm.set_daily_fulfillment(daily_log['_id'], new_fulfillment)
-                                if new_fulfillment.lower() == 'yes':
-                                    st.success("Fulfillment set to YES - Days reduced by 1")
-                                else:
-                                    st.warning("Fulfillment set to NO - Alert flagged for review")
-                                st.rerun()
-                            
-                            if not is_changed and current_fulfillment:
-                                st.info(f"Current: {current_fulfillment.upper()}")
-                    else:
-                        st.info("Finalize the log first to set Daily Fulfillment")
 
 # Point Events Page
 elif page == "Point Events":

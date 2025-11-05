@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Grotto is a student placement and behavior tracking system designed for educational institutions. It manages student placements in "The Grotto" (an alternative learning environment or intervention space), tracks daily attendance and behavior through a point-based system, manages assignments, and maintains communication logs. The system provides educators with tools to monitor student progress, document interventions, and track behavioral patterns during placement periods.
+The Grotto is a student placement and behavior tracking system for educational institutions, managing student placements in alternative learning environments, tracking daily attendance and behavior via a point-based system, managing assignments, and maintaining communication logs. It helps educators monitor student progress, document interventions, and analyze behavioral patterns during placement periods. The system aims to streamline administrative tasks and provide actionable insights into student well-being and academic performance.
 
 ## User Preferences
 
@@ -11,207 +11,51 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Application Framework
-**Technology**: Streamlit  
-**Rationale**: Streamlit provides rapid development of data-centric web applications with minimal frontend code. It's ideal for internal educational tools where the focus is on functionality over complex UI interactions.
+The application is built with **Streamlit**, leveraging its rapid development capabilities for data-centric web applications. It uses a multi-page architecture with robust session state management to maintain persistent data and application states across user interactions. The layout is optimized for data-rich dashboards.
 
-**Architecture Pattern**: Multi-page application with session state management
-- Main navigation through sidebar with 9 core sections: Dashboard, Placements, Daily Logs, Assignments, Notes, Notifications, Reports & Analytics, and Import/Export
-- Session state maintains persistent instances of DatabaseManager, PointSystem, AnalyticsEngine, ImportExportManager, and NotificationManager throughout user interactions
-- Wide layout configuration optimized for data-rich dashboards
+### Data Layer
+The system is migrating from an in-memory dictionary-based storage to a **SQLAlchemy ORM** with a relational database. Key design decisions include:
+- **ORM Choice**: SQLAlchemy with declarative base for type safety and query abstraction.
+- **Schema Enforcement**: Enum types for constrained fields (e.g., `StudentStatus`, `PlacementStatus`).
+- **Soft Deletes**: Students are soft-deleted to preserve historical data.
+- **JSON Storage**: Flexible storage for guardian contacts as JSON arrays.
 
-### Data Layer Migration
-**Current State**: Dual implementation showing migration in progress
-- Legacy: In-memory dictionary-based storage (`DataManager` class)
-- Target: SQLAlchemy ORM with relational database (`DatabaseManager` class)
-
-**Database Design Decisions**:
-1. **ORM Choice**: SQLAlchemy with declarative base for type safety and query abstraction
-2. **Schema Enforcement**: Enum types for constrained fields (StudentStatus, PlacementStatus, etc.) to prevent invalid states
-3. **Soft Deletes**: Students use status='deleted' rather than hard deletion to preserve historical data
-4. **JSON Storage**: Guardian contacts stored as JSON arrays for flexible contact information without separate tables
-
-**Core Entities**:
-- **Students**: Primary entity with soft-delete support, grade and homeroom tracking, guardian contacts
-- **Placements**: Time-bound assignments (1-15 days) linking students to intervention periods
-- **Sessions**: Partial-day tracking infrastructure (periods, lunch, cool-down, referral) with time ranges, location, and status management
-- **DailyLogs**: Date-stamped records per placement for attendance/status tracking, with readiness levels; nullable session_id for partial-day linkage
-- **PointEvents**: Behavioral tracking with positive/negative categorization; nullable session_id for partial-day linkage
-- **Assignments**: Task management with status workflow (assigned → in_progress → completed)
-- **Notes**: Free-form documentation system (share_with_parent field exists but UI removed)
+**Core Entities**: Students, Placements, Sessions (for partial-day tracking), DailyLogs, PointEvents, Assignments, and Notes.
 
 ### Business Logic Layer
-
-**Point System Architecture**:
-- **Design Pattern**: Centralized configuration with business rules enforcement
-- **Point Categories**: Dual menus for positive reinforcement and negative consequences
-- **Constraint Types**:
-  - `once_per_placement`: Limits like "Repair the harm" can only be earned once per placement period
-  - `dailyCap`: Activities like "Read a chapter" capped at specific daily limits
-  - Custom validation logic for complex business rules
-
-**Point Item Structure**:
-```python
-{
-  "label": "Human-readable description",
-  "code": "UNIQUE_IDENTIFIER", 
-  "value": integer_point_value,
-  "limit": "constraint_type",  # optional
-  "dailyCap": integer_max_per_day  # optional
-}
-```
-
-**Separation of Concerns**:
-- Point definitions isolated in `PointSystem` class
-- Validation logic separated from UI layer
-- Code-based lookups enable referential integrity
+A centralized **Point System Architecture** enforces business rules for behavioral tracking. It uses configurable point categories for positive and negative behaviors with various constraint types (e.g., `once_per_placement`, `dailyCap`). Point definitions are isolated in a `PointSystem` class for clear separation of concerns.
 
 ### Utility Layer
-
-**Date Handling Strategy**:
-- ISO format strings for storage/transport
-- Date objects for calculations
-- Formatted strings for display
-- Defensive parsing with fallbacks for malformed data
-
-**Key Utilities**:
-- `calculate_days_remaining()`: Business logic for placement duration tracking (now accounts for days_completed from daily fulfillment)
-- `get_status_color()`: UI theming based on entity states
-- Format helpers abstract presentation concerns from business logic
+A consistent date handling strategy uses ISO format for storage, date objects for calculations, and formatted strings for display. Utilities abstract presentation concerns and handle business logic like calculating remaining placement days and status-based UI theming.
 
 ### UI Components
+The UI features a **Dashboard** with card-based student overviews, configurable columns, and quick access to placement creation.
+- **Placement Manager**: Manages placement lifecycles through two tabs: "Create Placement" (combining student and placement creation) and "Completed Placements" (for historical archives and restoration).
+- **Daily Logs**: A comprehensive interface for point tracking using dropdown-based behavior selection, displaying daily totals, and allowing log finalization.
+- **Assignments**: Manages academic tasks.
+- **Notes**: For general documentation.
+- **Notifications**: Provides real-time event alerts with robust error handling.
+- **Reports & Analytics**: Offers comprehensive dashboards for placement statistics and behavior patterns.
+- **Import/Export**: Facilitates bulk data operations via CSV.
 
-**Dashboard Pattern**: Card-based student overview
-- Configurable columns (3 per row default)
-- Active placements with student metadata
-- Responsive grid layout through Streamlit columns
-
-**Information Architecture**:
-1. **Dashboard**: At-a-glance student status and active placements with point totals and accurate days remaining (accounting for daily fulfillment). Includes "Create New Placement" button for quick access to placement creation form
-2. **Placement Manager**: Two-tab system for placement lifecycle management
-   - **Create Placement**: Combined student and placement creation form with dropdown to select existing student or add new student inline
-   - **Completed Placements**: Historical archive with search by Name/Reason, displays total points earned, allows restoration to active
-3. **Daily Logs**: Comprehensive point tracking interface with dropdown-based behavior selection, two-column layout showing Points controls and Today's Behaviors list, finalize workflow
-4. **Assignments**: Academic task management with due dates and status
-5. **Notes**: General documentation and observations
-6. **Notifications**: Real-time event notifications for placements, daily logs, assignments (with graceful error handling for database connection issues)
-7. **Reports & Analytics**: Comprehensive analytics dashboard with placement statistics, behavior patterns, and student performance metrics
-8. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
-
-### Recent Changes (October-November 2025)
-
-**Daily Logs Redesign (October 26-28, 2025)**:
-- Complete rebuild of Daily Logs page with dropdown-based behavior selection system
-- Replaced number inputs with dropdown menus listing specific positive and negative behaviors
-- **Positive Behaviors**: Repair the harm (written/verbal), Complete an assignment, Read a chapter, Meet with counselor, Restorative discussion, Helpful task, Grotto clean & damage free, Other
-- **Negative Behaviors**: Behavior redirection, Unauthorized computer use, Refusing to do classwork, Sleeping/head on desk, Leaving without permission, Disrespectful behavior/language, Disruptive/loud behavior, Other
-- **Behavior Limiting System**:
-  - "Repair the harm" options: Once per placement, mutually exclusive (using one blocks the other)
-  - "Read a chapter": Maximum 4 times total per placement
-  - Unavailable behaviors shown with 🔒 icon directly in dropdown (no separate explanatory text)
-- **Two-Column Layout**:
-  - **Left Column (Points)**: Add Positive Behavior dropdown, Add Negative Behavior dropdown, Daily Total section with point value and Finalize Log button
-  - **Right Column (Today's Behaviors)**: List of all behaviors added for the day with ✕ remove buttons
-- **Interface**: Select behavior from dropdown → Behavior automatically added and appears in "Today's Behaviors" list on right (no separate add button needed)
-- Can add same behavior multiple times (e.g., "Read a chapter" 4 times on same day)
-- Daily Total auto-calculates from all behaviors in today's list
-- Daily Fulfillment feature temporarily removed from Daily Logs (location to be determined later)
-- Database schema changes:
-  - Added `days_completed` INTEGER column to placements table (tracks fulfilled days)
-  - Added `daily_fulfillment` VARCHAR column to daily_logs table (stores 'yes' or 'no')
-  - Added `alert_flag` BOOLEAN column to daily_logs table (flags logs requiring review)
-- Updated `calculate_days_remaining()` utility to subtract days_completed from days_assigned
-- Dashboard and Placements pages display accurate days remaining based on daily fulfillment
-
-**Completed Placements Feature (October 27, 2025)**:
-- Added Completed Placements tab to Placement Manager showing archived ISS sentences
-- Tab structure: Create Placement → Completed Placements (Active Placements tab removed)
-- Tab badges display counts (e.g., "Completed Placements (9)")
-- Completed Placements displays: Name, Start Date, Reason, Number of Days, End Date, Total Points Earned
-- Search functionality by student Name and placement Reason
-- Restore to Active feature allows supervisors to reactivate mistakenly completed placements
-- Database schema changes:
-  - Added `end_date` DATE column to placements table (set when status changes to completed)
-  - Updated Placement ORM model to include end_date attribute
-- New methods: `get_completed_placements_with_students()`, `restore_placement_to_active()`
-- Complete Placement button location to be determined (temporarily removed from UI)
-
-**Combined Placement and Student Creation (October 27, 2025)**:
-- Merged Student Management functionality into Placement Manager
-- Create Placement form now includes student selection dropdown with "Add New Student" option
-- When adding new student: First Name, Last Name, Grade, Homeroom Teacher fields are editable
-- When selecting existing student: Student information auto-fills as disabled fields
-- Single form captures both student and placement details: Name, Grade, Homeroom Teacher, Reason, Start Date, Number of Days, Created By
-- After successful placement creation, user is automatically redirected to Dashboard
-- Success message appears on Dashboard confirming placement creation
-- New placement immediately visible in Active Placements section
-- Eliminates need for separate Student Management page
-- Database schema and student-related methods in DatabaseManager remain intact
-
-**Guardian Contacts Removal (October 26, 2025)**:
-- Removed Guardian contacts fields from Student Management Add Student form (page now removed entirely)
-- Database field `guardian_contacts` retained for schema compatibility but set to empty array for new students
-
-**Point Events Page Removal (October 28, 2025)**:
-- Removed Point Events page entirely from navigation and application
-- All point tracking functionality consolidated into Daily Logs page with dropdown-based behavior selection
-- PointEvents database table and backend methods retained for data integrity
-- Daily Logs now serves as the single interface for all behavioral tracking
-
-**Parent Portal Removal**:
-- Removed Parent Portal page from navigation and application
-- Removed "Share with Parent" checkbox from Notes interface
-- Database field `share_with_parent` retained for schema compatibility but forced to false on new notes
-- Legacy notes with share_with_parent=true remain in database but have no UI exposure
-
-**Database Error Handling**:
-- Added comprehensive error handling to NotificationManager to prevent SSL connection errors from crashing the application
-- All notification query methods now catch exceptions and return empty lists gracefully
-- Error logging added via print statements for debugging (future enhancement: structured logging)
-
-**Sessions Infrastructure (November 5, 2025)**:
-- Added `sessions` table for partial-day capability tracking
-- Session types: iss_full_day, periods, lunch, cool_down, referral
-- Session statuses: scheduled, in_progress, fulfilled, no_show, canceled
-- Session fields: id, placement_id, date, type, periods (JSON array), time_start, time_end, location, status, notes
-- Added nullable `session_id` column to daily_logs table for partial-day linkage
-- Added nullable `session_id` column to point_events table for partial-day linkage
-- **Backward Compatibility**: Existing ISS placements continue to work with NULL session_id values
-- All existing daily logs and point events remain functional (30 logs, 47 events verified)
-- No UI changes yet - infrastructure-only update preparing for future partial-day features
-- Database schema changes applied via ALTER TABLE statements to existing tables
+### Key Features
+- **Combined Placement and Student Creation**: Streamlined form for creating new students and placements simultaneously.
+- **Partial-Day Session Tracking**: Infrastructure for tracking student activities during partial days, including various session types (periods, lunch, cool-down, referral) and statuses.
+- **Placement Type Toggle**: Allows selection between "ISS Days" and "Partial Day" placements, with dynamic UI adjustments.
 
 ## External Dependencies
 
 ### Core Framework
-- **Streamlit**: Web application framework for data applications
-  - Version not pinned in visible files
-  - Handles routing, state management, and UI rendering
+- **Streamlit**: Primary web application framework.
 
 ### Data Persistence
-- **SQLAlchemy**: ORM and database toolkit
-  - Declarative base for model definitions
-  - Session management for transactions
-  - Engine configuration suggests SQLite or PostgreSQL target
-  - Note: Specific database driver not visible in provided files
+- **SQLAlchemy**: ORM for database interaction.
 
 ### Data Processing
-- **Pandas**: Data manipulation and analysis
-  - Used for tabular data display
-  - DataFrame integration with Streamlit components
+- **Pandas**: Utilized for data manipulation and tabular display.
 
 ### Python Standard Library
-- **uuid**: Unique identifier generation for entities
-- **datetime**: Temporal data handling (date, datetime, timedelta)
-- **typing**: Type hints for code clarity and IDE support
-- **enum**: Enumeration support for constrained value sets
-
-### Database Schema Specifications
-External schema definition file suggests possible integration with:
-- Schema validation system (JSON Schema format)
-- Index optimization for query performance on: homeroomTeacher, grade, studentId, status, startDate, placementId, date
-- Email format validation for guardian contacts
-
-**Integration Points**:
-- Guardian email communications (format validation present, integration not implemented)
-- Potential export/reporting systems (Pandas DataFrame support)
-- Multi-user system (createdBy fields suggest user tracking)
+- **uuid**: For generating unique identifiers.
+- **datetime**: For handling temporal data.
+- **typing**: For type hinting.
+- **enum**: For defining constrained value sets.

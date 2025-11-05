@@ -31,6 +31,20 @@ class Readiness(enum.Enum):
     ready = "ready"
     continue_status = "continue"
 
+class SessionType(enum.Enum):
+    iss_full_day = "iss_full_day"
+    periods = "periods"
+    lunch = "lunch"
+    cool_down = "cool_down"
+    referral = "referral"
+
+class SessionStatus(enum.Enum):
+    scheduled = "scheduled"
+    in_progress = "in_progress"
+    fulfilled = "fulfilled"
+    no_show = "no_show"
+    canceled = "canceled"
+
 # Define models
 class Student(Base):
     __tablename__ = 'students'
@@ -63,6 +77,7 @@ class DailyLog(Base):
     
     id = Column(String, primary_key=True)
     placement_id = Column(String, nullable=False)
+    session_id = Column(String, nullable=True)  # NULL for traditional ISS day logs
     date = Column(Date, nullable=False)
     positive_total = Column(Integer, default=0)
     negative_total = Column(Integer, default=0)
@@ -81,6 +96,7 @@ class PointEvent(Base):
     id = Column(String, primary_key=True)
     student_id = Column(String, nullable=False)
     placement_id = Column(String, nullable=False)
+    session_id = Column(String, nullable=True)  # NULL for traditional ISS behavior events
     date = Column(Date, nullable=False)
     type = Column(SQLEnum(PointEventType), nullable=False)
     code = Column(String, nullable=False)
@@ -111,6 +127,20 @@ class Note(Base):
     text = Column(Text, nullable=False)
     share_with_parent = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
+
+class PartialDaySession(Base):
+    __tablename__ = 'sessions'
+    
+    id = Column(String, primary_key=True)
+    placement_id = Column(String, nullable=False)
+    date = Column(Date, nullable=False)
+    type = Column(SQLEnum(SessionType), nullable=False)
+    periods = Column(JSON, default=list)  # List of period numbers, e.g. [1, 2, 3]
+    time_start = Column(String)  # HH:MM format
+    time_end = Column(String)  # HH:MM format
+    location = Column(String)
+    status = Column(SQLEnum(SessionStatus), default=SessionStatus.scheduled)
+    notes = Column(Text)
 
 class DatabaseManager:
     def __init__(self):

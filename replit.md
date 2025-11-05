@@ -33,8 +33,9 @@ Preferred communication style: Simple, everyday language.
 **Core Entities**:
 - **Students**: Primary entity with soft-delete support, grade and homeroom tracking, guardian contacts
 - **Placements**: Time-bound assignments (1-15 days) linking students to intervention periods
-- **DailyLogs**: Date-stamped records per placement for attendance/status tracking, with readiness levels
-- **PointEvents**: Behavioral tracking with positive/negative categorization
+- **Sessions**: Partial-day tracking infrastructure (periods, lunch, cool-down, referral) with time ranges, location, and status management
+- **DailyLogs**: Date-stamped records per placement for attendance/status tracking, with readiness levels; nullable session_id for partial-day linkage
+- **PointEvents**: Behavioral tracking with positive/negative categorization; nullable session_id for partial-day linkage
 - **Assignments**: Task management with status workflow (assigned → in_progress → completed)
 - **Notes**: Free-form documentation system (share_with_parent field exists but UI removed)
 
@@ -96,7 +97,7 @@ Preferred communication style: Simple, everyday language.
 7. **Reports & Analytics**: Comprehensive analytics dashboard with placement statistics, behavior patterns, and student performance metrics
 8. **Import/Export**: Bulk data import/export functionality for students and system data via CSV
 
-### Recent Changes (October 2025)
+### Recent Changes (October-November 2025)
 
 **Daily Logs Redesign (October 26-28, 2025)**:
 - Complete rebuild of Daily Logs page with dropdown-based behavior selection system
@@ -166,6 +167,18 @@ Preferred communication style: Simple, everyday language.
 - Added comprehensive error handling to NotificationManager to prevent SSL connection errors from crashing the application
 - All notification query methods now catch exceptions and return empty lists gracefully
 - Error logging added via print statements for debugging (future enhancement: structured logging)
+
+**Sessions Infrastructure (November 5, 2025)**:
+- Added `sessions` table for partial-day capability tracking
+- Session types: iss_full_day, periods, lunch, cool_down, referral
+- Session statuses: scheduled, in_progress, fulfilled, no_show, canceled
+- Session fields: id, placement_id, date, type, periods (JSON array), time_start, time_end, location, status, notes
+- Added nullable `session_id` column to daily_logs table for partial-day linkage
+- Added nullable `session_id` column to point_events table for partial-day linkage
+- **Backward Compatibility**: Existing ISS placements continue to work with NULL session_id values
+- All existing daily logs and point events remain functional (30 logs, 47 events verified)
+- No UI changes yet - infrastructure-only update preparing for future partial-day features
+- Database schema changes applied via ALTER TABLE statements to existing tables
 
 ## External Dependencies
 

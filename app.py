@@ -261,11 +261,146 @@ elif page == "Placements":
                             st.rerun()
         
         else:
-            # Partial Day - show placeholder (no form needed)
-            st.info("📅 **Partial Day Placement**")
-            st.markdown("### Choose Partial subtype next step")
-            st.markdown("This feature will allow you to create period-specific sessions, lunch sessions, cool-down sessions, or referrals.")
-            st.markdown("*Coming soon: Select session type, periods, time ranges, and location.*")
+            # Partial Day - show subtype selection and inputs
+            st.markdown("### Partial Day Placement")
+            
+            # Subtype selection using pills (radio buttons)
+            subtype = st.radio(
+                "Select Session Subtype",
+                options=["Periods", "Lunch Detention", "Cool-down", "Single-period Referral"],
+                horizontal=True,
+                help="Choose the type of partial-day session to create"
+            )
+            
+            st.divider()
+            
+            # Show inputs based on selected subtype
+            if subtype == "Periods":
+                st.subheader("📚 Period-based Sessions")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    session_date = st.date_input("Session Date*", value=date.today())
+                    periods = st.multiselect(
+                        "Select Periods*",
+                        options=[1, 2, 3, 4, 5, 6, 7, 8],
+                        help="Select one or more periods for this session"
+                    )
+                with col2:
+                    repeat_days = st.number_input(
+                        "Repeat for N Days (optional)",
+                        min_value=0,
+                        max_value=10,
+                        value=0,
+                        help="Leave at 0 for single day, or enter number of days to repeat"
+                    )
+                    location = st.text_input("Location", value="ISS Room")
+                
+                # Validation
+                if periods:
+                    st.info(f"✓ Selected {len(periods)} period(s): {', '.join([f'Period {p}' for p in periods])}")
+                else:
+                    st.warning("Please select at least one period")
+            
+            elif subtype == "Lunch Detention":
+                st.subheader("🍽️ Lunch Detention Sessions")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date_lunch = st.date_input("Start Date*", value=date.today())
+                    end_date_lunch = st.date_input("End Date*", value=date.today())
+                with col2:
+                    lunch_block = st.selectbox("Lunch Block*", options=["A Lunch", "B Lunch", "C Lunch"])
+                    location_lunch = st.text_input("Location*", value="Cafeteria/Detention")
+                
+                # Validate date range
+                #  st.caption(f"Debug: Start={start_date_lunch}, End={end_date_lunch}")  # Debug line
+                if end_date_lunch < start_date_lunch:
+                    st.error(f"❌ End date ({end_date_lunch}) must be on or after start date ({start_date_lunch})")
+                else:
+                    days_in_range = (end_date_lunch - start_date_lunch).days + 1
+                    st.info(f"✓ Date range: {start_date_lunch} to {end_date_lunch} spans {days_in_range} day(s)")
+                
+                st.markdown("**Weekdays to Include:**")
+                weekday_cols = st.columns(5)
+                weekdays_selected = []
+                with weekday_cols[0]:
+                    mon_checked = st.checkbox("Monday", value=True, key="lunch_mon")
+                    if mon_checked:
+                        weekdays_selected.append("Mon")
+                with weekday_cols[1]:
+                    tue_checked = st.checkbox("Tuesday", value=True, key="lunch_tue")
+                    if tue_checked:
+                        weekdays_selected.append("Tue")
+                with weekday_cols[2]:
+                    wed_checked = st.checkbox("Wednesday", value=True, key="lunch_wed")
+                    if wed_checked:
+                        weekdays_selected.append("Wed")
+                with weekday_cols[3]:
+                    thu_checked = st.checkbox("Thursday", value=True, key="lunch_thu")
+                    if thu_checked:
+                        weekdays_selected.append("Thu")
+                with weekday_cols[4]:
+                    fri_checked = st.checkbox("Friday", value=True, key="lunch_fri")
+                    if fri_checked:
+                        weekdays_selected.append("Fri")
+                
+                if weekdays_selected:
+                    st.info(f"✓ Sessions will occur on: {', '.join(weekdays_selected)}")
+                else:
+                    st.warning("⚠️ Please select at least one weekday")
+            
+            elif subtype == "Cool-down":
+                st.subheader("🧘 Cool-down Session")
+                
+                st.info("Cool-down sessions are for today only")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    time_start = st.time_input("Start Time*", value=datetime.now().time())
+                    quick_reason = st.text_area("Quick Reason*", placeholder="Brief description of what happened...")
+                with col2:
+                    # Default end time is 1 hour after current time
+                    default_end = (datetime.now() + timedelta(hours=1)).time()
+                    time_end = st.time_input("End Time*", value=default_end)
+                    location_cooldown = st.selectbox("Location*", options=["ISS Room", "Counselor Office", "Main Office"])
+                
+                # Show duration if both times selected
+                if time_start and time_end:
+                    duration_minutes = (datetime.combine(date.today(), time_end) - datetime.combine(date.today(), time_start)).total_seconds() / 60
+                    if duration_minutes > 0:
+                        st.info(f"✓ Duration: {int(duration_minutes)} minutes")
+                    else:
+                        st.error("❌ End time must be after start time")
+            
+            elif subtype == "Single-period Referral":
+                st.subheader("📝 Single-period Referral")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    referral_date = st.date_input("Date*", value=date.today(), key="ref_date")
+                    single_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], key="ref_period")
+                    referring_teacher = st.text_input("Referring Teacher*", key="ref_teacher")
+                with col2:
+                    referral_reason = st.selectbox(
+                        "Referral Reason*",
+                        options=["Behavioral Issue", "Sub Coverage", "Administrative", "Other"],
+                        key="ref_reason"
+                    )
+                    location_referral = st.text_input("Location*", value="ISS Room", key="ref_location")
+                
+                # Conditional field - shown only for "Other" reason
+                # Note: Field will always appear but validation enforced during session creation
+                if referral_reason == "Other":
+                    st.caption("↳ Please provide additional details:")
+                    other_reason = st.text_input("Specify Other Reason*", key="ref_other_specify", label_visibility="collapsed")
+                
+                # Note: Full field validation will occur when Preview Sessions is enabled
+            
+            st.divider()
+            
+            # Preview Sessions button (disabled for now)
+            st.button("Preview Sessions", disabled=True, help="Session preview will be enabled in next update")
     
     # Tab 2: Completed Placements
     with tab2:

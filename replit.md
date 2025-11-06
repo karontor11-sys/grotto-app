@@ -42,6 +42,11 @@ The UI features a **Dashboard** with card-based student overviews, configurable 
 - **Combined Placement and Student Creation**: Streamlined form for creating new students and placements simultaneously.
 - **Partial-Day Session Tracking**: Infrastructure for tracking student activities during partial days, including various session types (periods, lunch, cool-down, referral) and statuses.
 - **Placement Type Toggle**: Allows selection between "ISS Days" and "Partial Day" placements, with dynamic UI adjustments.
+- **Partial Day Subtypes**: Four session type collection interfaces:
+  - **Periods**: Multi-period sessions with optional repeat capability, validates at least one period selected
+  - **Lunch Detention**: True date range (start/end dates) with weekday selection and lunch block assignment, validates end >= start
+  - **Cool-down**: Same-day time-bounded sessions with time range and duration calculation, validates end > start
+  - **Single-period Referral**: Individual period referrals with teacher and reason tracking (Note: conditional "specify" field for "Other" reason has known Streamlit rendering limitation - field persists when switching reasons; will be addressed in session creation phase)
 
 ## External Dependencies
 

@@ -196,6 +196,26 @@ if page == "Dashboard":
         st.session_state.navigate_to_create_placement = True
         st.rerun()
     
+    # Today's Sessions strip
+    st.markdown("### Today's Sessions")
+    todays_sessions = dm.get_todays_sessions()
+    
+    if not todays_sessions:
+        st.info("No sessions today.")
+    else:
+        # Display sessions as horizontal chips
+        cols = st.columns(min(len(todays_sessions), 4))
+        for idx, session in enumerate(todays_sessions):
+            col_idx = idx % 4
+            with cols[col_idx]:
+                chip_label = f"{session['student_name']} · {session['scope']}"
+                if st.button(chip_label, key=f"session_chip_{session['session_id']}", use_container_width=True):
+                    # Navigate to Daily Logs for this session/placement
+                    st.session_state.selected_placement_for_daily_logs = session['placement_id']
+                    st.session_state.navigate_to_daily_logs = True
+                    st.rerun()
+    
+    st.divider()
     st.markdown("### Active Placements")
     
     # Get all active placements with student info

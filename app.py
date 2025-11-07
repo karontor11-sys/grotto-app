@@ -26,6 +26,116 @@ analytics = st.session_state.analytics_engine
 import_export = st.session_state.import_export_manager
 notifications = st.session_state.notification_manager
 
+# Helper functions for session generation
+def generate_periods_sessions(session_date, periods, repeat_days, location):
+    """Generate sessions for period-based placements"""
+    sessions = []
+    for day_offset in range(repeat_days + 1):
+        current_date = session_date + timedelta(days=day_offset)
+        for period in periods:
+            sessions.append({
+                "date": current_date,
+                "type": "periods",
+                "scope": f"Period {period}",
+                "location": location,
+                "metadata": {"period": period}
+            })
+    return sessions
+
+def generate_lunch_sessions(start_date, end_date, weekdays_map, lunch_block, location):
+    """Generate sessions for lunch detention across date range"""
+    sessions = []
+    current_date = start_date
+    
+    while current_date <= end_date:
+        weekday_name = current_date.strftime("%A")
+        # Map weekday name to our keys
+        weekday_key = {
+            "Monday": "mon", "Tuesday": "tue", "Wednesday": "wed",
+            "Thursday": "thu", "Friday": "fri"
+        }.get(weekday_name)
+        
+        # Only include if this weekday is selected
+        if weekday_key and weekdays_map.get(weekday_key, False):
+            sessions.append({
+                "date": current_date,
+                "type": "lunch",
+                "scope": lunch_block,
+                "location": location,
+                "metadata": {"lunch_block": lunch_block}
+            })
+        
+        current_date += timedelta(days=1)
+    
+    return sessions
+
+def generate_cooldown_session(time_start, time_end, location, quick_reason):
+    """Generate a single cool-down session for today"""
+    return [{
+        "date": date.today(),
+        "type": "cool_down",
+        "scope": f"{time_start.strftime('%I:%M %p')} - {time_end.strftime('%I:%M %p')}",
+        "location": location,
+        "metadata": {
+            "start_time": time_start.isoformat(),
+            "end_time": time_end.isoformat(),
+            "reason": quick_reason
+        }
+    }]
+
+def generate_referral_session(referral_date, period, location, teacher, reason, other_reason=None):
+    """Generate a single-period referral session"""
+    return [{
+        "date": referral_date,
+        "type": "referral",
+        "scope": f"Period {period}",
+        "location": location,
+        "metadata": {
+            "period": period,
+            "teacher": teacher,
+            "reason": other_reason if reason == "Other" else reason
+        }
+    }]
+
+def detect_session_conflicts(sessions):
+    """Detect time conflicts in sessions (same date, overlapping times)"""
+    conflicts = []
+    
+    # Group sessions by date
+    by_date = {}
+    for i, session in enumerate(sessions):
+        date_key = session["date"].isoformat()
+        if date_key not in by_date:
+            by_date[date_key] = []
+        by_date[date_key].append((i, session))
+    
+    # Check for conflicts within each date
+    for date_key, day_sessions in by_date.items():
+        # For period-based sessions, check if same period appears multiple times
+        period_sessions = [(i, s) for i, s in day_sessions if s["type"] in ["periods", "referral"]]
+        if len(period_sessions) > 1:
+            periods_used = {}
+            for i, session in period_sessions:
+                period = session["metadata"].get("period")
+                if period:
+                    if period in periods_used:
+                        conflicts.append({
+                            "indices": [periods_used[period], i],
+                            "message": f"Period {period} conflict on {session['date'].strftime('%m/%d/%Y')}"
+                        })
+                    else:
+                        periods_used[period] = i
+        
+        # For lunch sessions, check if multiple lunch blocks on same day
+        lunch_sessions = [(i, s) for i, s in day_sessions if s["type"] == "lunch"]
+        if len(lunch_sessions) > 1:
+            conflicts.append({
+                "indices": [i for i, _ in lunch_sessions],
+                "message": f"Multiple lunch sessions on {lunch_sessions[0][1]['date'].strftime('%m/%d/%Y')}"
+            })
+    
+    return conflicts
+
 # Page configuration
 st.set_page_config(
     page_title="The Grotto",
@@ -399,8 +509,131 @@ elif page == "Placements":
             
             st.divider()
             
-            # Preview Sessions button (disabled for now)
-            st.button("Preview Sessions", disabled=True, help="Session preview will be enabled in next update")
+            # Preview Sessions button and logic
+            if 'preview_mode' not in st.session_state:
+                st.session_state.preview_mode = False
+            
+            if not st.session_state.preview_mode:
+                # Show Preview button
+                if st.button("Preview Sessions", type="primary"):
+                    # Validation before preview
+                    errors = []
+                    generated_sessions = []
+                    
+                    if subtype == "Periods":
+                        if not periods:
+                            errors.append("Please select at least one period")
+                        else:
+                            generated_sessions = generate_periods_sessions(
+                                session_date, periods, repeat_days, location or "ISS Room"
+                            )
+                    
+                    elif subtype == "Lunch Detention":
+                        if end_date_lunch < start_date_lunch:
+                            errors.append("End date must be on or after start date")
+                        
+                        # Get weekday values from session state
+                        weekdays_map = {
+                            "mon": st.session_state.get("lunch_mon", False),
+                            "tue": st.session_state.get("lunch_tue", False),
+                            "wed": st.session_state.get("lunch_wed", False),
+                            "thu": st.session_state.get("lunch_thu", False),
+                            "fri": st.session_state.get("lunch_fri", False)
+                        }
+                        
+                        if not any(weekdays_map.values()):
+                            errors.append("Please select at least one weekday")
+                        
+                        if not errors:
+                            generated_sessions = generate_lunch_sessions(
+                                start_date_lunch, end_date_lunch, weekdays_map,
+                                lunch_block, location_lunch or "Cafeteria/Detention"
+                            )
+                    
+                    elif subtype == "Cool-down":
+                        if not quick_reason or not quick_reason.strip():
+                            errors.append("Please provide a quick reason")
+                        
+                        duration_minutes = (datetime.combine(date.today(), time_end) - 
+                                          datetime.combine(date.today(), time_start)).total_seconds() / 60
+                        if duration_minutes <= 0:
+                            errors.append("End time must be after start time")
+                        
+                        if not errors:
+                            generated_sessions = generate_cooldown_session(
+                                time_start, time_end, location_cooldown, quick_reason
+                            )
+                    
+                    elif subtype == "Single-period Referral":
+                        if not referring_teacher or not referring_teacher.strip():
+                            errors.append("Please provide a referring teacher")
+                        if not location_referral or not location_referral.strip():
+                            errors.append("Please provide a location")
+                        if referral_reason == "Other" and (not st.session_state.get("ref_other_specify") or 
+                                                          not st.session_state["ref_other_specify"].strip()):
+                            errors.append("Please specify the other reason")
+                        
+                        if not errors:
+                            other_reason_text = st.session_state.get("ref_other_specify", "") if referral_reason == "Other" else None
+                            generated_sessions = generate_referral_session(
+                                referral_date, single_period, location_referral,
+                                referring_teacher, referral_reason, other_reason_text
+                            )
+                    
+                    # Show errors or proceed to preview
+                    if errors:
+                        for error in errors:
+                            st.error(f"❌ {error}")
+                    else:
+                        st.session_state.preview_sessions = generated_sessions
+                        st.session_state.preview_mode = True
+                        st.rerun()
+            
+            else:
+                # Show preview table
+                st.success("✅ Session Preview Generated")
+                st.markdown("### Sessions to be Created")
+                st.caption("Review the sessions below before creating them")
+                
+                sessions = st.session_state.preview_sessions
+                
+                # Detect conflicts
+                conflicts = detect_session_conflicts(sessions)
+                
+                # Show conflict warnings
+                if conflicts:
+                    st.warning(f"⚠️ {len(conflicts)} potential conflict(s) detected:")
+                    for conflict in conflicts:
+                        st.caption(f"  • {conflict['message']}")
+                
+                # Create DataFrame for display
+                df_data = []
+                for i, session in enumerate(sessions):
+                    df_data.append({
+                        "Date": session["date"].strftime("%m/%d/%Y"),
+                        "Type": session["type"].replace("_", " ").title(),
+                        "Scope": session["scope"],
+                        "Location": session["location"]
+                    })
+                
+                df = pd.DataFrame(df_data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                
+                st.info(f"📊 Total sessions to create: {len(sessions)}")
+                
+                # Back and Create buttons
+                st.divider()
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("← Back to Edit", use_container_width=True):
+                        st.session_state.preview_mode = False
+                        if 'preview_sessions' in st.session_state:
+                            del st.session_state.preview_sessions
+                        st.rerun()
+                with col2:
+                    st.button("Create Placement & Sessions", disabled=True, 
+                             use_container_width=True,
+                             help="Session creation will be enabled in next update")
     
     # Tab 2: Completed Placements
     with tab2:

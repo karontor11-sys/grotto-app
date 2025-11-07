@@ -158,7 +158,21 @@ class DatabaseManager:
             st.stop()
         
         try:
-            self.engine = create_engine(database_url)
+            # Configure connection pooling with SSL timeout handling
+            self.engine = create_engine(
+                database_url,
+                pool_pre_ping=True,  # Verify connections before using them
+                pool_recycle=3600,   # Recycle connections after 1 hour
+                pool_size=5,          # Connection pool size
+                max_overflow=10,      # Max overflow connections
+                connect_args={
+                    "connect_timeout": 10,
+                    "keepalives": 1,
+                    "keepalives_idle": 30,
+                    "keepalives_interval": 10,
+                    "keepalives_count": 5
+                }
+            )
             Base.metadata.create_all(self.engine)
             self.SessionLocal = sessionmaker(bind=self.engine)
         except Exception as e:

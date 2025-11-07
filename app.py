@@ -320,11 +320,14 @@ elif page == "Placements":
                 
                 # Submit button
                 if st.form_submit_button("Create Placement"):
+                    st.write(f"DEBUG: Form submitted. is_new_student={is_new_student}")
+                    st.write(f"DEBUG: first_name='{first_name}', last_name='{last_name}', homeroom_teacher='{homeroom_teacher}', reason='{reason}', created_by='{created_by}'")
                     # Validate fields
                     if is_new_student:
                         if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                             st.error("Please fill in all required fields marked with *")
                         else:
+                            st.write("DEBUG: Validation passed, creating student and placement...")
                             # Create new student first
                             new_student_data = {
                                 "firstName": first_name,
@@ -349,10 +352,18 @@ elif page == "Placements":
                                 "createdAt": datetime.now().isoformat()
                             }
                             placement_id = dm.add_placement(placement_data)
+                            st.write(f"DEBUG: Placement created with ID {placement_id}")
                             
                             # Generate ISS full-day sessions
-                            dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                            try:
+                                dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                                st.write("DEBUG: Sessions generated successfully")
+                            except Exception as e:
+                                st.error(f"DEBUG: Session generation failed: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
                             
+                            st.write("DEBUG: Setting navigation flags and calling rerun...")
                             st.session_state.placement_created = True
                             st.session_state.navigate_to_dashboard = True
                             st.rerun()
@@ -373,10 +384,18 @@ elif page == "Placements":
                                 "createdAt": datetime.now().isoformat()
                             }
                             placement_id = dm.add_placement(placement_data)
+                            st.write(f"DEBUG: Placement created with ID {placement_id}")
                             
                             # Generate ISS full-day sessions
-                            dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                            try:
+                                dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                                st.write("DEBUG: Sessions generated successfully")
+                            except Exception as e:
+                                st.error(f"DEBUG: Session generation failed: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
                             
+                            st.write("DEBUG: Setting navigation flags and calling rerun...")
                             st.session_state.placement_created = True
                             st.session_state.navigate_to_dashboard = True
                             st.rerun()

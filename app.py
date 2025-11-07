@@ -162,6 +162,9 @@ if st.session_state.get('navigate_to_create_placement'):
 elif st.session_state.get('navigate_to_dashboard'):
     st.session_state.current_page = "Dashboard"
     del st.session_state.navigate_to_dashboard
+elif st.session_state.get('navigate_to_daily_logs'):
+    st.session_state.current_page = "Daily Logs"
+    del st.session_state.navigate_to_daily_logs
 elif 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
@@ -844,15 +847,13 @@ elif page == "Placements":
 elif page == "Daily Logs":
     st.header("Daily Log Manager")
     
-    # Check if we navigated from Dashboard
-    selected_placement_id = None
-    if st.session_state.get('navigate_to_daily_logs'):
-        selected_placement_id = st.session_state.get('selected_placement_for_daily_logs')
-        # Clear the flags
-        del st.session_state.navigate_to_daily_logs
+    # Check if we navigated from Dashboard with a specific placement selected
+    selected_placement_id = st.session_state.get('selected_placement_for_daily_logs')
+    if selected_placement_id:
+        st.info("📋 Showing daily log for selected student")
+        # Clear the flag after using it
         if 'selected_placement_for_daily_logs' in st.session_state:
             del st.session_state.selected_placement_for_daily_logs
-        st.info("📋 Showing daily log for selected student")
     
     # Date selector
     selected_date = st.date_input("Select Date", value=date.today())

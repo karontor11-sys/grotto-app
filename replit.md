@@ -29,7 +29,9 @@ A centralized **Point System Architecture** enforces business rules for behavior
 A consistent date handling strategy uses ISO format for storage, date objects for calculations, and formatted strings for display. Utilities abstract presentation concerns and handle business logic like calculating remaining placement days and status-based UI theming.
 
 ### UI Components
-The UI features a **Dashboard** with card-based student overviews, configurable columns, and quick access to placement creation.
+The UI features a **Dashboard** with:
+- **Today's Sessions**: Horizontal chip strip showing all sessions scheduled for today with format "Student Name · Scope" (e.g., "Isaac T · P2", "Jesse M · Lunch"). Clicking a chip navigates to Daily Logs for that placement. Shows "No sessions today" when empty.
+- **Active Placements**: Card-based student overviews with configurable columns and quick access to placement creation.
 - **Placement Manager**: Manages placement lifecycles through two tabs: "Create Placement" (combining student and placement creation) and "Completed Placements" (for historical archives and restoration).
 - **Daily Logs**: A comprehensive interface for point tracking using dropdown-based behavior selection, displaying daily totals, and allowing log finalization.
 - **Assignments**: Manages academic tasks.

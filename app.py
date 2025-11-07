@@ -316,6 +316,7 @@ elif page == "Placements":
                     days_assigned = st.slider("Number of Days*", min_value=1, max_value=15, value=5)
                 
                 created_by = st.text_input("Created By*", value="Staff")
+                skip_weekends = st.checkbox("Skip Weekends", value=True, help="Generate sessions only for weekdays (Mon-Fri)")
                 
                 # Submit button
                 if st.form_submit_button("Create Placement"):
@@ -340,13 +341,18 @@ elif page == "Placements":
                                 "studentId": student_id,
                                 "homeroomTeacherId": homeroom_teacher,
                                 "reason": reason,
+                                "type": "iss_full_day",
                                 "daysAssigned": days_assigned,
                                 "startDate": start_date.isoformat(),
                                 "status": "active",
                                 "createdBy": created_by,
                                 "createdAt": datetime.now().isoformat()
                             }
-                            dm.add_placement(placement_data)
+                            placement_id = dm.add_placement(placement_data)
+                            
+                            # Generate ISS full-day sessions
+                            dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                            
                             st.session_state.placement_created = True
                             st.session_state.navigate_to_dashboard = True
                             st.rerun()
@@ -359,20 +365,75 @@ elif page == "Placements":
                                 "studentId": student_data['_id'],
                                 "homeroomTeacherId": student_data['homeroomTeacher'],
                                 "reason": reason,
+                                "type": "iss_full_day",
                                 "daysAssigned": days_assigned,
                                 "startDate": start_date.isoformat(),
                                 "status": "active",
                                 "createdBy": created_by,
                                 "createdAt": datetime.now().isoformat()
                             }
-                            dm.add_placement(placement_data)
+                            placement_id = dm.add_placement(placement_data)
+                            
+                            # Generate ISS full-day sessions
+                            dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                            
                             st.session_state.placement_created = True
                             st.session_state.navigate_to_dashboard = True
                             st.rerun()
         
         else:
-            # Partial Day - show subtype selection and inputs
+            # Partial Day - show placement fields and subtype selection
             st.markdown("### Partial Day Placement")
+            
+            # Student selection (same as ISS Days)
+            student_options = ["-- Add New Student --"] + [f"{s['firstName']} {s['lastName']}" for s in students]
+            selected_student_option_partial = st.selectbox("Select Student*", student_options, key="partial_student_select")
+            is_new_student_partial = selected_student_option_partial == "-- Add New Student --"
+            
+            # Initialize variables
+            partial_student_data = None
+            partial_student_id = None
+            partial_first_name = ""
+            partial_last_name = ""
+            partial_grade = "K"
+            partial_homeroom_teacher = ""
+            
+            # Student Information
+            st.markdown("#### Student Information")
+            col1, col2 = st.columns(2)
+            
+            if is_new_student_partial:
+                with col1:
+                    partial_first_name = st.text_input("First Name*", key="partial_fname")
+                    partial_grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="partial_grade")
+                with col2:
+                    partial_last_name = st.text_input("Last Name*", key="partial_lname")
+                    partial_homeroom_teacher = st.text_input("Homeroom Teacher*", key="partial_homeroom")
+            else:
+                # Get selected student data
+                selected_idx = student_options.index(selected_student_option_partial) - 1
+                if selected_idx >= 0:
+                    partial_student_data = students[selected_idx]
+                    partial_student_id = partial_student_data['_id']
+                    with col1:
+                        st.text_input("First Name", value=partial_student_data['firstName'], disabled=True, key="partial_fname_display")
+                        st.text_input("Grade", value=partial_student_data['grade'], disabled=True, key="partial_grade_display")
+                    with col2:
+                        st.text_input("Last Name", value=partial_student_data['lastName'], disabled=True, key="partial_lname_display")
+                        st.text_input("Homeroom Teacher", value=partial_student_data['homeroomTeacher'], disabled=True, key="partial_homeroom_display")
+            
+            # Placement Information
+            st.markdown("#### Placement Information")
+            col1, col2 = st.columns(2)
+            with col1:
+                partial_reason = st.text_area("Reason for Placement*", key="partial_reason")
+                partial_start_date = st.date_input("Start Date*", value=date.today(), key="partial_start_date")
+            with col2:
+                partial_created_by = st.text_input("Created By (Your Name)*", key="partial_created_by")
+                # Days assigned set to 1 for partial day placements (can be extended later)
+                st.info("Partial day placements: Sessions are created individually")
+            
+            st.divider()
             
             # Subtype selection using pills (radio buttons)
             subtype = st.radio(
@@ -631,9 +692,88 @@ elif page == "Placements":
                             del st.session_state.preview_sessions
                         st.rerun()
                 with col2:
-                    st.button("Create Placement & Sessions", disabled=True, 
-                             use_container_width=True,
-                             help="Session creation will be enabled in next update")
+                    if st.button("Create Placement & Sessions", type="primary", use_container_width=True):
+                        # Validate placement fields
+                        creation_errors = []
+                        
+                        if is_new_student_partial:
+                            if not all([partial_first_name, partial_last_name, partial_grade, partial_homeroom_teacher]):
+                                creation_errors.append("Please fill in all student information fields")
+                        elif not partial_student_id:
+                            creation_errors.append("Please select a student")
+                        
+                        if not partial_reason or not partial_reason.strip():
+                            creation_errors.append("Please provide a reason for placement")
+                        if not partial_created_by or not partial_created_by.strip():
+                            creation_errors.append("Please provide your name in Created By field")
+                        
+                        if creation_errors:
+                            for error in creation_errors:
+                                st.error(f"❌ {error}")
+                        else:
+                            try:
+                                # Create or get student ID
+                                if is_new_student_partial:
+                                    new_student_data = {
+                                        "firstName": partial_first_name,
+                                        "lastName": partial_last_name,
+                                        "grade": partial_grade,
+                                        "homeroomTeacher": partial_homeroom_teacher,
+                                        "guardianContacts": []
+                                    }
+                                    final_student_id = dm.add_student(new_student_data)
+                                    final_homeroom_teacher = partial_homeroom_teacher
+                                else:
+                                    final_student_id = partial_student_id
+                                    final_homeroom_teacher = partial_student_data['homeroomTeacher']
+                                
+                                # Create placement with type="partial"
+                                # For partial day, days_assigned is calculated from number of sessions
+                                placement_data = {
+                                    "studentId": final_student_id,
+                                    "homeroomTeacherId": final_homeroom_teacher,
+                                    "reason": partial_reason,
+                                    "type": "partial",
+                                    "daysAssigned": len(sessions),  # Number of sessions
+                                    "startDate": partial_start_date.isoformat(),
+                                    "status": "active",
+                                    "createdBy": partial_created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                placement_id = dm.add_placement(placement_data)
+                                
+                                # Create sessions from preview data
+                                sessions_to_create = []
+                                for session in sessions:
+                                    session_data = {
+                                        "placement_id": placement_id,
+                                        "date": session["date"],
+                                        "type": session["type"],
+                                        "location": session["location"],
+                                        "periods": session["metadata"].get("periods", []) if "metadata" in session and session["metadata"].get("period") else [],
+                                        "time_start": session["metadata"].get("start_time") if "metadata" in session else None,
+                                        "time_end": session["metadata"].get("end_time") if "metadata" in session else None,
+                                        "notes": session["metadata"].get("reason", "") if "metadata" in session else ""
+                                    }
+                                    # Add period to periods list if it exists
+                                    if "metadata" in session and "period" in session["metadata"]:
+                                        session_data["periods"] = [session["metadata"]["period"]]
+                                    
+                                    sessions_to_create.append(session_data)
+                                
+                                dm.add_sessions_bulk(sessions_to_create)
+                                
+                                # Clear preview state and navigate to Dashboard
+                                st.session_state.preview_mode = False
+                                if 'preview_sessions' in st.session_state:
+                                    del st.session_state.preview_sessions
+                                st.session_state.placement_created = True
+                                st.session_state.navigate_to_dashboard = True
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error creating placement: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
     
     # Tab 2: Completed Placements
     with tab2:

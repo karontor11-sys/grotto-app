@@ -18,6 +18,10 @@ class PlacementStatus(enum.Enum):
     active = "active"
     completed = "completed"
 
+class PlacementType(enum.Enum):
+    iss_full_day = "iss_full_day"
+    partial = "partial"
+
 class AssignmentStatus(enum.Enum):
     assigned = "assigned"
     in_progress = "in_progress"
@@ -64,6 +68,7 @@ class Placement(Base):
     student_id = Column(String, nullable=False)
     homeroom_teacher_id = Column(String)
     reason = Column(Text, nullable=False)
+    type = Column(SQLEnum(PlacementType), default=PlacementType.iss_full_day)  # iss_full_day or partial
     days_assigned = Column(Integer, nullable=False)
     days_completed = Column(Integer, default=0)  # Days earned through Daily Fulfillment = Yes
     start_date = Column(Date, nullable=False)
@@ -228,11 +233,19 @@ class DatabaseManager:
         session = self.get_session()
         try:
             placement_id = self.generate_id()
+            
+            # Determine placement type
+            placement_type = PlacementType.iss_full_day
+            if 'type' in placement_data:
+                if placement_data['type'] == 'partial':
+                    placement_type = PlacementType.partial
+            
             placement = Placement(
                 id=placement_id,
                 student_id=placement_data['studentId'],
                 homeroom_teacher_id=placement_data.get('homeroomTeacherId'),
                 reason=placement_data['reason'],
+                type=placement_type,
                 days_assigned=placement_data['daysAssigned'],
                 start_date=datetime.fromisoformat(placement_data['startDate']).date(),
                 status=PlacementStatus.active,
@@ -330,6 +343,100 @@ class DatabaseManager:
             return result
         finally:
             session.close()
+    
+    # Session operations
+    def add_session(self, session_data: Dict[str, Any]) -> str:
+        """Add a new partial day session."""
+        db_session = self.get_session()
+        try:
+            session_id = self.generate_id()
+            
+            # Parse session type
+            session_type = SessionType[session_data['type']]
+            
+            new_session = PartialDaySession(
+                id=session_id,
+                placement_id=session_data['placement_id'],
+                date=session_data['date'] if isinstance(session_data['date'], date) else datetime.fromisoformat(session_data['date']).date(),
+                type=session_type,
+                periods=session_data.get('periods', []),
+                time_start=session_data.get('time_start'),
+                time_end=session_data.get('time_end'),
+                location=session_data.get('location', ''),
+                status=SessionStatus.scheduled,
+                notes=session_data.get('notes', '')
+            )
+            db_session.add(new_session)
+            db_session.commit()
+            return session_id
+        finally:
+            db_session.close()
+    
+    def add_sessions_bulk(self, sessions_data: List[Dict[str, Any]]) -> List[str]:
+        """Add multiple sessions at once."""
+        db_session = self.get_session()
+        try:
+            session_ids = []
+            for sess_data in sessions_data:
+                session_id = self.generate_id()
+                session_ids.append(session_id)
+                
+                # Parse session type
+                session_type = SessionType[sess_data['type']]
+                
+                new_session = PartialDaySession(
+                    id=session_id,
+                    placement_id=sess_data['placement_id'],
+                    date=sess_data['date'] if isinstance(sess_data['date'], date) else datetime.fromisoformat(sess_data['date']).date(),
+                    type=session_type,
+                    periods=sess_data.get('periods', []),
+                    time_start=sess_data.get('time_start'),
+                    time_end=sess_data.get('time_end'),
+                    location=sess_data.get('location', ''),
+                    status=SessionStatus.scheduled,
+                    notes=sess_data.get('notes', '')
+                )
+                db_session.add(new_session)
+            
+            db_session.commit()
+            return session_ids
+        finally:
+            db_session.close()
+    
+    def generate_iss_full_day_sessions(self, placement_id: str, start_date: date, days_assigned: int, skip_weekends: bool = True) -> List[str]:
+        """Generate ISS full-day sessions for traditional placements."""
+        db_session = self.get_session()
+        try:
+            session_ids = []
+            current_date = start_date
+            days_created = 0
+            
+            while days_created < days_assigned:
+                # Skip weekends if requested
+                if skip_weekends and current_date.weekday() >= 5:  # 5=Saturday, 6=Sunday
+                    current_date += timedelta(days=1)
+                    continue
+                
+                session_id = self.generate_id()
+                session_ids.append(session_id)
+                
+                new_session = PartialDaySession(
+                    id=session_id,
+                    placement_id=placement_id,
+                    date=current_date,
+                    type=SessionType.iss_full_day,
+                    location='ISS Room',
+                    status=SessionStatus.scheduled
+                )
+                db_session.add(new_session)
+                
+                days_created += 1
+                current_date += timedelta(days=1)
+            
+            db_session.commit()
+            return session_ids
+        finally:
+            db_session.close()
     
     # Daily Log operations
     def get_or_create_daily_log(self, placement_id: str, log_date: str) -> Dict[str, Any]:

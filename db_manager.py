@@ -452,6 +452,58 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def get_todays_sessions(self) -> List[Dict[str, Any]]:
+        """Get all sessions scheduled for today with student and placement info."""
+        db_session = self.get_session()
+        try:
+            today = date.today()
+            sessions = db_session.query(PartialDaySession).filter(
+                PartialDaySession.date == today,
+                PartialDaySession.status.in_([SessionStatus.scheduled, SessionStatus.in_progress])
+            ).all()
+            
+            result = []
+            for sess in sessions:
+                # Get placement and student info
+                placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
+                if placement:
+                    student = db_session.query(Student).filter(Student.id == placement.student_id).first()
+                    if student:
+                        # Format scope based on session type
+                        scope = ""
+                        if sess.type == SessionType.periods:
+                            if sess.periods:
+                                period_list = ", ".join([f"P{p}" for p in sess.periods])
+                                scope = period_list
+                        elif sess.type == SessionType.lunch:
+                            scope = "Lunch"
+                        elif sess.type == SessionType.cool_down:
+                            if sess.time_start and sess.time_end:
+                                scope = f"{sess.time_start}–{sess.time_end}"
+                            else:
+                                scope = "Cool-down"
+                        elif sess.type == SessionType.referral:
+                            if sess.periods and len(sess.periods) > 0:
+                                scope = f"P{sess.periods[0]}"
+                            else:
+                                scope = "Referral"
+                        elif sess.type == SessionType.iss_full_day:
+                            scope = "Full Day"
+                        
+                        result.append({
+                            'session_id': sess.id,
+                            'placement_id': sess.placement_id,
+                            'student_name': f"{student.first_name} {student.last_name[0]}",
+                            'student_full_name': f"{student.first_name} {student.last_name}",
+                            'scope': scope,
+                            'type': sess.type.value,
+                            'location': sess.location or ''
+                        })
+            
+            return result
+        finally:
+            db_session.close()
+    
     # Daily Log operations
     def get_or_create_daily_log(self, placement_id: str, log_date: str) -> Dict[str, Any]:
         """Get or create a daily log for a placement on a specific date."""

@@ -847,31 +847,224 @@ elif page == "Placements":
 elif page == "Daily Logs":
     st.header("Daily Log Manager")
     
-    # Check if we navigated from Dashboard with a specific placement selected
-    selected_placement_id = st.session_state.get('selected_placement_for_daily_logs')
-    if selected_placement_id:
-        st.info("📋 Showing daily log for selected student")
-        # Clear the flag after using it
-        if 'selected_placement_for_daily_logs' in st.session_state:
-            del st.session_state.selected_placement_for_daily_logs
+    # Check if we navigated from a session chip (session-scoped view)
+    selected_session_id = st.session_state.get('selected_session_id')
+    session_context = None
     
-    # Date selector
-    selected_date = st.date_input("Select Date", value=date.today())
-    
-    # Get active placements for the selected date
-    active_placements = dm.get_active_placements_for_date(selected_date)
-    
-    if not active_placements:
-        st.info("No active placements for selected date.")
-    else:
-        st.subheader(f"Daily Logs for {format_date(selected_date)}")
-        
-        for placement in active_placements:
-            student = placement['student']
-            daily_log = dm.get_or_create_daily_log(placement['_id'], selected_date.isoformat())
+    if selected_session_id:
+        # Load session details for session-scoped view
+        session_context = dm.get_session_details(selected_session_id)
+        if session_context:
+            # Session-scoped header
+            st.markdown(f"### {session_context['student_name']} · {session_context['type_label']}")
             
-            # Expand only the selected student's log, or all by default
-            is_expanded = True if selected_placement_id is None else (placement['_id'] == selected_placement_id)
+            # Display session details in a nice badge format
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Type", session_context['type_label'])
+            with col2:
+                st.metric("Scope", session_context['scope'])
+            with col3:
+                st.metric("Date", format_date(session_context['date']))
+            
+            st.divider()
+            
+            # Clear the session_id from session state after using it
+            del st.session_state.selected_session_id
+        else:
+            st.error("Session not found")
+            selected_session_id = None
+    
+    # If not in session context, show placement-wide view
+    if not session_context:
+        # Date selector
+        selected_date = st.date_input("Select Date", value=date.today())
+        
+        # Get active placements for the selected date
+        active_placements = dm.get_active_placements_for_date(selected_date)
+        
+        if not active_placements:
+            st.info("No active placements for selected date.")
+        else:
+            st.subheader(f"Daily Logs for {format_date(selected_date)}")
+    
+    # Process either session-scoped or placement-wide view
+    if session_context:
+        # Session-scoped view - single student/session
+        placements_to_display = [{'_id': session_context['placement_id'], 
+                                   'student': {'_id': session_context['student_id'],
+                                              'firstName': session_context['student_first_name'],
+                                              'lastName': session_context['student_last_name']}}]
+        selected_date = datetime.fromisoformat(session_context['date']).date()
+        is_session_scoped = True
+    elif not session_context and active_placements:
+        # Placement-wide view - all placements
+        placements_to_display = active_placements
+        is_session_scoped = False
+    else:
+        placements_to_display = []
+        is_session_scoped = False
+    
+    # Display daily logs
+    for placement in placements_to_display:
+        student = placement['student']
+        daily_log = dm.get_or_create_daily_log(placement['_id'], selected_date.isoformat())
+        
+        # In session-scoped view, don't use expander (already have header)
+        # In placement-wide view, use expander
+        if is_session_scoped:
+            # Session-scoped view - no expander needed
+            # Check if log is finalized
+            is_finalized = daily_log.get('finalizedBy') is not None
+            
+            # Display alert indicator if present
+            if daily_log.get('alertFlag'):
+                st.error("⚠️ ALERT: Daily Fulfillment marked as NO - Requires supervisor review")
+            
+            # Get session-scoped point events
+            todays_events = dm.get_point_events_for_session(selected_session_id, selected_date.isoformat())
+            positive_points = sum([e['value'] for e in todays_events if e['type'] == 'positive'])
+            negative_points = sum([e['value'] for e in todays_events if e['type'] == 'negative'])
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Points")
+                
+                if not is_finalized:
+                    # Positive Behaviors - Dropdown to add
+                    st.markdown("**Add Positive Behavior**")
+                    positive_menu = ps.get_positive_point_menu()
+                    
+                    # Build options with availability status
+                    positive_options = ["-- Select Behavior --"]
+                    available_map = {}  # Maps display label to (item, can_add)
+                    
+                    for item in positive_menu:
+                        can_add, reason = ps.can_add_point_event(
+                            placement['_id'], 
+                            student['_id'], 
+                            item['code'], 
+                            selected_date.isoformat()
+                        )
+                        
+                        if can_add:
+                            display_label = item['label']
+                            available_map[display_label] = (item, True)
+                        else:
+                            display_label = f"🔒 {item['label']}"
+                            available_map[display_label] = (item, False)
+                        
+                        positive_options.append(display_label)
+                    
+                    selected_positive_behavior = st.selectbox(
+                        "Choose positive behavior to add:",
+                        positive_options,
+                        key=f"pos_select_{daily_log['_id']}_session",
+                        label_visibility="collapsed"
+                    )
+                    
+                    if selected_positive_behavior != "-- Select Behavior --":
+                        item, can_add = available_map[selected_positive_behavior]
+                        
+                        if can_add:
+                            # Add point event with session_id
+                            dm.add_point_event({
+                                'placementId': placement['_id'],
+                                'studentId': student['_id'],
+                                'sessionId': selected_session_id,  # Include session_id
+                                'code': item['code'],
+                                'type': 'positive',
+                                'value': item['value'],
+                                'date': selected_date.isoformat(),
+                                'notes': f"{item['label']}"
+                            })
+                            st.rerun()
+                        else:
+                            st.error("This behavior is not available")
+                    
+                    st.markdown("---")
+                    
+                    # Negative Behaviors - Dropdown to add
+                    st.markdown("**Add Negative Behavior**")
+                    negative_menu = ps.get_negative_point_menu()
+                    
+                    negative_options = ["-- Select Behavior --"] + [item['label'] for item in negative_menu]
+                    selected_negative_behavior = st.selectbox(
+                        "Choose negative behavior to add:",
+                        negative_options,
+                        key=f"neg_select_{daily_log['_id']}_session",
+                        label_visibility="collapsed"
+                    )
+                    
+                    if selected_negative_behavior != "-- Select Behavior --":
+                        # Find the selected item
+                        selected_item = next(item for item in negative_menu if item['label'] == selected_negative_behavior)
+                        
+                        # Add point event with session_id
+                        dm.add_point_event({
+                            'placementId': placement['_id'],
+                            'studentId': student['_id'],
+                            'sessionId': selected_session_id,  # Include session_id
+                            'code': selected_item['code'],
+                            'type': 'negative',
+                            'value': selected_item['value'],
+                            'date': selected_date.isoformat(),
+                            'notes': f"{selected_item['label']}"
+                        })
+                        st.rerun()
+                    
+                    st.markdown("---")
+                else:
+                    # Show finalized metrics
+                    st.metric("Positive Points", daily_log['positiveTotal'])
+                    st.metric("Negative Points", daily_log['negativeTotal'])
+                    
+                    st.markdown("---")
+                
+                # Daily Total section
+                st.subheader("Daily Total")
+                # Compute daily total
+                computed_total = positive_points + negative_points
+                st.markdown(f"<h1 style='text-align: left; margin: 0;'>{computed_total}</h1>", unsafe_allow_html=True)
+                
+                # Finalize button (disabled if both points are 0 or null)
+                if not is_finalized:
+                    can_finalize = (positive_points != 0 or negative_points != 0)
+                    if st.button(
+                        "Finalize Log", 
+                        key=f"finalize_{daily_log['_id']}",
+                        disabled=not can_finalize,
+                        help="Points must be set (not both zero) to finalize"
+                    ):
+                        dm.finalize_daily_log(daily_log['_id'], "Staff")
+                        st.success("Daily log finalized!")
+                        st.rerun()
+                else:
+                    st.success(f"✓ Finalized by: {daily_log['finalizedBy']}")
+                    st.caption(f"At: {daily_log.get('finalizedAt', 'Unknown')}")
+            
+            with col2:
+                st.subheader("Today's Behaviors")
+                
+                if todays_events:
+                    for idx, event in enumerate(todays_events):
+                        item = ps.get_point_item_by_code(event['code'])
+                        icon = "✅" if event['type'] == 'positive' else "❌"
+                        col_behavior, col_remove = st.columns([4, 1])
+                        with col_behavior:
+                            st.caption(f"{icon} {item['label']}")
+                        with col_remove:
+                            if not is_finalized:
+                                if st.button("✕", key=f"remove_{event['_id']}", help="Remove this behavior"):
+                                    dm.delete_point_event(event['_id'])
+                                    st.rerun()
+                else:
+                    st.info("No behaviors added yet")
+        
+        else:
+            # Placement-wide view - use expander
+            is_expanded = True
             
             with st.expander(f"{student['firstName']} {student['lastName']}", expanded=is_expanded):
                 # Check if log is finalized
@@ -881,7 +1074,7 @@ elif page == "Daily Logs":
                 if daily_log.get('alertFlag'):
                     st.error("⚠️ ALERT: Daily Fulfillment marked as NO - Requires supervisor review")
                 
-                # Calculate current totals for display
+                # Get placement-wide point events (no session filter)
                 todays_events = dm.get_point_events_for_date(placement['_id'], selected_date.isoformat())
                 positive_points = sum([e['value'] for e in todays_events if e['type'] == 'positive'])
                 negative_points = sum([e['value'] for e in todays_events if e['type'] == 'negative'])
@@ -928,7 +1121,7 @@ elif page == "Daily Logs":
                             item, can_add = available_map[selected_positive_behavior]
                             
                             if can_add:
-                                # Add point event
+                                # Add point event (no session_id for placement-wide view)
                                 dm.add_point_event({
                                     'placementId': placement['_id'],
                                     'studentId': student['_id'],
@@ -960,7 +1153,7 @@ elif page == "Daily Logs":
                             # Find the selected item
                             selected_item = next(item for item in negative_menu if item['label'] == selected_negative_behavior)
                             
-                            # Add point event
+                            # Add point event (no session_id for placement-wide view)
                             dm.add_point_event({
                                 'placementId': placement['_id'],
                                 'studentId': student['_id'],

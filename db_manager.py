@@ -49,6 +49,12 @@ class SessionStatus(enum.Enum):
     no_show = "no_show"
     canceled = "canceled"
 
+class CompletionRule(enum.Enum):
+    iss_days = "iss_days"  # Traditional ISS: completes when days_remaining = 0
+    all_sessions_fulfilled = "all_sessions_fulfilled"  # All sessions must be fulfilled
+    min_sessions_n = "min_sessions_n"  # Minimum number of sessions fulfilled
+    date_range_end = "date_range_end"  # Auto-complete when end date passes
+
 # Define models
 class Student(Base):
     __tablename__ = 'students'
@@ -69,6 +75,8 @@ class Placement(Base):
     homeroom_teacher_id = Column(String)
     reason = Column(Text, nullable=False)
     type = Column(SQLEnum(PlacementType), default=PlacementType.iss_full_day)  # iss_full_day or partial
+    completion_rule = Column(SQLEnum(CompletionRule), default=CompletionRule.iss_days)  # How placement completes
+    min_sessions_required = Column(Integer, nullable=True)  # For min_sessions_n rule
     days_assigned = Column(Integer, nullable=False)
     days_completed = Column(Integer, default=0)  # Days earned through Daily Fulfillment = Yes
     start_date = Column(Date, nullable=False)
@@ -356,6 +364,97 @@ class DatabaseManager:
                     result.append(placement_dict)
             
             return result
+        finally:
+            session.close()
+    
+    def get_session_fulfillment_stats(self, placement_id: str) -> Dict[str, int]:
+        """Get session fulfillment statistics for a placement."""
+        session = self.get_session()
+        try:
+            all_sessions = session.query(PartialDaySession).filter(
+                PartialDaySession.placement_id == placement_id
+            ).all()
+            
+            total_sessions = len(all_sessions)
+            fulfilled_sessions = len([s for s in all_sessions if s.status == SessionStatus.fulfilled])
+            
+            return {
+                'total_sessions': total_sessions,
+                'fulfilled_sessions': fulfilled_sessions,
+                'remaining_sessions': total_sessions - fulfilled_sessions
+            }
+        finally:
+            session.close()
+    
+    def check_placement_completion_criteria(self, placement_id: str) -> Dict[str, Any]:
+        """Check if placement meets its completion criteria."""
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'can_complete': False, 'reason': 'Placement not found'}
+            
+            # Already completed
+            if placement.status == PlacementStatus.completed:
+                return {'can_complete': False, 'reason': 'Already completed'}
+            
+            completion_rule = placement.completion_rule.value
+            
+            # ISS Days rule (traditional)
+            if completion_rule == 'iss_days':
+                days_remaining = placement.days_assigned - placement.days_completed
+                can_complete = days_remaining <= 0
+                return {
+                    'can_complete': can_complete,
+                    'reason': f'Days remaining: {days_remaining}' if not can_complete else 'All days completed',
+                    'rule': 'iss_days',
+                    'days_remaining': days_remaining
+                }
+            
+            # Get session stats for partial placement rules
+            stats = self.get_session_fulfillment_stats(placement_id)
+            
+            # All Sessions Fulfilled rule
+            if completion_rule == 'all_sessions_fulfilled':
+                can_complete = stats['total_sessions'] > 0 and stats['remaining_sessions'] == 0
+                return {
+                    'can_complete': can_complete,
+                    'reason': f"{stats['fulfilled_sessions']}/{stats['total_sessions']} sessions fulfilled",
+                    'rule': 'all_sessions_fulfilled',
+                    'stats': stats
+                }
+            
+            # Minimum Sessions rule
+            if completion_rule == 'min_sessions_n':
+                min_required = placement.min_sessions_required or 0
+                can_complete = stats['fulfilled_sessions'] >= min_required
+                return {
+                    'can_complete': can_complete,
+                    'reason': f"{stats['fulfilled_sessions']}/{min_required} minimum sessions fulfilled",
+                    'rule': 'min_sessions_n',
+                    'stats': stats,
+                    'min_required': min_required
+                }
+            
+            # Date Range End rule
+            if completion_rule == 'date_range_end':
+                # Auto-complete when end date has passed
+                if placement.end_date:
+                    can_complete = date.today() > placement.end_date
+                    return {
+                        'can_complete': can_complete,
+                        'reason': f"End date: {placement.end_date.isoformat()}",
+                        'rule': 'date_range_end',
+                        'end_date': placement.end_date.isoformat()
+                    }
+                else:
+                    return {
+                        'can_complete': False,
+                        'reason': 'No end date set',
+                        'rule': 'date_range_end'
+                    }
+            
+            return {'can_complete': False, 'reason': 'Unknown completion rule'}
         finally:
             session.close()
     
@@ -936,6 +1035,9 @@ class DatabaseManager:
             'studentId': placement.student_id,
             'homeroomTeacherId': placement.homeroom_teacher_id,
             'reason': placement.reason,
+            'type': placement.type.value,
+            'completionRule': placement.completion_rule.value,
+            'minSessionsRequired': placement.min_sessions_required,
             'daysAssigned': placement.days_assigned,
             'daysCompleted': placement.days_completed or 0,
             'startDate': placement.start_date.isoformat(),

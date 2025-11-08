@@ -158,26 +158,34 @@ st.sidebar.title("Navigation")
 # Check if we need to navigate to a specific page
 if st.session_state.get('navigate_to_create_placement'):
     st.session_state.current_page = "Placements"
+    st.session_state.page_selector = "Placements"  # Sync selectbox state
     del st.session_state.navigate_to_create_placement
 elif st.session_state.get('navigate_to_dashboard'):
     st.session_state.current_page = "Dashboard"
+    st.session_state.page_selector = "Dashboard"  # Sync selectbox state
     del st.session_state.navigate_to_dashboard
 elif st.session_state.get('navigate_to_daily_logs'):
     st.session_state.current_page = "Daily Logs"
+    st.session_state.page_selector = "Daily Logs"  # Sync selectbox state
     del st.session_state.navigate_to_daily_logs
 elif 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-page = st.sidebar.selectbox(
+# Use current_page as the source of truth for the page selector
+page = st.session_state.current_page
+
+# Sidebar page selector (synchronized with current_page)
+sidebar_page = st.sidebar.selectbox(
     "Select a page:",
     ["Dashboard", "Placements", "Daily Logs", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"],
     index=["Dashboard", "Placements", "Daily Logs", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"].index(st.session_state.current_page),
     key="page_selector"
 )
 
-# Update current_page when user manually selects a page
-if page != st.session_state.current_page:
-    st.session_state.current_page = page
+# Update current_page when user manually selects a page from sidebar
+if sidebar_page != st.session_state.current_page:
+    st.session_state.current_page = sidebar_page
+    page = sidebar_page
 
 # Show notification badge in sidebar
 all_notifs = notifications.get_all_notifications()

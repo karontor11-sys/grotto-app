@@ -145,6 +145,7 @@ class PartialDaySession(Base):
     time_end = Column(String)  # HH:MM format
     location = Column(String)
     status = Column(SQLEnum(SessionStatus), default=SessionStatus.scheduled)
+    alert_flag = Column(Boolean, default=False)  # Supervisor alert for no-show
     notes = Column(Text)
 
 class DatabaseManager:
@@ -554,8 +555,44 @@ class DatabaseManager:
                 'type_label': sess.type.value.replace('_', ' ').title(),
                 'date': sess.date.isoformat(),
                 'location': sess.location or '',
-                'status': sess.status.value
+                'status': sess.status.value,
+                'alert_flag': sess.alert_flag
             }
+        finally:
+            db_session.close()
+    
+    def update_session_status(self, session_id: str, new_status: str, set_alert: bool = False) -> bool:
+        """Update session status with validation."""
+        db_session = self.get_session()
+        try:
+            sess = db_session.query(PartialDaySession).filter(PartialDaySession.id == session_id).first()
+            if not sess:
+                return False
+            
+            # Validate status transition
+            valid_transitions = {
+                'scheduled': ['in_progress', 'no_show'],
+                'in_progress': ['fulfilled'],
+                'fulfilled': [],
+                'no_show': []
+            }
+            
+            current_status = sess.status.value
+            if new_status not in valid_transitions.get(current_status, []):
+                return False
+            
+            # Update status
+            sess.status = SessionStatus[new_status]
+            
+            # Set alert flag for no-show
+            if set_alert:
+                sess.alert_flag = True
+            
+            db_session.commit()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            return False
         finally:
             db_session.close()
     

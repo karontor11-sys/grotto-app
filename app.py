@@ -848,12 +848,15 @@ elif page == "Daily Logs":
     st.header("Daily Log Manager")
     
     # Check if we navigated from a session chip (session-scoped view)
-    selected_session_id = st.session_state.get('selected_session_id')
+    current_session_id = st.session_state.get('selected_session_id')
     session_context = None
     
-    if selected_session_id:
+    if current_session_id:
+        # Clear the session_id from session state immediately
+        del st.session_state.selected_session_id
+        
         # Load session details for session-scoped view
-        session_context = dm.get_session_details(selected_session_id)
+        session_context = dm.get_session_details(current_session_id)
         if session_context:
             # Session-scoped header
             st.markdown(f"### {session_context['student_name']} · {session_context['type_label']}")
@@ -868,12 +871,9 @@ elif page == "Daily Logs":
                 st.metric("Date", format_date(session_context['date']))
             
             st.divider()
-            
-            # Clear the session_id from session state after using it
-            del st.session_state.selected_session_id
         else:
             st.error("Session not found")
-            selected_session_id = None
+            current_session_id = None
     
     # If not in session context, show placement-wide view
     if not session_context:
@@ -922,7 +922,7 @@ elif page == "Daily Logs":
                 st.error("⚠️ ALERT: Daily Fulfillment marked as NO - Requires supervisor review")
             
             # Get session-scoped point events
-            todays_events = dm.get_point_events_for_session(selected_session_id, selected_date.isoformat())
+            todays_events = dm.get_point_events_for_session(current_session_id, selected_date.isoformat())
             positive_points = sum([e['value'] for e in todays_events if e['type'] == 'positive'])
             negative_points = sum([e['value'] for e in todays_events if e['type'] == 'negative'])
             
@@ -972,7 +972,7 @@ elif page == "Daily Logs":
                             dm.add_point_event({
                                 'placementId': placement['_id'],
                                 'studentId': student['_id'],
-                                'sessionId': selected_session_id,  # Include session_id
+                                'sessionId': current_session_id,  # Include session_id
                                 'code': item['code'],
                                 'type': 'positive',
                                 'value': item['value'],
@@ -1005,7 +1005,7 @@ elif page == "Daily Logs":
                         dm.add_point_event({
                             'placementId': placement['_id'],
                             'studentId': student['_id'],
-                            'sessionId': selected_session_id,  # Include session_id
+                            'sessionId': current_session_id,  # Include session_id
                             'code': selected_item['code'],
                             'type': 'negative',
                             'value': selected_item['value'],

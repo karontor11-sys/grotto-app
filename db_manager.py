@@ -504,6 +504,61 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def get_session_details(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a specific session."""
+        db_session = self.get_session()
+        try:
+            sess = db_session.query(PartialDaySession).filter(PartialDaySession.id == session_id).first()
+            if not sess:
+                return None
+            
+            # Get placement and student info
+            placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
+            if not placement:
+                return None
+            
+            student = db_session.query(Student).filter(Student.id == placement.student_id).first()
+            if not student:
+                return None
+            
+            # Format scope based on session type
+            scope = ""
+            if sess.type == SessionType.periods:
+                if sess.periods:
+                    period_list = ", ".join([f"P{p}" for p in sess.periods])
+                    scope = period_list
+            elif sess.type == SessionType.lunch:
+                scope = "Lunch"
+            elif sess.type == SessionType.cool_down:
+                if sess.time_start and sess.time_end:
+                    scope = f"{sess.time_start}–{sess.time_end}"
+                else:
+                    scope = "Cool-down"
+            elif sess.type == SessionType.referral:
+                if sess.periods and len(sess.periods) > 0:
+                    scope = f"P{sess.periods[0]}"
+                else:
+                    scope = "Referral"
+            elif sess.type == SessionType.iss_full_day:
+                scope = "Full Day"
+            
+            return {
+                'session_id': sess.id,
+                'placement_id': sess.placement_id,
+                'student_id': student.id,
+                'student_name': f"{student.first_name} {student.last_name}",
+                'student_first_name': student.first_name,
+                'student_last_name': student.last_name,
+                'scope': scope,
+                'type': sess.type.value,
+                'type_label': sess.type.value.replace('_', ' ').title(),
+                'date': sess.date.isoformat(),
+                'location': sess.location or '',
+                'status': sess.status.value
+            }
+        finally:
+            db_session.close()
+    
     # Daily Log operations
     def get_or_create_daily_log(self, placement_id: str, log_date: str) -> Dict[str, Any]:
         """Get or create a daily log for a placement on a specific date."""
@@ -650,6 +705,7 @@ class DatabaseManager:
                 id=event_id,
                 student_id=event_data['studentId'],
                 placement_id=event_data['placementId'],
+                session_id=event_data.get('sessionId'),  # Optional session_id for partial-day sessions
                 date=datetime.fromisoformat(event_data['date']).date(),
                 type=PointEventType[event_data['type']],
                 code=event_data['code'],
@@ -680,6 +736,19 @@ class DatabaseManager:
             return [self._point_event_to_dict(e) for e in events]
         finally:
             session.close()
+    
+    def get_point_events_for_session(self, session_id: str, event_date: str) -> List[Dict[str, Any]]:
+        """Get all point events for a specific session on a specific date."""
+        db_session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(event_date).date() if isinstance(event_date, str) else event_date
+            events = db_session.query(PointEvent).filter(
+                PointEvent.session_id == session_id,
+                PointEvent.date == date_obj
+            ).all()
+            return [self._point_event_to_dict(e) for e in events]
+        finally:
+            db_session.close()
     
     def get_all_point_events_for_placement(self, placement_id: str) -> List[Dict[str, Any]]:
         """Get all point events for a placement."""

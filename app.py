@@ -213,8 +213,8 @@ if page == "Dashboard":
             with cols[col_idx]:
                 chip_label = f"{session['student_name']} · {session['scope']}"
                 if st.button(chip_label, key=f"session_chip_{session['session_id']}", use_container_width=True):
-                    # Navigate to Daily Logs for this session/placement
-                    st.session_state.selected_placement_for_daily_logs = session['placement_id']
+                    # Navigate to Daily Logs for this specific session
+                    st.session_state.selected_session_id = session['session_id']
                     st.session_state.navigate_to_daily_logs = True
                     st.rerun()
     

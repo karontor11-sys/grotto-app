@@ -46,6 +46,7 @@ The UI features a **Dashboard** with:
 - **Combined Placement and Student Creation**: Streamlined form for creating new students and placements simultaneously.
 - **Partial-Day Session Tracking**: Infrastructure for tracking student activities during partial days, including various session types (periods, lunch, cool-down, referral) and statuses.
 - **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions via session_id, enabling granular tracking of student behavior during individual periods, lunch, cool-down, or referral sessions. The Daily Logs interface automatically switches to session-scoped mode when navigating from Today's Sessions chips.
+- **Behavior Masking by Session Type**: Behavior menus are filtered based on session type to keep options relevant. ISS Full Day shows all behaviors, Periods/Referral hide optional items like "Read a chapter", Lunch shows simplified menus (3 positives, 4 negatives), and Cool-down shows minimal options (1 positive, 0 negatives). Mutual exclusion rules and caps still enforce across all sessions of the same placement.
 - **Placement Type Toggle**: Allows selection between "ISS Days" and "Partial Day" placements, with dynamic UI adjustments.
 - **Partial Day Subtypes**: Four session type collection interfaces:
   - **Periods**: Multi-period sessions with optional repeat capability, validates at least one period selected

@@ -889,7 +889,7 @@ class DatabaseManager:
             'grade': student.grade,
             'homeroomTeacher': student.homeroom_teacher,
             'guardianContacts': student.guardian_contacts,
-            'status': student.status.value
+            'status': student.status.value if student.status else 'active'  # Default to 'active' if status is None
         }
     
     def _placement_to_dict(self, placement: Placement) -> Dict[str, Any]:

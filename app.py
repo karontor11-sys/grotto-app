@@ -155,6 +155,18 @@ with col_title:
 # Sidebar navigation
 st.sidebar.title("Navigation")
 
+# Role selector
+if 'user_role' not in st.session_state:
+    st.session_state.user_role = "Supervisor"
+
+st.session_state.user_role = st.sidebar.selectbox(
+    "User Role",
+    ["Staff", "Supervisor", "Admin"],
+    index=["Staff", "Supervisor", "Admin"].index(st.session_state.user_role)
+)
+
+st.sidebar.divider()
+
 # Check if we need to navigate to a specific page
 if st.session_state.get('navigate_to_create_placement'):
     st.session_state.current_page = "Placements"
@@ -263,10 +275,37 @@ if page == "Dashboard":
                             st.error(f"Today's Points: {todays_points}")
                         
                         # Quick actions
-                        if st.button("Daily Logs", key=f"daily_logs_{placement['_id']}"):
-                            st.session_state.selected_placement_for_daily_logs = placement['_id']
-                            st.session_state.navigate_to_daily_logs = True
-                            st.rerun()
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            if st.button("Daily Logs", key=f"daily_logs_{placement['_id']}", use_container_width=True):
+                                st.session_state.selected_placement_for_daily_logs = placement['_id']
+                                st.session_state.navigate_to_daily_logs = True
+                                st.rerun()
+                        
+                        # Complete Placement button (Supervisor/Admin only)
+                        with col_btn2:
+                            user_role = st.session_state.get('user_role', 'Staff')
+                            if user_role in ["Supervisor", "Admin"]:
+                                # Check completion criteria
+                                completion_check = dm.check_placement_completion_criteria(placement['_id'])
+                                can_complete = completion_check.get('can_complete', False)
+                                
+                                if st.button(
+                                    "Complete",
+                                    key=f"complete_{placement['_id']}",
+                                    disabled=not can_complete,
+                                    use_container_width=True,
+                                    type="primary" if can_complete else "secondary"
+                                ):
+                                    if dm.complete_placement(placement['_id']):
+                                        st.success(f"Placement completed for {student['firstName']} {student['lastName']}")
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to complete placement")
+                                
+                                # Show completion status as help text
+                                if not can_complete:
+                                    st.caption(f"⏳ {completion_check.get('reason', 'Not ready')}")
 
 # Placements Page
 elif page == "Placements":

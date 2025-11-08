@@ -869,14 +869,71 @@ elif page == "Daily Logs":
             # Session-scoped header
             st.markdown(f"### {session_context['student_name']} · {session_context['type_label']}")
             
+            # Show alert if no-show
+            if session_context.get('alert_flag'):
+                st.error("⚠️ SUPERVISOR ALERT: Student marked as no-show")
+            
             # Display session details in a nice badge format
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Type", session_context['type_label'])
             with col2:
                 st.metric("Scope", session_context['scope'])
             with col3:
                 st.metric("Date", format_date(session_context['date']))
+            with col4:
+                # Status with color coding
+                status = session_context['status']
+                status_display = status.replace('_', ' ').title()
+                status_color = {
+                    'scheduled': '🔵',
+                    'in_progress': '🟢',
+                    'fulfilled': '✅',
+                    'no_show': '🔴'
+                }.get(status, '⚪')
+                st.metric("Status", f"{status_color} {status_display}")
+            
+            # Attendance tracking buttons
+            st.markdown("**Attendance:**")
+            btn_col1, btn_col2, btn_col3 = st.columns(3)
+            
+            current_status = session_context['status']
+            
+            with btn_col1:
+                # Check-in button (scheduled → in_progress)
+                if current_status == 'scheduled':
+                    if st.button("✓ Check-in", key=f"checkin_{current_session_id}", use_container_width=True):
+                        if dm.update_session_status(current_session_id, 'in_progress'):
+                            st.success("Student checked in!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to check in")
+                else:
+                    st.button("✓ Check-in", disabled=True, use_container_width=True)
+            
+            with btn_col2:
+                # Check-out button (in_progress → fulfilled)
+                if current_status == 'in_progress':
+                    if st.button("✓ Check-out", key=f"checkout_{current_session_id}", use_container_width=True):
+                        if dm.update_session_status(current_session_id, 'fulfilled'):
+                            st.success("Student checked out!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to check out")
+                else:
+                    st.button("✓ Check-out", disabled=True, use_container_width=True)
+            
+            with btn_col3:
+                # Mark No-show button (scheduled → no_show)
+                if current_status == 'scheduled':
+                    if st.button("⚠ Mark No-show", key=f"noshow_{current_session_id}", use_container_width=True):
+                        if dm.update_session_status(current_session_id, 'no_show', set_alert=True):
+                            st.warning("Marked as no-show. Supervisor alert created.")
+                            st.rerun()
+                        else:
+                            st.error("Failed to mark no-show")
+                else:
+                    st.button("⚠ Mark No-show", disabled=True, use_container_width=True)
             
             st.divider()
         else:

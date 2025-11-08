@@ -156,13 +156,10 @@ with col_title:
 st.sidebar.title("Navigation")
 
 # Role selector
-if 'user_role' not in st.session_state:
-    st.session_state.user_role = "Supervisor"
-
-st.session_state.user_role = st.sidebar.selectbox(
+user_role = st.sidebar.selectbox(
     "User Role",
     ["Staff", "Supervisor", "Admin"],
-    index=["Staff", "Supervisor", "Admin"].index(st.session_state.user_role)
+    index=1  # Default to Supervisor
 )
 
 st.sidebar.divider()
@@ -284,7 +281,6 @@ if page == "Dashboard":
                         
                         # Complete Placement button (Supervisor/Admin only)
                         with col_btn2:
-                            user_role = st.session_state.get('user_role', 'Staff')
                             if user_role in ["Supervisor", "Admin"]:
                                 # Check completion criteria
                                 completion_check = dm.check_placement_completion_criteria(placement['_id'])
@@ -412,6 +408,8 @@ elif page == "Placements":
                                 "homeroomTeacherId": homeroom_teacher,
                                 "reason": reason,
                                 "type": "iss_full_day",
+                                "completionRule": "iss_days",
+                                "minSessionsRequired": None,
                                 "daysAssigned": days_assigned,
                                 "startDate": start_date.isoformat(),
                                 "status": "active",
@@ -436,6 +434,8 @@ elif page == "Placements":
                                 "homeroomTeacherId": student_data['homeroomTeacher'],
                                 "reason": reason,
                                 "type": "iss_full_day",
+                                "completionRule": "iss_days",
+                                "minSessionsRequired": None,
                                 "daysAssigned": days_assigned,
                                 "startDate": start_date.isoformat(),
                                 "status": "active",
@@ -799,11 +799,14 @@ elif page == "Placements":
                                 
                                 # Create placement with type="partial"
                                 # For partial day, days_assigned is calculated from number of sessions
+                                # Default to all_sessions_fulfilled for partial placements
                                 placement_data = {
                                     "studentId": final_student_id,
                                     "homeroomTeacherId": final_homeroom_teacher,
                                     "reason": partial_reason,
                                     "type": "partial",
+                                    "completionRule": "all_sessions_fulfilled",
+                                    "minSessionsRequired": None,
                                     "daysAssigned": len(sessions),  # Number of sessions
                                     "startDate": partial_start_date.isoformat(),
                                     "status": "active",

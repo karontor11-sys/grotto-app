@@ -263,12 +263,19 @@ class DatabaseManager:
                 if placement_data['type'] == 'partial':
                     placement_type = PlacementType.partial
             
+            # Determine completion rule
+            completion_rule = CompletionRule.iss_days
+            if 'completionRule' in placement_data:
+                completion_rule = CompletionRule[placement_data['completionRule']]
+            
             placement = Placement(
                 id=placement_id,
                 student_id=placement_data['studentId'],
                 homeroom_teacher_id=placement_data.get('homeroomTeacherId'),
                 reason=placement_data['reason'],
                 type=placement_type,
+                completion_rule=completion_rule,
+                min_sessions_required=placement_data.get('minSessionsRequired'),
                 days_assigned=placement_data['daysAssigned'],
                 start_date=datetime.fromisoformat(placement_data['startDate']).date(),
                 status=PlacementStatus.active,

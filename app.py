@@ -905,6 +905,11 @@ elif page == "Daily Logs":
         placements_to_display = []
         is_session_scoped = False
     
+    # Extract session type for behavior filtering (if in session-scoped view)
+    session_type_filter = None
+    if is_session_scoped and session_context:
+        session_type_filter = session_context.get('type')  # e.g., 'iss_full_day', 'periods', 'lunch', 'cool_down'
+    
     # Display daily logs
     for placement in placements_to_display:
         student = placement['student']
@@ -934,7 +939,7 @@ elif page == "Daily Logs":
                 if not is_finalized:
                     # Positive Behaviors - Dropdown to add
                     st.markdown("**Add Positive Behavior**")
-                    positive_menu = ps.get_positive_point_menu()
+                    positive_menu = ps.get_positive_point_menu(session_type_filter)
                     
                     # Build options with availability status
                     positive_options = ["-- Select Behavior --"]
@@ -987,7 +992,7 @@ elif page == "Daily Logs":
                     
                     # Negative Behaviors - Dropdown to add
                     st.markdown("**Add Negative Behavior**")
-                    negative_menu = ps.get_negative_point_menu()
+                    negative_menu = ps.get_negative_point_menu(session_type_filter)
                     
                     negative_options = ["-- Select Behavior --"] + [item['label'] for item in negative_menu]
                     selected_negative_behavior = st.selectbox(

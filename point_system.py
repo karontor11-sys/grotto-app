@@ -32,13 +32,87 @@ class PointSystem:
         self.all_point_items = {}
         for item in self.positive_point_menu + self.negative_point_menu:
             self.all_point_items[item['code']] = item
+        
+        # Session type filtering configuration
+        # Maps session types to allowed behavior codes
+        self.session_type_filters = {
+            'iss_full_day': {
+                'positive': 'all',  # Show all positive behaviors
+                'negative': 'all'   # Show all negative behaviors
+            },
+            'periods': {
+                'positive': [
+                    'REPAIR_WRITTEN', 'REPAIR_VERBAL', 'COMPLETE_ASSIGNMENT',
+                    'MEET_COUNSELOR', 'RESTORATIVE_DISCUSSION', 'HELPFUL_TASK',
+                    'CLEAN_ROOM', 'OTHER_POSITIVE'
+                ],  # Hide READ_CHAPTER as it's optional/out-of-scope
+                'negative': 'all'
+            },
+            'referral': {
+                'positive': [
+                    'REPAIR_WRITTEN', 'REPAIR_VERBAL', 'COMPLETE_ASSIGNMENT',
+                    'MEET_COUNSELOR', 'RESTORATIVE_DISCUSSION', 'HELPFUL_TASK',
+                    'CLEAN_ROOM', 'OTHER_POSITIVE'
+                ],  # Same as periods
+                'negative': 'all'
+            },
+            'lunch': {
+                'positive': [
+                    'HELPFUL_TASK', 'CLEAN_ROOM', 'OTHER_POSITIVE'
+                ],  # Simplified: on-time, respectful, quiet task
+                'negative': [
+                    'NEG_REDIRECTION', 'NEG_DISRESPECT', 'NEG_DISRUPTIVE',
+                    'OTHER_NEGATIVE'
+                ]  # Simplified negatives
+            },
+            'cool_down': {
+                'positive': ['OTHER_POSITIVE'],  # Minimal - use "Other" for "returned to class ready"
+                'negative': []  # Hide points by default
+            }
+        }
     
-    def get_positive_point_menu(self) -> List[Dict[str, Any]]:
-        """Get the positive point menu."""
+    def get_positive_point_menu(self, session_type: str = None) -> List[Dict[str, Any]]:
+        """
+        Get the positive point menu, optionally filtered by session type.
+        
+        Args:
+            session_type: Optional session type to filter behaviors (e.g., 'periods', 'lunch', 'cool_down')
+        
+        Returns:
+            List of positive behavior items, filtered if session_type is provided
+        """
+        if session_type and session_type in self.session_type_filters:
+            allowed_codes = self.session_type_filters[session_type]['positive']
+            
+            # If 'all', return full menu
+            if allowed_codes == 'all':
+                return self.positive_point_menu
+            
+            # Filter to only allowed codes
+            return [item for item in self.positive_point_menu if item['code'] in allowed_codes]
+        
         return self.positive_point_menu
     
-    def get_negative_point_menu(self) -> List[Dict[str, Any]]:
-        """Get the negative point menu."""
+    def get_negative_point_menu(self, session_type: str = None) -> List[Dict[str, Any]]:
+        """
+        Get the negative point menu, optionally filtered by session type.
+        
+        Args:
+            session_type: Optional session type to filter behaviors (e.g., 'periods', 'lunch', 'cool_down')
+        
+        Returns:
+            List of negative behavior items, filtered if session_type is provided
+        """
+        if session_type and session_type in self.session_type_filters:
+            allowed_codes = self.session_type_filters[session_type]['negative']
+            
+            # If 'all', return full menu
+            if allowed_codes == 'all':
+                return self.negative_point_menu
+            
+            # Filter to only allowed codes
+            return [item for item in self.negative_point_menu if item['code'] in allowed_codes]
+        
         return self.negative_point_menu
     
     def get_point_item_by_code(self, code: str) -> Dict[str, Any]:

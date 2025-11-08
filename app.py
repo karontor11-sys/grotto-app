@@ -856,18 +856,29 @@ elif page == "Daily Logs":
     st.header("Daily Log Manager")
     
     # Check if we navigated from a session chip (session-scoped view)
-    current_session_id = st.session_state.get('selected_session_id')
+    # Use persistent session ID that survives reruns
+    if 'selected_session_id' in st.session_state:
+        # Transfer to persistent key
+        st.session_state.current_session_view_id = st.session_state.selected_session_id
+        del st.session_state.selected_session_id
+    
+    current_session_id = st.session_state.get('current_session_view_id')
     session_context = None
     
     if current_session_id:
-        # Clear the session_id from session state immediately
-        del st.session_state.selected_session_id
-        
         # Load session details for session-scoped view
         session_context = dm.get_session_details(current_session_id)
         if session_context:
-            # Session-scoped header
-            st.markdown(f"### {session_context['student_name']} · {session_context['type_label']}")
+            # Session-scoped header with back button
+            header_col1, header_col2 = st.columns([5, 1])
+            with header_col1:
+                st.markdown(f"### {session_context['student_name']} · {session_context['type_label']}")
+            with header_col2:
+                if st.button("← Back", key="exit_session_view"):
+                    # Clear the session view state
+                    if 'current_session_view_id' in st.session_state:
+                        del st.session_state.current_session_view_id
+                    st.rerun()
             
             # Show alert if no-show
             if session_context.get('alert_flag'):

@@ -335,41 +335,16 @@ elif page == "Placements":
         if placement_type == "ISS Days":
             # ISS Days - show full form
             with st.form("create_placement_form"):
-                # Student selection dropdown
-                student_options = ["-- Add New Student --"] + [f"{s['firstName']} {s['lastName']}" for s in students]
-                selected_student_option = st.selectbox("Select Student*", student_options)
-                
-                # Determine if we're adding a new student or using existing
-                is_new_student = selected_student_option == "-- Add New Student --"
-                
-                # Initialize variables
-                first_name = ""
-                last_name = ""
-                grade = "K"
-                homeroom_teacher = ""
-                student_data = None
-                
                 # Student information section
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 
-                if is_new_student:
-                    # New student - editable fields
-                    with col1:
-                        first_name = st.text_input("First Name*")
-                        grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
-                    with col2:
-                        last_name = st.text_input("Last Name*")
-                        homeroom_teacher = st.text_input("Homeroom Teacher*")
-                else:
-                    # Existing student - display their info
-                    student_data = next(s for s in students if f"{s['firstName']} {s['lastName']}" == selected_student_option)
-                    with col1:
-                        st.text_input("First Name*", value=student_data['firstName'], disabled=True)
-                        st.text_input("Grade*", value=student_data['grade'], disabled=True)
-                    with col2:
-                        st.text_input("Last Name*", value=student_data['lastName'], disabled=True)
-                        st.text_input("Homeroom Teacher*", value=student_data['homeroomTeacher'], disabled=True)
+                with col1:
+                    first_name = st.text_input("First Name*")
+                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                with col2:
+                    last_name = st.text_input("Last Name*")
+                    homeroom_teacher = st.text_input("Homeroom Teacher*")
                 
                 # Placement information section
                 st.markdown("### Placement Details")
@@ -387,110 +362,57 @@ elif page == "Placements":
                 # Submit button
                 if st.form_submit_button("Create Placement"):
                     # Validate fields
-                    if is_new_student:
-                        if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                            st.error("Please fill in all required fields marked with *")
-                        else:
-                            # Create new student first
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Create placement with new student
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "iss_full_day",
-                                "completionRule": "iss_days",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": start_date.isoformat(),
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate ISS full-day sessions
-                            dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.rerun()
+                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                        st.error("Please fill in all required fields marked with *")
                     else:
-                        # Use existing student
-                        if not all([reason, created_by]):
-                            st.error("Please fill in all required fields marked with *")
-                        elif student_data is not None:
-                            placement_data = {
-                                "studentId": student_data['_id'],
-                                "homeroomTeacherId": student_data['homeroomTeacher'],
-                                "reason": reason,
-                                "type": "iss_full_day",
-                                "completionRule": "iss_days",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": start_date.isoformat(),
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate ISS full-day sessions
-                            dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.rerun()
+                        # Create new student
+                        new_student_data = {
+                            "firstName": first_name,
+                            "lastName": last_name,
+                            "grade": grade,
+                            "homeroomTeacher": homeroom_teacher,
+                            "guardianContacts": [],
+                            "status": "active"
+                        }
+                        student_id = dm.add_student(new_student_data)
+                        
+                        # Create placement with new student
+                        placement_data = {
+                            "studentId": student_id,
+                            "homeroomTeacherId": homeroom_teacher,
+                            "reason": reason,
+                            "type": "iss_full_day",
+                            "completionRule": "iss_days",
+                            "minSessionsRequired": None,
+                            "daysAssigned": days_assigned,
+                            "startDate": start_date.isoformat(),
+                            "status": "active",
+                            "createdBy": created_by,
+                            "createdAt": datetime.now().isoformat()
+                        }
+                        placement_id = dm.add_placement(placement_data)
+                        
+                        # Generate ISS full-day sessions
+                        dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                        
+                        st.session_state.placement_created = True
+                        st.session_state.navigate_to_dashboard = True
+                        st.rerun()
         
         else:
             # Partial Day - show placement fields and subtype selection
             st.markdown("### Partial Day Placement")
             
-            # Student selection (same as ISS Days)
-            student_options = ["-- Add New Student --"] + [f"{s['firstName']} {s['lastName']}" for s in students]
-            selected_student_option_partial = st.selectbox("Select Student*", student_options, key="partial_student_select")
-            is_new_student_partial = selected_student_option_partial == "-- Add New Student --"
-            
-            # Initialize variables
-            partial_student_data = None
-            partial_student_id = None
-            partial_first_name = ""
-            partial_last_name = ""
-            partial_grade = "K"
-            partial_homeroom_teacher = ""
-            
             # Student Information
             st.markdown("#### Student Information")
             col1, col2 = st.columns(2)
             
-            if is_new_student_partial:
-                with col1:
-                    partial_first_name = st.text_input("First Name*", key="partial_fname")
-                    partial_grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="partial_grade")
-                with col2:
-                    partial_last_name = st.text_input("Last Name*", key="partial_lname")
-                    partial_homeroom_teacher = st.text_input("Homeroom Teacher*", key="partial_homeroom")
-            else:
-                # Get selected student data
-                selected_idx = student_options.index(selected_student_option_partial) - 1
-                if selected_idx >= 0:
-                    partial_student_data = students[selected_idx]
-                    partial_student_id = partial_student_data['_id']
-                    with col1:
-                        st.text_input("First Name", value=partial_student_data['firstName'], disabled=True, key="partial_fname_display")
-                        st.text_input("Grade", value=partial_student_data['grade'], disabled=True, key="partial_grade_display")
-                    with col2:
-                        st.text_input("Last Name", value=partial_student_data['lastName'], disabled=True, key="partial_lname_display")
-                        st.text_input("Homeroom Teacher", value=partial_student_data['homeroomTeacher'], disabled=True, key="partial_homeroom_display")
+            with col1:
+                partial_first_name = st.text_input("First Name*", key="partial_fname")
+                partial_grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="partial_grade")
+            with col2:
+                partial_last_name = st.text_input("Last Name*", key="partial_lname")
+                partial_homeroom_teacher = st.text_input("Homeroom Teacher*", key="partial_homeroom")
             
             # Placement Information
             st.markdown("#### Placement Information")
@@ -766,11 +688,8 @@ elif page == "Placements":
                         # Validate placement fields
                         creation_errors = []
                         
-                        if is_new_student_partial:
-                            if not all([partial_first_name, partial_last_name, partial_grade, partial_homeroom_teacher]):
-                                creation_errors.append("Please fill in all student information fields")
-                        elif not partial_student_id:
-                            creation_errors.append("Please select a student")
+                        if not all([partial_first_name, partial_last_name, partial_grade, partial_homeroom_teacher]):
+                            creation_errors.append("Please fill in all student information fields")
                         
                         if not partial_reason or not partial_reason.strip():
                             creation_errors.append("Please provide a reason for placement")
@@ -782,20 +701,16 @@ elif page == "Placements":
                                 st.error(f"❌ {error}")
                         else:
                             try:
-                                # Create or get student ID
-                                if is_new_student_partial:
-                                    new_student_data = {
-                                        "firstName": partial_first_name,
-                                        "lastName": partial_last_name,
-                                        "grade": partial_grade,
-                                        "homeroomTeacher": partial_homeroom_teacher,
-                                        "guardianContacts": []
-                                    }
-                                    final_student_id = dm.add_student(new_student_data)
-                                    final_homeroom_teacher = partial_homeroom_teacher
-                                else:
-                                    final_student_id = partial_student_id
-                                    final_homeroom_teacher = partial_student_data['homeroomTeacher']
+                                # Create new student
+                                new_student_data = {
+                                    "firstName": partial_first_name,
+                                    "lastName": partial_last_name,
+                                    "grade": partial_grade,
+                                    "homeroomTeacher": partial_homeroom_teacher,
+                                    "guardianContacts": []
+                                }
+                                final_student_id = dm.add_student(new_student_data)
+                                final_homeroom_teacher = partial_homeroom_teacher
                                 
                                 # Create placement with type="partial"
                                 # For partial day, days_assigned is calculated from number of sessions

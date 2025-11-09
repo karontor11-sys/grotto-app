@@ -32,7 +32,7 @@ A consistent date handling strategy uses ISO format for storage, date objects fo
 The UI features a **Dashboard** with:
 - **Today's Sessions**: Horizontal chip strip showing all sessions scheduled for today with format "Student Name · Scope" (e.g., "Isaac T · P2", "Jesse M · Lunch"). Clicking a chip navigates to Daily Logs for that placement. Shows "No sessions today" when empty.
 - **Active Placements**: Card-based student overviews with configurable columns and quick access to placement creation.
-- **Placement Manager**: Manages placement lifecycles through two tabs: "Create Placement" (combining student and placement creation) and "Completed Placements" (for historical archives and restoration).
+- **Placement Manager**: Manages placement lifecycles through two tabs: "Create Placement" (manual student entry only - students are created during placement creation) and "Completed Placements" (for historical archives and restoration).
 - **Daily Logs**: A comprehensive interface for point tracking with two viewing modes:
   - **Session-Scoped View**: When navigating from a Today's Sessions chip, displays a focused view for that specific session with header showing student name, type badge, and scope. All behavior events are tagged with session_id and filtered to show only events for that session.
   - **Placement-Wide View**: Default view showing all placements for a selected date with behavior events not tied to specific sessions (session_id is NULL).
@@ -43,7 +43,7 @@ The UI features a **Dashboard** with:
 - **Import/Export**: Facilitates bulk data operations via CSV.
 
 ### Key Features
-- **Combined Placement and Student Creation**: Streamlined form for creating new students and placements simultaneously.
+- **Manual Student Entry**: All students are created manually during placement creation. No connection to school enrollment systems - each placement creates a new student record with basic information (name, grade, homeroom teacher).
 - **Partial-Day Session Tracking**: Infrastructure for tracking student activities during partial days, including various session types (periods, lunch, cool-down, referral) and statuses.
 - **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions via session_id, enabling granular tracking of student behavior during individual periods, lunch, cool-down, or referral sessions. The Daily Logs interface automatically switches to session-scoped mode when navigating from Today's Sessions chips.
 - **Behavior Masking by Session Type**: Behavior menus are filtered based on session type to keep options relevant. ISS Full Day shows all behaviors, Periods/Referral hide optional items like "Read a chapter", Lunch shows simplified menus (3 positives, 4 negatives), and Cool-down shows minimal options (1 positive, 0 negatives). Mutual exclusion rules and caps still enforce across all sessions of the same placement.

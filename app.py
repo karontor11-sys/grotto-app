@@ -357,7 +357,6 @@ elif page == "Placements":
                     days_assigned = st.slider("Number of Days*", min_value=1, max_value=15, value=5)
                 
                 created_by = st.text_input("Created By*", value="Staff")
-                skip_weekends = st.checkbox("Skip Weekends", value=True, help="Generate sessions only for weekdays (Mon-Fri)")
                 
                 # Submit button
                 if st.form_submit_button("Create Placement"):
@@ -392,8 +391,8 @@ elif page == "Placements":
                         }
                         placement_id = dm.add_placement(placement_data)
                         
-                        # Generate ISS full-day sessions
-                        dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned, skip_weekends)
+                        # Generate ISS full-day sessions (weekends automatically skipped)
+                        dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned)
                         
                         st.session_state.placement_created = True
                         st.session_state.navigate_to_dashboard = True

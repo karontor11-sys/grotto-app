@@ -368,20 +368,46 @@ elif page == "Placements":
                 
                 reason = st.text_area("Reason for Placement*")
                 
-                col3, col4 = st.columns(2)
-                with col3:
-                    start_date = st.date_input("Start Date*", value=date.today())
-                with col4:
-                    days_assigned = st.slider("Number of Days*", min_value=1, max_value=15, value=5)
+                # Show different fields based on placement type
+                if placement_category == "In-School Suspension (ISS)":
+                    # ISS: Show Start Date and End Date
+                    col3, col4 = st.columns(2)
+                    with col3:
+                        start_date = st.date_input("Start Date*", value=date.today())
+                    with col4:
+                        end_date = st.date_input("End Date*", value=date.today())
+                    
+                    # Calculate days_assigned from date range
+                    if end_date >= start_date:
+                        days_assigned = (end_date - start_date).days + 1
+                        st.info(f"Total days: {days_assigned} (weekends automatically skipped)")
+                    else:
+                        days_assigned = 1
+                        st.error("End date must be on or after start date")
+                else:
+                    # For other placement types, show message to use Partial Day
+                    st.warning("⚠️ For Lunch Detention, Class Period Referral, or Cool-Down Referral placements, please use the 'Partial Day' option above.")
+                    start_date = date.today()
+                    end_date = date.today()
+                    days_assigned = 1
                 
                 created_by = st.text_input("Created By*", value="Staff")
                 
                 # Submit button
                 if st.form_submit_button("Create Placement"):
-                    # Validate fields
+                    # Additional validation for ISS type
+                    validation_error = False
+                    if placement_category == "In-School Suspension (ISS)":
+                        if end_date < start_date:
+                            st.error("End date must be on or after start date")
+                            validation_error = True
+                    
+                    # Validate required fields
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                         st.error("Please fill in all required fields marked with *")
-                    else:
+                        validation_error = True
+                    
+                    if not validation_error:
                         # Create new student
                         new_student_data = {
                             "firstName": first_name,
@@ -404,6 +430,7 @@ elif page == "Placements":
                             "minSessionsRequired": None,
                             "daysAssigned": days_assigned,
                             "startDate": start_date.isoformat(),
+                            "endDate": end_date.isoformat() if placement_category == "In-School Suspension (ISS)" else start_date.isoformat(),
                             "status": "active",
                             "createdBy": created_by,
                             "createdAt": datetime.now().isoformat()

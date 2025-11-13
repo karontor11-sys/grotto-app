@@ -63,6 +63,7 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes (November 13, 2025)
 - **Placement Type Field**: Added placement_type field to capture the category of each placement (ISS, LUNCH_DETENTION, CLASS_REFERRAL, COOL_DOWN). This field appears as a radio button selector on both ISS Days and Partial Day placement creation forms with options: "In-School Suspension (ISS)", "Lunch Detention", "Class Period Referral", and "Cool-Down Referral". The value is stored with every placement record for archival purposes.
+- **Lunch Detention Support**: Modified ISS Days form to support both ISS and Lunch Detention placement types with Start/End date fields. Lunch detention sessions are generated using `generate_lunch_detention_sessions` method, which creates SessionType.lunch sessions in Cafeteria location. Date-range-based session generation ensures sessions align with user-selected dates. Weekday-aware calculation counts only Monday-Friday for days_assigned. Class Period Referral and Cool-Down Referral show warnings directing users to Partial Day option.
 
 ## External Dependencies
 

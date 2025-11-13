@@ -388,9 +388,14 @@ elif page == "Placements":
                     with col4:
                         end_date = st.date_input("End Date*", value=date.today(), help="Same as Start Date for single-day placement")
                     
-                    # Calculate days_assigned from date range (weekdays only)
-                    if end_date >= start_date:
-                        # Count weekdays between start and end date
+                    created_by = st.text_input("Created By*", value="Staff")
+                    
+                    # Submit button
+                    if st.form_submit_button("Create Placement"):
+                        # Validation
+                        validation_error = False
+                        
+                        # Calculate days_assigned from date range (weekdays only)
                         current = start_date
                         weekday_count = 0
                         while current <= end_date:
@@ -398,20 +403,6 @@ elif page == "Placements":
                                 weekday_count += 1
                             current = current + timedelta(days=1)
                         days_assigned = weekday_count
-                        if days_assigned > 0:
-                            st.info(f"Total weekdays: {days_assigned} (weekends automatically skipped)")
-                        else:
-                            st.warning("⚠️ The selected date range contains no weekdays. Please select a range that includes at least one Monday-Friday.")
-                    else:
-                        days_assigned = 0
-                        st.error("End date must be on or after start date")
-                    
-                    created_by = st.text_input("Created By*", value="Staff")
-                    
-                    # Submit button
-                    if st.form_submit_button("Create Placement"):
-                        # Validation
-                        validation_error = False
                         
                         # Validate date range
                         if end_date < start_date:

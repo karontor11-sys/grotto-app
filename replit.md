@@ -61,6 +61,9 @@ The UI features a **Dashboard** with:
   - **Cool-down**: Same-day time-bounded sessions with time range and duration calculation, validates end > start
   - **Single-period Referral**: Individual period referrals with teacher and reason tracking (Note: conditional "specify" field for "Other" reason has known Streamlit rendering limitation - field persists when switching reasons; will be addressed in session creation phase)
 
+## Recent Changes (November 13, 2025)
+- **Placement Type Field**: Added placement_type field to capture the category of each placement (ISS, LUNCH_DETENTION, CLASS_REFERRAL, COOL_DOWN). This field appears as a radio button selector on both ISS Days and Partial Day placement creation forms with options: "In-School Suspension (ISS)", "Lunch Detention", "Class Period Referral", and "Cool-Down Referral". The value is stored with every placement record for archival purposes.
+
 ## External Dependencies
 
 ### Core Framework

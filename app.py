@@ -348,6 +348,24 @@ elif page == "Placements":
                 
                 # Placement information section
                 st.markdown("### Placement Details")
+                
+                # Placement Type selector
+                placement_category = st.radio(
+                    "Placement Type*",
+                    options=["In-School Suspension (ISS)", "Lunch Detention", "Class Period Referral", "Cool-Down Referral"],
+                    horizontal=True,
+                    help="Select the type of placement"
+                )
+                
+                # Map display names to internal values
+                placement_type_map = {
+                    "In-School Suspension (ISS)": "ISS",
+                    "Lunch Detention": "LUNCH_DETENTION",
+                    "Class Period Referral": "CLASS_REFERRAL",
+                    "Cool-Down Referral": "COOL_DOWN"
+                }
+                placement_type_value = placement_type_map[placement_category]
+                
                 reason = st.text_area("Reason for Placement*")
                 
                 col3, col4 = st.columns(2)
@@ -381,6 +399,7 @@ elif page == "Placements":
                             "homeroomTeacherId": homeroom_teacher,
                             "reason": reason,
                             "type": "iss_full_day",
+                            "placementType": placement_type_value,
                             "completionRule": "iss_days",
                             "minSessionsRequired": None,
                             "daysAssigned": days_assigned,
@@ -415,6 +434,25 @@ elif page == "Placements":
             
             # Placement Information
             st.markdown("#### Placement Information")
+            
+            # Placement Type selector
+            partial_placement_category = st.radio(
+                "Placement Type*",
+                options=["In-School Suspension (ISS)", "Lunch Detention", "Class Period Referral", "Cool-Down Referral"],
+                horizontal=True,
+                help="Select the type of placement",
+                key="partial_placement_type"
+            )
+            
+            # Map display names to internal values
+            partial_placement_type_map = {
+                "In-School Suspension (ISS)": "ISS",
+                "Lunch Detention": "LUNCH_DETENTION",
+                "Class Period Referral": "CLASS_REFERRAL",
+                "Cool-Down Referral": "COOL_DOWN"
+            }
+            partial_placement_type_value = partial_placement_type_map[partial_placement_category]
+            
             col1, col2 = st.columns(2)
             with col1:
                 partial_reason = st.text_area("Reason for Placement*", key="partial_reason")
@@ -719,6 +757,7 @@ elif page == "Placements":
                                     "homeroomTeacherId": final_homeroom_teacher,
                                     "reason": partial_reason,
                                     "type": "partial",
+                                    "placementType": partial_placement_type_value,
                                     "completionRule": "all_sessions_fulfilled",
                                     "minSessionsRequired": None,
                                     "daysAssigned": len(sessions),  # Number of sessions

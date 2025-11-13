@@ -22,6 +22,12 @@ class PlacementType(enum.Enum):
     iss_full_day = "iss_full_day"
     partial = "partial"
 
+class PlacementCategory(enum.Enum):
+    ISS = "ISS"
+    LUNCH_DETENTION = "LUNCH_DETENTION"
+    CLASS_REFERRAL = "CLASS_REFERRAL"
+    COOL_DOWN = "COOL_DOWN"
+
 class AssignmentStatus(enum.Enum):
     assigned = "assigned"
     in_progress = "in_progress"
@@ -75,6 +81,7 @@ class Placement(Base):
     homeroom_teacher_id = Column(String)
     reason = Column(Text, nullable=False)
     type = Column(SQLEnum(PlacementType), default=PlacementType.iss_full_day)  # iss_full_day or partial
+    placement_type = Column(SQLEnum(PlacementCategory), default=PlacementCategory.ISS)  # ISS, LUNCH_DETENTION, CLASS_REFERRAL, COOL_DOWN
     completion_rule = Column(SQLEnum(CompletionRule), default=CompletionRule.iss_days)  # How placement completes
     min_sessions_required = Column(Integer, nullable=True)  # For min_sessions_n rule
     days_assigned = Column(Integer, nullable=False)
@@ -263,6 +270,11 @@ class DatabaseManager:
                 if placement_data['type'] == 'partial':
                     placement_type = PlacementType.partial
             
+            # Determine placement category (ISS, LUNCH_DETENTION, CLASS_REFERRAL, COOL_DOWN)
+            placement_category = PlacementCategory.ISS
+            if 'placementType' in placement_data:
+                placement_category = PlacementCategory[placement_data['placementType']]
+            
             # Determine completion rule
             completion_rule = CompletionRule.iss_days
             if 'completionRule' in placement_data:
@@ -274,6 +286,7 @@ class DatabaseManager:
                 homeroom_teacher_id=placement_data.get('homeroomTeacherId'),
                 reason=placement_data['reason'],
                 type=placement_type,
+                placement_type=placement_category,
                 completion_rule=completion_rule,
                 min_sessions_required=placement_data.get('minSessionsRequired'),
                 days_assigned=placement_data['daysAssigned'],
@@ -1043,6 +1056,7 @@ class DatabaseManager:
             'homeroomTeacherId': placement.homeroom_teacher_id,
             'reason': placement.reason,
             'type': placement.type.value,
+            'placementType': placement.placement_type.value,
             'completionRule': placement.completion_rule.value,
             'minSessionsRequired': placement.min_sessions_required,
             'daysAssigned': placement.days_assigned,

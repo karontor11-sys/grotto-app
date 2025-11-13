@@ -88,6 +88,8 @@ class Placement(Base):
     days_completed = Column(Integer, default=0)  # Days earned through Daily Fulfillment = Yes
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # Set when placement is completed
+    start_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: starting period (e.g., 1 for P1)
+    end_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: ending period (e.g., 3 for P3)
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now)
@@ -603,6 +605,31 @@ class DatabaseManager:
             
             db_session.commit()
             return session_ids
+        finally:
+            db_session.close()
+    
+    def generate_class_referral_session(self, placement_id: str, referral_date: date, start_period: int, end_period: int) -> str:
+        """Generate a single class period referral session for a specific date and period range."""
+        db_session = self.get_session()
+        try:
+            session_id = self.generate_id()
+            
+            # Create list of periods (e.g., start=2, end=4 -> [2, 3, 4])
+            periods = list(range(start_period, end_period + 1))
+            
+            new_session = PartialDaySession(
+                id=session_id,
+                placement_id=placement_id,
+                date=referral_date,
+                type=SessionType.referral,
+                periods=periods,
+                location='Classroom',
+                status=SessionStatus.scheduled
+            )
+            db_session.add(new_session)
+            
+            db_session.commit()
+            return session_id
         finally:
             db_session.close()
     

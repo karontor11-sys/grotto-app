@@ -667,6 +667,31 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def generate_cooldown_session(self, placement_id: str, cooldown_date: date, start_period: int, end_period: int) -> str:
+        """Generate a single cool-down session for a specific date and period range."""
+        db_session = self.get_session()
+        try:
+            session_id = self.generate_id()
+            
+            # Create list of periods (e.g., start=2, end=4 -> [2, 3, 4])
+            periods = list(range(start_period, end_period + 1))
+            
+            new_session = PartialDaySession(
+                id=session_id,
+                placement_id=placement_id,
+                date=cooldown_date,
+                type=SessionType.cool_down,
+                periods=periods,
+                location='Cool-Down Room',
+                status=SessionStatus.scheduled
+            )
+            db_session.add(new_session)
+            
+            db_session.commit()
+            return session_id
+        finally:
+            db_session.close()
+    
     def get_todays_sessions(self) -> List[Dict[str, Any]]:
         """Get all sessions scheduled for today with student and placement info."""
         db_session = self.get_session()

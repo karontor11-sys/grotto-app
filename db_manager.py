@@ -572,6 +572,40 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def generate_lunch_detention_sessions(self, placement_id: str, start_date: date, end_date: date, skip_weekends: bool = True) -> List[str]:
+        """Generate lunch detention sessions for lunch detention placements within a date range."""
+        db_session = self.get_session()
+        try:
+            session_ids = []
+            current_date = start_date
+            
+            # Iterate through the entire date range
+            while current_date <= end_date:
+                # Skip weekends if requested
+                if skip_weekends and current_date.weekday() >= 5:  # 5=Saturday, 6=Sunday
+                    current_date += timedelta(days=1)
+                    continue
+                
+                session_id = self.generate_id()
+                session_ids.append(session_id)
+                
+                new_session = PartialDaySession(
+                    id=session_id,
+                    placement_id=placement_id,
+                    date=current_date,
+                    type=SessionType.lunch,
+                    location='Cafeteria',
+                    status=SessionStatus.scheduled
+                )
+                db_session.add(new_session)
+                
+                current_date += timedelta(days=1)
+            
+            db_session.commit()
+            return session_ids
+        finally:
+            db_session.close()
+    
     def get_todays_sessions(self) -> List[Dict[str, Any]]:
         """Get all sessions scheduled for today with student and placement info."""
         db_session = self.get_session()

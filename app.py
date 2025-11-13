@@ -358,12 +358,12 @@ elif page == "Placements":
             st.divider()
             
             # Show conditional content outside the form to make it dynamic
-            if placement_category != "In-School Suspension (ISS)":
-                st.warning("⚠️ For Lunch Detention, Class Period Referral, or Cool-Down Referral placements, please use the 'Partial Day' option above.")
+            if placement_category in ["Class Period Referral", "Cool-Down Referral"]:
+                st.warning("⚠️ For Class Period Referral or Cool-Down Referral placements, please use the 'Partial Day' option above.")
                 st.info("Please select 'Partial Day' at the top to create these types of placements.")
             
-            # ISS Days - show full form (only when ISS is selected)
-            if placement_category == "In-School Suspension (ISS)":
+            # ISS Days and Lunch Detention - show full form with date range
+            if placement_category in ["In-School Suspension (ISS)", "Lunch Detention"]:
                 with st.form("create_placement_form"):
                     # Student information section
                     st.markdown("### Student Information")
@@ -381,12 +381,12 @@ elif page == "Placements":
                     
                     reason = st.text_area("Reason for Placement*")
                     
-                    # ISS: Show Start Date and End Date
+                    # Date range fields (for both ISS and Lunch Detention)
                     col3, col4 = st.columns(2)
                     with col3:
                         start_date = st.date_input("Start Date*", value=date.today())
                     with col4:
-                        end_date = st.date_input("End Date*", value=date.today())
+                        end_date = st.date_input("End Date*", value=date.today(), help="Same as Start Date for single-day placement")
                     
                     # Calculate days_assigned from date range (weekdays only)
                     if end_date >= start_date:
@@ -398,9 +398,12 @@ elif page == "Placements":
                                 weekday_count += 1
                             current = current + timedelta(days=1)
                         days_assigned = weekday_count
-                        st.info(f"Total weekdays: {days_assigned} (weekends automatically skipped)")
+                        if days_assigned > 0:
+                            st.info(f"Total weekdays: {days_assigned} (weekends automatically skipped)")
+                        else:
+                            st.warning("⚠️ The selected date range contains no weekdays. Please select a range that includes at least one Monday-Friday.")
                     else:
-                        days_assigned = 1
+                        days_assigned = 0
                         st.error("End date must be on or after start date")
                     
                     created_by = st.text_input("Created By*", value="Staff")
@@ -413,6 +416,11 @@ elif page == "Placements":
                         # Validate date range
                         if end_date < start_date:
                             st.error("End date must be on or after start date")
+                            validation_error = True
+                        
+                        # Validate weekday count
+                        if days_assigned == 0:
+                            st.error("The selected date range must include at least one weekday (Monday-Friday)")
                             validation_error = True
                         
                         # Validate required fields
@@ -450,8 +458,11 @@ elif page == "Placements":
                             }
                             placement_id = dm.add_placement(placement_data)
                             
-                            # Generate ISS full-day sessions (weekends automatically skipped)
-                            dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned)
+                            # Generate sessions based on placement type (weekends automatically skipped)
+                            if placement_type_value == "ISS":
+                                dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned)
+                            elif placement_type_value == "LUNCH_DETENTION":
+                                dm.generate_lunch_detention_sessions(placement_id, start_date, end_date)
                             
                             st.session_state.placement_created = True
                             st.session_state.navigate_to_dashboard = True

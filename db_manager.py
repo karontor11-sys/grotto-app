@@ -314,6 +314,11 @@ class DatabaseManager:
             if 'completionRule' in placement_data:
                 completion_rule = CompletionRule[placement_data['completionRule']]
             
+            # Parse end_date if provided
+            end_date = None
+            if 'endDate' in placement_data and placement_data['endDate']:
+                end_date = datetime.fromisoformat(placement_data['endDate']).date()
+            
             placement = Placement(
                 id=placement_id,
                 student_id=placement_data['studentId'],
@@ -325,6 +330,7 @@ class DatabaseManager:
                 min_sessions_required=placement_data.get('minSessionsRequired'),
                 days_assigned=placement_data['daysAssigned'],
                 start_date=datetime.fromisoformat(placement_data['startDate']).date(),
+                end_date=end_date,
                 start_period=placement_data.get('startPeriod'),
                 end_period=placement_data.get('endPeriod'),
                 status=PlacementStatus.active,

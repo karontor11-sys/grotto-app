@@ -501,46 +501,52 @@ elif page == "Placements":
                             validation_error = True
                         
                         if not validation_error:
-                            # Create new student
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Calculate days_assigned (always 1 for single-day referral)
-                            days_assigned = 1
-                            
-                            # Create placement with new student
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "partial",
-                                "placementType": "CLASS_REFERRAL",
-                                "completionRule": "all_sessions_fulfilled",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": referral_date.isoformat(),
-                                "endDate": referral_date.isoformat(),
-                                "startPeriod": start_period,
-                                "endPeriod": end_period,
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate single referral session
-                            dm.generate_class_referral_session(placement_id, referral_date, start_period, end_period)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.rerun()
+                            try:
+                                # Create new student
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                # Calculate days_assigned (always 1 for single-day referral)
+                                days_assigned = 1
+                                
+                                # Create placement with new student
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "partial",
+                                    "placementType": "CLASS_REFERRAL",
+                                    "completionRule": "all_sessions_fulfilled",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": days_assigned,
+                                    "startDate": referral_date.isoformat(),
+                                    "endDate": referral_date.isoformat(),
+                                    "startPeriod": start_period,
+                                    "endPeriod": end_period,
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                placement_id = dm.add_placement(placement_data)
+                                
+                                # Generate single referral session
+                                dm.generate_class_referral_session(placement_id, referral_date, start_period, end_period)
+                                
+                                st.session_state.placement_created = True
+                                st.session_state.navigate_to_dashboard = True
+                                st.success(f"✓ Class Referral created for {first_name} {last_name}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error creating referral: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
             
             # ISS Days and Lunch Detention - show full form with date range
             elif placement_category in ["In-School Suspension (ISS)", "Lunch Detention"]:
@@ -600,44 +606,51 @@ elif page == "Placements":
                             validation_error = True
                         
                         if not validation_error:
-                            # Create new student
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Create placement with new student
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "iss_full_day",
-                                "placementType": placement_type_value,
-                                "completionRule": "iss_days",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": start_date.isoformat(),
-                                "endDate": end_date.isoformat(),
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate sessions based on placement type (weekends automatically skipped)
-                            if placement_type_value == "ISS":
-                                dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned)
-                            elif placement_type_value == "LUNCH_DETENTION":
-                                dm.generate_lunch_detention_sessions(placement_id, start_date, end_date)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.rerun()
+                            try:
+                                # Create new student
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                # Create placement with new student
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "iss_full_day",
+                                    "placementType": placement_type_value,
+                                    "completionRule": "iss_days",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": days_assigned,
+                                    "startDate": start_date.isoformat(),
+                                    "endDate": end_date.isoformat(),
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                placement_id = dm.add_placement(placement_data)
+                                
+                                # Generate sessions based on placement type (weekends automatically skipped)
+                                if placement_type_value == "ISS":
+                                    dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned)
+                                elif placement_type_value == "LUNCH_DETENTION":
+                                    dm.generate_lunch_detention_sessions(placement_id, start_date, end_date)
+                                
+                                st.session_state.placement_created = True
+                                st.session_state.navigate_to_dashboard = True
+                                placement_type_label = "ISS" if placement_type_value == "ISS" else "Lunch Detention"
+                                st.success(f"✓ {placement_type_label} placement created for {first_name} {last_name}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error creating placement: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
         
         else:
             # Partial Day - show placement fields and subtype selection

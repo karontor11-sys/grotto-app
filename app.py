@@ -366,29 +366,29 @@ elif page == "Placements":
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        first_name = st.text_input("First Name*")
-                        grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                        first_name = st.text_input("First Name*", key="cd_first_name")
+                        grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="cd_grade")
                     with col2:
-                        last_name = st.text_input("Last Name*")
-                        homeroom_teacher = st.text_input("Homeroom Teacher*")
+                        last_name = st.text_input("Last Name*", key="cd_last_name")
+                        homeroom_teacher = st.text_input("Homeroom Teacher*", key="cd_homeroom")
                     
                     # Placement information section
                     st.markdown("### Cool-Down Details")
                     
-                    reason = st.text_area("Reason for Cool-Down*")
+                    reason = st.text_area("Reason for Cool-Down*", key="cd_reason")
                     
                     # Date and period fields for cool-down
                     col3, col4, col5 = st.columns(3)
                     with col3:
-                        cooldown_date = st.date_input("Date*", value=date.today())
+                        cooldown_date = st.date_input("Date*", value=date.today(), key="cd_date")
                     with col4:
-                        start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}")
+                        start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}", key="cd_start_period")
                     with col5:
-                        end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}")
+                        end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}", key="cd_end_period")
                     
                     st.info("For a short cool-down, select the same period for both Start and End. For a longer cool-down, select a later period for End.")
                     
-                    created_by = st.text_input("Created By*", value="Staff")
+                    created_by = st.text_input("Created By*", value="Staff", key="cd_created_by")
                     
                     # Submit button
                     if st.form_submit_button("Create Cool-Down"):
@@ -406,46 +406,52 @@ elif page == "Placements":
                             validation_error = True
                         
                         if not validation_error:
-                            # Create new student
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Calculate days_assigned (always 1 for single-day cool-down)
-                            days_assigned = 1
-                            
-                            # Create placement with new student
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "partial",
-                                "placementType": "COOL_DOWN",
-                                "completionRule": "all_sessions_fulfilled",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": cooldown_date.isoformat(),
-                                "endDate": cooldown_date.isoformat(),
-                                "startPeriod": start_period,
-                                "endPeriod": end_period,
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate cool-down session
-                            dm.generate_cooldown_session(placement_id, cooldown_date, start_period, end_period)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.rerun()
+                            try:
+                                # Create new student
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                # Calculate days_assigned (always 1 for single-day cool-down)
+                                days_assigned = 1
+                                
+                                # Create placement with new student
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "partial",
+                                    "placementType": "COOL_DOWN",
+                                    "completionRule": "all_sessions_fulfilled",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": days_assigned,
+                                    "startDate": cooldown_date.isoformat(),
+                                    "endDate": cooldown_date.isoformat(),
+                                    "startPeriod": start_period,
+                                    "endPeriod": end_period,
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                placement_id = dm.add_placement(placement_data)
+                                
+                                # Generate cool-down session
+                                dm.generate_cooldown_session(placement_id, cooldown_date, start_period, end_period)
+                                
+                                st.session_state.placement_created = True
+                                st.session_state.navigate_to_dashboard = True
+                                st.success(f"✓ Cool-Down created for {first_name} {last_name}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error creating cool-down: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
             
             # Class Period Referral - show referral form with date and period fields
             elif placement_category == "Class Period Referral":

@@ -293,6 +293,8 @@ class DatabaseManager:
                 min_sessions_required=placement_data.get('minSessionsRequired'),
                 days_assigned=placement_data['daysAssigned'],
                 start_date=datetime.fromisoformat(placement_data['startDate']).date(),
+                start_period=placement_data.get('startPeriod'),
+                end_period=placement_data.get('endPeriod'),
                 status=PlacementStatus.active,
                 created_by=placement_data.get('createdBy'),
                 created_at=datetime.fromisoformat(placement_data.get('createdAt', datetime.now().isoformat()))
@@ -1124,6 +1126,8 @@ class DatabaseManager:
             'daysCompleted': placement.days_completed or 0,
             'startDate': placement.start_date.isoformat(),
             'endDate': placement.end_date.isoformat() if placement.end_date else None,
+            'startPeriod': placement.start_period,
+            'endPeriod': placement.end_period,
             'status': placement.status.value,
             'createdBy': placement.created_by,
             'createdAt': placement.created_at.isoformat() if placement.created_at else None

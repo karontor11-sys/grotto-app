@@ -357,13 +357,103 @@ elif page == "Placements":
             
             st.divider()
             
-            # Show conditional content outside the form to make it dynamic
-            if placement_category in ["Class Period Referral", "Cool-Down Referral"]:
-                st.warning("⚠️ For Class Period Referral or Cool-Down Referral placements, please use the 'Partial Day' option above.")
+            # Show conditional content based on placement category
+            # Cool-Down Referral - show warning to use Partial Day
+            if placement_category == "Cool-Down Referral":
+                st.warning("⚠️ For Cool-Down Referral placements, please use the 'Partial Day' option above.")
                 st.info("Please select 'Partial Day' at the top to create these types of placements.")
             
+            # Class Period Referral - show referral form with date and period fields
+            elif placement_category == "Class Period Referral":
+                with st.form("create_referral_form"):
+                    # Student information section
+                    st.markdown("### Student Information")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        first_name = st.text_input("First Name*")
+                        grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                    with col2:
+                        last_name = st.text_input("Last Name*")
+                        homeroom_teacher = st.text_input("Homeroom Teacher*")
+                    
+                    # Placement information section
+                    st.markdown("### Referral Details")
+                    
+                    reason = st.text_area("Reason for Referral*")
+                    
+                    # Date and period fields for class referral
+                    col3, col4, col5 = st.columns(3)
+                    with col3:
+                        referral_date = st.date_input("Date*", value=date.today())
+                    with col4:
+                        start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}")
+                    with col5:
+                        end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}")
+                    
+                    st.info("For a single-period referral, select the same period for both Start and End.")
+                    
+                    created_by = st.text_input("Created By*", value="Staff")
+                    
+                    # Submit button
+                    if st.form_submit_button("Create Referral"):
+                        # Validation
+                        validation_error = False
+                        
+                        # Validate period range
+                        if end_period < start_period:
+                            st.error("End period must be equal to or after start period")
+                            validation_error = True
+                        
+                        # Validate required fields
+                        if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                            st.error("Please fill in all required fields marked with *")
+                            validation_error = True
+                        
+                        if not validation_error:
+                            # Create new student
+                            new_student_data = {
+                                "firstName": first_name,
+                                "lastName": last_name,
+                                "grade": grade,
+                                "homeroomTeacher": homeroom_teacher,
+                                "guardianContacts": [],
+                                "status": "active"
+                            }
+                            student_id = dm.add_student(new_student_data)
+                            
+                            # Calculate days_assigned (always 1 for single-day referral)
+                            days_assigned = 1
+                            
+                            # Create placement with new student
+                            placement_data = {
+                                "studentId": student_id,
+                                "homeroomTeacherId": homeroom_teacher,
+                                "reason": reason,
+                                "type": "partial",
+                                "placementType": "CLASS_REFERRAL",
+                                "completionRule": "all_sessions_fulfilled",
+                                "minSessionsRequired": None,
+                                "daysAssigned": days_assigned,
+                                "startDate": referral_date.isoformat(),
+                                "endDate": referral_date.isoformat(),
+                                "startPeriod": start_period,
+                                "endPeriod": end_period,
+                                "status": "active",
+                                "createdBy": created_by,
+                                "createdAt": datetime.now().isoformat()
+                            }
+                            placement_id = dm.add_placement(placement_data)
+                            
+                            # Generate single referral session
+                            dm.generate_class_referral_session(placement_id, referral_date, start_period, end_period)
+                            
+                            st.session_state.placement_created = True
+                            st.session_state.navigate_to_dashboard = True
+                            st.rerun()
+            
             # ISS Days and Lunch Detention - show full form with date range
-            if placement_category in ["In-School Suspension (ISS)", "Lunch Detention"]:
+            elif placement_category in ["In-School Suspension (ISS)", "Lunch Detention"]:
                 with st.form("create_placement_form"):
                     # Student information section
                     st.markdown("### Student Information")

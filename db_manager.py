@@ -193,11 +193,43 @@ class DatabaseManager:
             )
             Base.metadata.create_all(self.engine)
             self.SessionLocal = sessionmaker(bind=self.engine)
+            
+            # Run migrations to add any missing columns
+            self._run_migrations()
         except Exception as e:
             import streamlit as st
             st.error(f"❌ Database connection failed: {str(e)}")
             st.info("Please ensure DATABASE_URL is properly configured and the database is accessible.")
             st.stop()
+    
+    def _run_migrations(self):
+        """Run database migrations to add missing columns."""
+        session = self.get_session()
+        try:
+            # Check if start_period and end_period columns exist in placements table
+            result = session.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'placements' 
+                AND column_name IN ('start_period', 'end_period')
+            """)
+            existing_columns = {row[0] for row in result}
+            
+            # Add start_period column if it doesn't exist
+            if 'start_period' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN start_period INTEGER")
+                session.commit()
+            
+            # Add end_period column if it doesn't exist
+            if 'end_period' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN end_period INTEGER")
+                session.commit()
+                
+        except Exception as e:
+            # Silently ignore migration errors on first run
+            session.rollback()
+        finally:
+            session.close()
     
     def get_session(self) -> Session:
         """Get a new database session."""

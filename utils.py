@@ -213,3 +213,235 @@ def calculate_school_day_number(placement_start_date: str, current_date: str) ->
         return day_number
     except (ValueError, TypeError):
         return 0
+
+
+def calculate_total_duration(placement: dict) -> dict:
+    """Calculate total duration for any placement type.
+    
+    Returns a dictionary with duration information:
+    - unit: 'school_days' or 'periods'
+    - total: total number of units
+    - label: human-readable description
+    
+    Args:
+        placement: Placement dictionary with all relevant fields
+        
+    Returns:
+        Dictionary with 'unit', 'total', and 'label' keys
+    """
+    # Normalize placement_type (handle both camelCase and snake_case from different sources)
+    placement_type = placement.get('placementType') or placement.get('placement_type', '')
+    if isinstance(placement_type, str):
+        placement_type = placement_type.upper()
+    
+    # ISS and Lunch Detention use school days
+    if placement_type in ['ISS', 'LUNCH_DETENTION']:
+        # Try daysAssigned (from DB) or days_assigned (from API)
+        total_days = placement.get('daysAssigned') or placement.get('days_assigned', 0)
+        
+        # If no days_assigned, compute from date range (try both camelCase and snake_case)
+        if not total_days:
+            start_date_str = placement.get('startDate') or placement.get('start_date')
+            end_date_str = placement.get('endDate') or placement.get('end_date')
+            
+            if start_date_str and end_date_str:
+                total_days = get_business_days_between(start_date_str, end_date_str)
+        
+        return {
+            'unit': 'school_days',
+            'total': total_days,
+            'label': f"{total_days} school day{'s' if total_days != 1 else ''}"
+        }
+    
+    # Class Referral and Cool-Down use periods
+    elif placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
+        # Try both camelCase and snake_case field names
+        start_period = placement.get('startPeriod') or placement.get('start_period')
+        end_period = placement.get('endPeriod') or placement.get('end_period')
+        
+        if start_period is not None and end_period is not None:
+            total_periods = end_period - start_period + 1
+            if total_periods == 1:
+                label = f"Period {start_period}"
+            else:
+                label = f"Periods {start_period}-{end_period}"
+            
+            return {
+                'unit': 'periods',
+                'total': total_periods,
+                'label': label
+            }
+        else:
+            # Missing period information
+            return {
+                'unit': 'periods',
+                'total': 0,
+                'label': 'No period information'
+            }
+    
+    # Fallback
+    return {
+        'unit': 'unknown',
+        'total': 0,
+        'label': 'Unknown duration'
+    }
+
+
+def placement_is_active_today(placement: dict, reference_date: date = None) -> bool:
+    """Check if a placement is active on a given date.
+    
+    Args:
+        placement: Placement dictionary with all relevant fields
+        reference_date: Date to check (defaults to today)
+        
+    Returns:
+        True if placement is active on the reference date
+    """
+    if reference_date is None:
+        reference_date = date.today()
+    
+    # Convert reference_date to date object if it's a string
+    if isinstance(reference_date, str):
+        try:
+            reference_date = datetime.fromisoformat(reference_date).date()
+        except (ValueError, TypeError):
+            return False
+    
+    # Normalize field names (handle both camelCase from DB and snake_case)
+    placement_type = placement.get('placementType') or placement.get('placement_type', '')
+    if isinstance(placement_type, str):
+        placement_type = placement_type.upper()
+    
+    # Normalize status (handle enum instances, case variations)
+    status = placement.get('status', '')
+    if hasattr(status, 'value'):
+        # Handle enum instances (e.g., PlacementStatus.active)
+        status = status.value
+    if isinstance(status, str):
+        status = status.lower()
+    
+    # Placement must have active status
+    if status != 'active':
+        return False
+    
+    # For ISS and Lunch Detention, check date range
+    if placement_type in ['ISS', 'LUNCH_DETENTION']:
+        start_date_str = placement.get('startDate') or placement.get('start_date')
+        end_date_str = placement.get('endDate') or placement.get('end_date')
+        
+        if not start_date_str:
+            return False
+        
+        try:
+            start_date_obj = datetime.fromisoformat(start_date_str).date()
+            
+            # Compute end_date if not provided
+            if not end_date_str:
+                days_assigned = placement.get('daysAssigned') or placement.get('days_assigned', 0)
+                if days_assigned > 0:
+                    end_date_obj = add_business_days(start_date_obj, days_assigned)
+                else:
+                    # If no days_assigned and no end_date, can't determine range
+                    return False
+            else:
+                end_date_obj = datetime.fromisoformat(end_date_str).date()
+            
+            # Check if reference_date is within the range and is a school day
+            return start_date_obj <= reference_date <= end_date_obj and is_school_day(reference_date)
+        except (ValueError, TypeError):
+            return False
+    
+    # For Class Referral and Cool-Down, check single date
+    elif placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
+        # These use startDate as the single date
+        placement_date_str = placement.get('startDate') or placement.get('start_date')
+        
+        if not placement_date_str:
+            return False
+        
+        try:
+            placement_date = datetime.fromisoformat(placement_date_str).date()
+            return placement_date == reference_date
+        except (ValueError, TypeError):
+            return False
+    
+    return False
+
+
+def get_placement_duration_info(placement: dict, reference_date: date = None) -> dict:
+    """Get comprehensive duration information for any placement type.
+    
+    This provides a unified interface for querying placement duration across
+    all placement types (ISS, Lunch Detention, Class Referral, Cool-Down).
+    
+    Args:
+        placement: Placement dictionary with all relevant fields
+        reference_date: Date for progress calculation (defaults to today)
+        
+    Returns:
+        Dictionary with:
+        - placement_type: Type of placement
+        - duration_unit: 'school_days' or 'periods'
+        - total_duration: Total duration in the appropriate unit
+        - duration_label: Human-readable duration description
+        - is_active_today: Whether placement is active on reference_date
+        - current_progress: Current progress (for multi-day placements)
+        - progress_label: Human-readable progress (e.g., "Day 2 of 5")
+        - days_remaining: Remaining days/periods (for active placements)
+    """
+    if reference_date is None:
+        reference_date = date.today()
+    
+    # Convert reference_date to date object if it's a string
+    if isinstance(reference_date, str):
+        try:
+            reference_date = datetime.fromisoformat(reference_date).date()
+        except (ValueError, TypeError):
+            reference_date = date.today()
+    
+    # Normalize field names
+    placement_type = placement.get('placementType') or placement.get('placement_type', '')
+    if isinstance(placement_type, str):
+        placement_type = placement_type.upper()
+    
+    # Get total duration
+    duration = calculate_total_duration(placement)
+    
+    # Check if active today
+    is_active = placement_is_active_today(placement, reference_date)
+    
+    # Calculate progress for multi-day placements
+    current_progress = None
+    progress_label = None
+    days_remaining = None
+    
+    if placement_type in ['ISS', 'LUNCH_DETENTION']:
+        start_date_str = placement.get('startDate') or placement.get('start_date')
+        if start_date_str:
+            day_number = calculate_school_day_number(
+                start_date_str,
+                reference_date.isoformat()
+            )
+            total_days = duration['total']
+            
+            # Only show progress if within placement range
+            if day_number > 0 and day_number <= total_days:
+                current_progress = day_number
+                progress_label = f"Day {day_number} of {total_days}"
+                days_remaining = max(0, total_days - day_number)
+            elif day_number > total_days:
+                # Placement should be completed
+                current_progress = total_days
+                progress_label = f"Completed ({total_days} of {total_days})"
+                days_remaining = 0
+    
+    return {
+        'placement_type': placement_type,
+        'duration_unit': duration['unit'],
+        'total_duration': duration['total'],
+        'duration_label': duration['label'],
+        'is_active_today': is_active,
+        'current_progress': current_progress,
+        'progress_label': progress_label,
+        'days_remaining': days_remaining
+    }

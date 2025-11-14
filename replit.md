@@ -43,6 +43,7 @@ The UI features a **Dashboard** with:
 ### Key Features
 - **Manual Student Entry**: Students are created manually during placement creation.
 - **Weekend-Skipping Logic**: Weekends are automatically excluded from all duration calculations, session generation, and "Days Remaining" displays for multi-day placements.
+- **Date Range Validation**: Multi-day ISS and Lunch Detention placements enforce end_date >= start_date with clear, formatted error messages. Validation order prevents confusing double errors by checking date validity before calculating weekdays. Weekend dates in ranges are allowed - only weekdays count toward days_assigned.
 - **Partial-Day Session Tracking**: Tracks student activities during partial days, including various session types (periods, lunch, cool-down, referral).
 - **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions for granular tracking, with behavior menus filtered by session type.
 - **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons, following a validated state machine.

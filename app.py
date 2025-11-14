@@ -6,7 +6,7 @@ from point_system import PointSystem
 from analytics import AnalyticsEngine
 from import_export import ImportExportManager
 from notifications import NotificationManager
-from utils import format_date, calculate_days_remaining, get_status_color
+from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number
 
 # Initialize session state
 if 'data_manager' not in st.session_state:
@@ -1114,8 +1114,32 @@ elif page == "Daily Logs":
             if session_context.get('alert_flag'):
                 st.error("⚠️ SUPERVISOR ALERT: Student marked as no-show")
             
+            # Get placement details for "Day X of Y" calculation
+            placement_details = dm.get_placement(session_context['placement_id'])
+            show_day_number = False
+            day_number = 0
+            total_days = 0
+            
+            if placement_details:
+                placement_type = placement_details.get('placementType', '')
+                # Show "Day X of Y" for ISS and Lunch Detention (multi-day placements)
+                if placement_type in ['ISS', 'LUNCH_DETENTION']:
+                    day_number = calculate_school_day_number(
+                        placement_details['startDate'], 
+                        session_context['date']
+                    )
+                    total_days = placement_details.get('daysAssigned', 0)
+                    # Only show if we got a valid day number (weekday within placement)
+                    if day_number > 0:
+                        show_day_number = True
+            
             # Display session details in a nice badge format
-            col1, col2, col3, col4 = st.columns(4)
+            # Use 5 columns if showing day number, otherwise 4
+            if show_day_number:
+                col1, col2, col3, col4, col5 = st.columns(5)
+            else:
+                col1, col2, col3, col4 = st.columns(4)
+            
             with col1:
                 st.metric("Type", session_context['type_label'])
             with col2:
@@ -1133,6 +1157,10 @@ elif page == "Daily Logs":
                     'no_show': '🔴'
                 }.get(status, '⚪')
                 st.metric("Status", f"{status_color} {status_display}")
+            
+            if show_day_number:
+                with col5:
+                    st.metric("Progress", f"Day {day_number} of {total_days}")
             
             # Attendance tracking buttons
             st.markdown("**Attendance:**")

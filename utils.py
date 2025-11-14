@@ -140,3 +140,76 @@ def get_business_days_between(start_date: str, end_date: str) -> int:
         return business_days
     except (ValueError, TypeError):
         return 0
+
+def is_school_day(date_obj: date) -> bool:
+    """Check if a date is a school day (not weekend or holiday).
+    
+    Currently only checks for weekends. Future enhancement: add holiday checking.
+    This structure allows easy extension to exclude specific holidays or no-school days.
+    
+    Args:
+        date_obj: Date to check (can be date object or ISO string)
+        
+    Returns:
+        True if the date is a school day (Monday-Friday), False otherwise
+        
+    Future usage:
+        # Add holiday list checking
+        holidays = get_school_holidays()  # Could load from database or config
+        if date_obj in holidays:
+            return False
+    """
+    if isinstance(date_obj, str):
+        try:
+            date_obj = datetime.fromisoformat(date_obj).date()
+        except (ValueError, TypeError):
+            return False
+    
+    # Currently only checks weekends; extend here for holidays
+    return not is_weekend(date_obj)
+
+def calculate_school_day_number(placement_start_date: str, current_date: str) -> int:
+    """Calculate which school day number the current date represents in a placement.
+    
+    Only counts school days (Monday-Friday). Weekends are skipped.
+    Returns 0 if current_date is before placement start or is not a school day.
+    
+    Example:
+        Placement starts Thursday (Nov 13)
+        - Thursday Nov 13 = Day 1
+        - Friday Nov 14 = Day 2
+        - Saturday Nov 15 = Not counted (weekend)
+        - Sunday Nov 16 = Not counted (weekend)
+        - Monday Nov 17 = Day 3
+    
+    Args:
+        placement_start_date: ISO format date string when placement started
+        current_date: ISO format date string to calculate day number for
+        
+    Returns:
+        The school day number (1-indexed), or 0 if not a valid school day
+    """
+    try:
+        start = datetime.fromisoformat(placement_start_date).date()
+        current = datetime.fromisoformat(current_date).date()
+        
+        # If current date is before start, return 0
+        if current < start:
+            return 0
+        
+        # If current date is not a school day, return 0
+        if not is_school_day(current):
+            return 0
+        
+        # Count school days from start to current (inclusive)
+        day_number = 0
+        check_date = start
+        
+        while check_date <= current:
+            if is_school_day(check_date):
+                day_number += 1
+            check_date += timedelta(days=1)
+        
+        return day_number
+    except (ValueError, TypeError):
+        return 0

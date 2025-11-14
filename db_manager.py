@@ -343,6 +343,17 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_placement(self, placement_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single placement by ID."""
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if placement:
+                return self._placement_to_dict(placement)
+            return None
+        finally:
+            session.close()
+    
     def get_active_placements(self) -> List[Dict[str, Any]]:
         """Get all active placements."""
         session = self.get_session()

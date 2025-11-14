@@ -31,7 +31,7 @@ A consistent date handling strategy uses ISO format for storage, date objects fo
 ### UI Components
 The UI features a **Dashboard** with:
 - **Today's Sessions**: Horizontal chip strip for daily sessions.
-- **Active Placements**: Card-based student overviews.
+- **Active Placements**: Card-based student overviews displaying only placements with status="active", sorted by placement type (ISS → Lunch Detention → Class Referral → Cool-Down) then by start date. Completed placements appear only in the "Completed Placements" tab.
 - **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation.
 - **Daily Logs**: Interface for point tracking with "Session-Scoped View" (for specific sessions) and "Placement-Wide View" (default, for all placements).
 - **Assignments**: Manages academic tasks.

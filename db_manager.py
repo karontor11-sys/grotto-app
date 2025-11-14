@@ -367,6 +367,7 @@ class DatabaseManager:
         """Get active placements with student information, sorted by placement type."""
         active_placements = self.get_active_placements()
         result = []
+        today = date.today()
         
         for placement in active_placements:
             student = self.get_student(placement['studentId'])
@@ -375,7 +376,7 @@ class DatabaseManager:
                 placement_with_student['student'] = student
                 result.append(placement_with_student)
         
-        # Define sort order for placement types
+        # Helper: Get placement type priority
         def get_placement_type_priority(placement):
             placement_type = placement.get('placementType', '').upper()
             type_order = {
@@ -386,8 +387,90 @@ class DatabaseManager:
             }
             return type_order.get(placement_type, 999)  # Unknown types go last
         
-        # Sort by placement type priority first, then by start date
-        result.sort(key=lambda p: (get_placement_type_priority(p), p.get('startDate', '')))
+        # Helper: Check if ISS placement is multi-day
+        def is_multi_day_iss(placement):
+            placement_type = placement.get('placementType', '').upper()
+            if placement_type != 'ISS':
+                return False
+            
+            # Multi-day ISS has end_date > start_date
+            start_date_str = placement.get('startDate')
+            end_date_str = placement.get('endDate')
+            
+            if not start_date_str or not end_date_str:
+                return False
+            
+            try:
+                start_date = datetime.fromisoformat(start_date_str).date()
+                end_date = datetime.fromisoformat(end_date_str).date()
+                return end_date > start_date
+            except (ValueError, AttributeError):
+                return False
+        
+        # Helper: Check if placement is active today
+        def is_active_today(placement):
+            placement_type = placement.get('placementType', '').upper()
+            
+            # For period-based placements (Class Referral, Cool-Down)
+            if placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
+                date_str = placement.get('date')
+                if date_str:
+                    try:
+                        placement_date = datetime.fromisoformat(date_str).date()
+                        return placement_date == today
+                    except (ValueError, AttributeError):
+                        return False
+                return False
+            
+            # For multi-day placements (ISS, Lunch Detention)
+            start_date_str = placement.get('startDate')
+            end_date_str = placement.get('endDate')
+            
+            if not start_date_str:
+                return False
+            
+            try:
+                start_date = datetime.fromisoformat(start_date_str).date()
+                
+                # If end_date exists, check if today is in range
+                if end_date_str:
+                    end_date = datetime.fromisoformat(end_date_str).date()
+                    return start_date <= today <= end_date
+                else:
+                    # Single-day placement
+                    return start_date == today
+            except (ValueError, AttributeError):
+                return False
+        
+        # Helper: Get student name for sorting
+        def get_student_name(placement):
+            student = placement.get('student', {})
+            last_name = student.get('lastName', '')
+            first_name = student.get('firstName', '')
+            return f"{last_name}, {first_name}".lower()
+        
+        # Helper: Get start date for sorting
+        def get_start_date(placement):
+            # For period-based placements, use 'date' field
+            placement_type = placement.get('placementType', '').upper()
+            if placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
+                return placement.get('date', '')
+            # For other placements, use 'startDate'
+            return placement.get('startDate', '')
+        
+        # Sort with complex key:
+        # 1. Placement type priority (ISS, Lunch, Class, Cool-Down)
+        # 2. For ISS only: multi-day before single-day (0=multi, 1=single)
+        # 3. Active today before not active (0=active, 1=not active)
+        # 4. Earliest start date
+        # 5. Alphabetical by student name
+        result.sort(key=lambda p: (
+            get_placement_type_priority(p),
+            0 if is_multi_day_iss(p) else 1,  # Multi-day ISS first
+            0 if is_active_today(p) else 1,    # Active today first
+            get_start_date(p),
+            get_student_name(p)
+        ))
         
         return result
     

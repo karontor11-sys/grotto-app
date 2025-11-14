@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import enum
+from utils import add_business_days
 
 Base = declarative_base()
 
@@ -393,54 +394,40 @@ class DatabaseManager:
             if placement_type != 'ISS':
                 return False
             
-            # Multi-day ISS has end_date > start_date
-            start_date_str = placement.get('startDate')
-            end_date_str = placement.get('endDate')
-            
-            if not start_date_str or not end_date_str:
-                return False
-            
-            try:
-                start_date = datetime.fromisoformat(start_date_str).date()
-                end_date = datetime.fromisoformat(end_date_str).date()
-                return end_date > start_date
-            except (ValueError, AttributeError):
-                return False
+            # Multi-day ISS has days_assigned > 1
+            days_assigned = placement.get('daysAssigned', 0)
+            return days_assigned > 1
         
         # Helper: Check if placement is active today
         def is_active_today(placement):
             placement_type = placement.get('placementType', '').upper()
-            
-            # For period-based placements (Class Referral, Cool-Down)
-            if placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
-                date_str = placement.get('date')
-                if date_str:
-                    try:
-                        placement_date = datetime.fromisoformat(date_str).date()
-                        return placement_date == today
-                    except (ValueError, AttributeError):
-                        return False
-                return False
-            
-            # For multi-day placements (ISS, Lunch Detention)
             start_date_str = placement.get('startDate')
-            end_date_str = placement.get('endDate')
             
             if not start_date_str:
                 return False
             
             try:
                 start_date = datetime.fromisoformat(start_date_str).date()
-                
-                # If end_date exists, check if today is in range
-                if end_date_str:
-                    end_date = datetime.fromisoformat(end_date_str).date()
-                    return start_date <= today <= end_date
-                else:
-                    # Single-day placement
-                    return start_date == today
             except (ValueError, AttributeError):
                 return False
+            
+            # For period-based placements (Class Referral, Cool-Down), 
+            # check if start_date == today
+            if placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
+                return start_date == today
+            
+            # For multi-day placements (ISS, Lunch Detention), calculate effective end date
+            # Active placements have end_date = NULL, so we calculate from days_assigned
+            days_assigned = placement.get('daysAssigned', 0)
+            
+            if days_assigned == 0:
+                return False
+            
+            # Calculate the effective end date using business days
+            effective_end_date = add_business_days(start_date, days_assigned)
+            
+            # Check if today falls within the placement range (inclusive)
+            return start_date <= today <= effective_end_date
         
         # Helper: Get student name for sorting
         def get_student_name(placement):
@@ -451,11 +438,7 @@ class DatabaseManager:
         
         # Helper: Get start date for sorting
         def get_start_date(placement):
-            # For period-based placements, use 'date' field
-            placement_type = placement.get('placementType', '').upper()
-            if placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
-                return placement.get('date', '')
-            # For other placements, use 'startDate'
+            # All placement types use 'startDate' field
             return placement.get('startDate', '')
         
         # Sort with complex key:

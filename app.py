@@ -581,29 +581,31 @@ elif page == "Placements":
                         # Validation
                         validation_error = False
                         
-                        # Calculate days_assigned from date range (weekdays only)
-                        current = start_date
-                        weekday_count = 0
-                        while current <= end_date:
-                            if current.weekday() < 5:  # Monday=0, Friday=4
-                                weekday_count += 1
-                            current = current + timedelta(days=1)
-                        days_assigned = weekday_count
-                        
-                        # Validate date range
-                        if end_date < start_date:
-                            st.error("End date must be on or after start date")
-                            validation_error = True
-                        
-                        # Validate weekday count
-                        if days_assigned == 0:
-                            st.error("The selected date range must include at least one weekday (Monday-Friday)")
-                            validation_error = True
-                        
-                        # Validate required fields
+                        # Validate required fields first
                         if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                            st.error("Please fill in all required fields marked with *")
+                            st.error("❌ Please fill in all required fields marked with *")
                             validation_error = True
+                        
+                        # Validate date range BEFORE calculating weekdays
+                        if end_date < start_date:
+                            st.error(f"❌ End Date ({end_date.strftime('%m/%d/%Y')}) cannot be earlier than Start Date ({start_date.strftime('%m/%d/%Y')})")
+                            validation_error = True
+                        
+                        # Only calculate weekday count if date range is valid
+                        if not validation_error:
+                            # Calculate days_assigned from date range (weekdays only)
+                            current = start_date
+                            weekday_count = 0
+                            while current <= end_date:
+                                if current.weekday() < 5:  # Monday=0, Friday=4
+                                    weekday_count += 1
+                                current = current + timedelta(days=1)
+                            days_assigned = weekday_count
+                            
+                            # Validate weekday count
+                            if days_assigned == 0:
+                                st.error("❌ The selected date range must include at least one weekday (Monday-Friday)")
+                                validation_error = True
                         
                         if not validation_error:
                             try:
@@ -749,12 +751,11 @@ elif page == "Placements":
                     location_lunch = st.text_input("Location*", value="Cafeteria/Detention")
                 
                 # Validate date range
-                #  st.caption(f"Debug: Start={start_date_lunch}, End={end_date_lunch}")  # Debug line
                 if end_date_lunch < start_date_lunch:
-                    st.error(f"❌ End date ({end_date_lunch}) must be on or after start date ({start_date_lunch})")
+                    st.error(f"❌ End Date ({end_date_lunch.strftime('%m/%d/%Y')}) cannot be earlier than Start Date ({start_date_lunch.strftime('%m/%d/%Y')})")
                 else:
                     days_in_range = (end_date_lunch - start_date_lunch).days + 1
-                    st.info(f"✓ Date range: {start_date_lunch} to {end_date_lunch} spans {days_in_range} day(s)")
+                    st.info(f"✓ Date range: {start_date_lunch.strftime('%m/%d/%Y')} to {end_date_lunch.strftime('%m/%d/%Y')} spans {days_in_range} day(s)")
                 
                 st.markdown("**Weekdays to Include:**")
                 weekday_cols = st.columns(5)

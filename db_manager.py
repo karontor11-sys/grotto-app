@@ -364,7 +364,7 @@ class DatabaseManager:
             session.close()
     
     def get_active_placements_with_students(self) -> List[Dict[str, Any]]:
-        """Get active placements with student information."""
+        """Get active placements with student information, sorted by placement type."""
         active_placements = self.get_active_placements()
         result = []
         
@@ -374,6 +374,20 @@ class DatabaseManager:
                 placement_with_student = placement.copy()
                 placement_with_student['student'] = student
                 result.append(placement_with_student)
+        
+        # Define sort order for placement types
+        def get_placement_type_priority(placement):
+            placement_type = placement.get('placementType', '').upper()
+            type_order = {
+                'ISS': 1,
+                'LUNCH_DETENTION': 2,
+                'CLASS_REFERRAL': 3,
+                'COOL_DOWN': 4
+            }
+            return type_order.get(placement_type, 999)  # Unknown types go last
+        
+        # Sort by placement type priority first, then by start date
+        result.sort(key=lambda p: (get_placement_type_priority(p), p.get('startDate', '')))
         
         return result
     

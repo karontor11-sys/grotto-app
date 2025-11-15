@@ -97,6 +97,53 @@ def get_placement_type_label(placement: dict) -> str:
     # Fallback
     return f"Placement ({start_formatted})"
 
+def is_placement_active_today(placement: dict) -> bool:
+    """Check if a placement is active today.
+    
+    For period-based placements (Class Referral, Cool-Down), checks if start_date == today.
+    For multi-day placements (ISS, Lunch Detention), checks if today falls within the placement range.
+    
+    Args:
+        placement: Placement dictionary with placementType, startDate, daysAssigned
+        
+    Returns:
+        True if placement is active today, False otherwise
+    """
+    today = date.today()
+    
+    # Normalize placement_type
+    placement_type = placement.get('placementType') or placement.get('placement_type', '')
+    if isinstance(placement_type, str):
+        placement_type = placement_type.upper()
+    
+    # Get start date
+    start_date_str = placement.get('startDate') or placement.get('start_date')
+    if not start_date_str:
+        return False
+    
+    try:
+        start_date = datetime.fromisoformat(start_date_str).date()
+    except (ValueError, AttributeError):
+        return False
+    
+    # For period-based placements (Class Referral, Cool-Down), 
+    # check if start_date == today
+    if placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
+        return start_date == today
+    
+    # For multi-day placements (ISS, Lunch Detention), calculate effective end date
+    # Active placements have end_date = NULL, so we calculate from days_assigned
+    days_assigned = placement.get('daysAssigned') or placement.get('days_assigned', 0)
+    
+    if days_assigned == 0:
+        return False
+    
+    # Calculate the effective end date using business days
+    effective_end_date = add_business_days(start_date, days_assigned)
+    
+    # Check if today falls within the placement range (inclusive)
+    return start_date <= today <= effective_end_date
+
 def add_business_days(start_date: date, num_business_days: int) -> date:
     """Add a specified number of business days to a date, skipping weekends.
     

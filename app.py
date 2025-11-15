@@ -6,7 +6,7 @@ from point_system import PointSystem
 from analytics import AnalyticsEngine
 from import_export import ImportExportManager
 from notifications import NotificationManager
-from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number
+from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info
 
 # Initialize session state
 if 'data_manager' not in st.session_state:
@@ -257,13 +257,23 @@ if page == "Dashboard":
                     days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
                     todays_points = dm.get_todays_points(placement['_id'])
                     
+                    # Get placement type label and duration info
+                    placement_label = get_placement_type_label(placement)
+                    duration_info = get_placement_duration_info(placement)
+                    
                     # Student card
                     with st.container():
                         st.subheader(f"{student['firstName']} {student['lastName']}")
+                        
+                        # Placement type label (prominent display)
+                        st.markdown(f"**{placement_label}**")
+                        
+                        # Progress indicator for multi-day placements
+                        if duration_info.get('progress_label'):
+                            st.info(f"📅 {duration_info['progress_label']}")
+                        
                         st.write(f"**Grade:** {student['grade']}")
                         st.write(f"**Homeroom Teacher:** {student['homeroomTeacher']}")
-                        st.write(f"**Start Date:** {format_date(placement['startDate'])}")
-                        st.write(f"**Days Remaining:** {days_remaining}")
                         
                         # Points badge
                         if todays_points >= 0:

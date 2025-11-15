@@ -6,7 +6,7 @@ from point_system import PointSystem
 from analytics import AnalyticsEngine
 from import_export import ImportExportManager
 from notifications import NotificationManager
-from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info
+from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today
 
 # Initialize session state
 if 'data_manager' not in st.session_state:
@@ -260,6 +260,7 @@ if page == "Dashboard":
                     # Get placement type label and duration info
                     placement_label = get_placement_type_label(placement)
                     duration_info = get_placement_duration_info(placement)
+                    is_active_today = is_placement_active_today(placement)
                     
                     # Student card
                     with st.container():
@@ -267,6 +268,10 @@ if page == "Dashboard":
                         
                         # Placement type label (prominent display)
                         st.markdown(f"**{placement_label}**")
+                        
+                        # Active Today badge (visual highlight)
+                        if is_active_today:
+                            st.success("🟢 Active Today")
                         
                         # Progress indicator for multi-day placements
                         if duration_info.get('progress_label'):

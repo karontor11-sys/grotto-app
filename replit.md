@@ -31,7 +31,14 @@ A consistent date handling strategy uses ISO format for storage, date objects fo
 ### UI Components
 The UI features a **Dashboard** with:
 - **Today's Sessions**: Horizontal chip strip for daily sessions.
-- **Active Placements**: Card-based student overviews displaying only placements with status="active", sorted with a 5-level hierarchy: (1) placement type (ISS → Lunch Detention → Class Referral → Cool-Down), (2) within ISS, multi-day placements before single-day, (3) placements active today appear first, (4) earliest start date, (5) alphabetical by student name. The "active today" check uses weekend-skipping logic for multi-day placements. Completed placements appear only in the "Completed Placements" tab.
+- **Active Placements**: Card-based student overviews displaying only placements with status="active", sorted with a 5-level hierarchy: (1) placement type (ISS → Lunch Detention → Class Referral → Cool-Down), (2) within ISS, multi-day placements before single-day, (3) placements active today appear first, (4) earliest start date, (5) alphabetical by student name. The "active today" check uses weekend-skipping logic for multi-day placements. Each card displays:
+  - **Placement Type Label**: Clear, descriptive labels showing placement type and date/period information (e.g., "ISS – Multi-Day (Nov 14–Nov 18)", "Lunch Detention – Single Day (Nov 14)", "Class Period Referral – Periods 2–4 (Nov 14)")
+  - **Progress Indicator**: For multi-day placements only, displays current progress (e.g., "📅 Day 2 of 5") using school-day calculations
+  - Student details (grade, homeroom teacher)
+  - Today's points (positive/negative)
+  - Quick action buttons (Daily Logs, Complete Placement)
+  
+  Completed placements appear only in the "Completed Placements" tab.
 - **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation.
 - **Daily Logs**: Interface for point tracking with "Session-Scoped View" (for specific sessions) and "Placement-Wide View" (default, for all placements).
 - **Assignments**: Manages academic tasks.

@@ -14,6 +14,89 @@ def format_date(date_obj: date) -> str:
     
     return str(date_obj)
 
+def get_placement_type_label(placement: dict) -> str:
+    """Generate a descriptive label for placement type with date/period information.
+    
+    Returns labels like:
+    - ISS – Multi-Day (Jan 15–Jan 19)
+    - ISS – Single Day (Jan 15)
+    - Lunch Detention – Multi-Day (Jan 15–Jan 19)
+    - Lunch Detention – Single Day (Jan 15)
+    - Class Period Referral – Periods 2–4 (Jan 15)
+    - Cool-Down – Period 3 (Jan 15)
+    
+    Args:
+        placement: Placement dictionary with all relevant fields
+        
+    Returns:
+        Formatted placement type label string
+    """
+    # Normalize placement_type
+    placement_type = placement.get('placementType') or placement.get('placement_type', '')
+    if isinstance(placement_type, str):
+        placement_type = placement_type.upper()
+    
+    # Get start date
+    start_date_str = placement.get('startDate') or placement.get('start_date')
+    if start_date_str:
+        try:
+            start_date = datetime.fromisoformat(start_date_str).date()
+            start_formatted = start_date.strftime("%b %d")
+        except (ValueError, TypeError):
+            start_formatted = "N/A"
+    else:
+        start_formatted = "N/A"
+    
+    # Handle ISS and Lunch Detention
+    if placement_type in ['ISS', 'LUNCH_DETENTION']:
+        days_assigned = placement.get('daysAssigned') or placement.get('days_assigned', 0)
+        
+        # Determine type name
+        if placement_type == 'ISS':
+            type_name = "ISS"
+        else:
+            type_name = "Lunch Detention"
+        
+        # Multi-day or single day
+        if days_assigned > 1:
+            # Calculate end date
+            if start_date_str:
+                try:
+                    start_date = datetime.fromisoformat(start_date_str).date()
+                    end_date = add_business_days(start_date, days_assigned)
+                    end_formatted = end_date.strftime("%b %d")
+                    return f"{type_name} – Multi-Day ({start_formatted}–{end_formatted})"
+                except (ValueError, TypeError):
+                    return f"{type_name} – Multi-Day"
+            return f"{type_name} – Multi-Day"
+        else:
+            return f"{type_name} – Single Day ({start_formatted})"
+    
+    # Handle Class Referral and Cool-Down
+    elif placement_type in ['CLASS_REFERRAL', 'COOL_DOWN']:
+        start_period = placement.get('startPeriod') or placement.get('start_period')
+        end_period = placement.get('endPeriod') or placement.get('end_period')
+        
+        # Determine type name
+        if placement_type == 'CLASS_REFERRAL':
+            type_name = "Class Period Referral"
+        else:
+            type_name = "Cool-Down"
+        
+        # Generate period label
+        if start_period is not None and end_period is not None:
+            if start_period == end_period:
+                period_label = f"Period {start_period}"
+            else:
+                period_label = f"Periods {start_period}–{end_period}"
+            
+            return f"{type_name} – {period_label} ({start_formatted})"
+        else:
+            return f"{type_name} ({start_formatted})"
+    
+    # Fallback
+    return f"Placement ({start_formatted})"
+
 def add_business_days(start_date: date, num_business_days: int) -> date:
     """Add a specified number of business days to a date, skipping weekends.
     

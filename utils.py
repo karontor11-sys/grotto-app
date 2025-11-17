@@ -53,7 +53,7 @@ def get_placement_type_label(placement: dict) -> str:
         
         # Determine type name
         if placement_type == 'ISS':
-            type_name = "ISS"
+            type_name = "In-School Suspension (ISS)"
         else:
             type_name = "Lunch Detention"
         
@@ -81,7 +81,7 @@ def get_placement_type_label(placement: dict) -> str:
         if placement_type == 'CLASS_REFERRAL':
             type_name = "Class Period Referral"
         else:
-            type_name = "Cool-Down"
+            type_name = "Cool-Down Referral"
         
         # Generate period label
         if start_period is not None and end_period is not None:
@@ -185,6 +185,26 @@ def calculate_days_remaining(start_date: str, days_assigned: int, days_completed
         return max(0, days_assigned - days_completed)
     except (ValueError, TypeError):
         return 0
+
+def get_placement_type_display_name(placement_type: str) -> str:
+    """Convert placement type code to human-readable label.
+    
+    Args:
+        placement_type: Internal placement type code (ISS, LUNCH_DETENTION, CLASS_REFERRAL, COOL_DOWN)
+        
+    Returns:
+        Human-readable placement type label
+    """
+    if isinstance(placement_type, str):
+        placement_type = placement_type.upper()
+    
+    type_labels = {
+        'ISS': 'In-School Suspension (ISS)',
+        'LUNCH_DETENTION': 'Lunch Detention',
+        'CLASS_REFERRAL': 'Class Period Referral',
+        'COOL_DOWN': 'Cool-Down Referral'
+    }
+    return type_labels.get(placement_type, placement_type)
 
 def get_status_color(status: str) -> str:
     """Get color for status display."""

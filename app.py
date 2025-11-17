@@ -6,7 +6,7 @@ from point_system import PointSystem
 from analytics import AnalyticsEngine
 from import_export import ImportExportManager
 from notifications import NotificationManager
-from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today
+from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today, get_placement_type_display_name
 
 # Initialize session state
 if 'data_manager' not in st.session_state:
@@ -1078,10 +1078,12 @@ elif page == "Placements":
             # Display completed placements
             for placement in filtered_placements:
                 student = placement['student']
+                placement_type_display = get_placement_type_display_name(placement.get('placementType', ''))
                 with st.expander(f"{student['firstName']} {student['lastName']} - {placement['reason']}"):
                     col1, col2 = st.columns(2)
                     with col1:
                         st.write(f"**Name:** {student['firstName']} {student['lastName']}")
+                        st.write(f"**Placement Type:** {placement_type_display}")
                         st.write(f"**Start Date:** {format_date(placement['startDate'])}")
                         st.write(f"**Reason:** {placement['reason']}")
                     with col2:

@@ -217,7 +217,7 @@ if page == "Dashboard":
         st.rerun()
     
     # Today's Sessions strip
-    st.markdown("### Today's Sessions")
+    st.subheader("Today's Sessions")
     todays_sessions = dm.get_todays_sessions()
     
     if not todays_sessions:
@@ -236,7 +236,7 @@ if page == "Dashboard":
                     st.rerun()
     
     st.divider()
-    st.markdown("### Active Placements")
+    st.subheader("Active Placements")
     
     # Get all active placements with student info
     active_placements = dm.get_active_placements_with_students()
@@ -309,10 +309,10 @@ if page == "Dashboard":
                                     type="primary" if can_complete else "secondary"
                                 ):
                                     if dm.complete_placement(placement['_id']):
-                                        st.success(f"Placement completed for {student['firstName']} {student['lastName']}")
+                                        st.success(f"✅ Placement completed for {student['firstName']} {student['lastName']}")
                                         st.rerun()
                                     else:
-                                        st.error("Failed to complete placement")
+                                        st.error("❌ Failed to complete placement")
                                 
                                 # Show completion status as help text
                                 if not can_complete:
@@ -412,12 +412,12 @@ elif page == "Placements":
                         
                         # Validate period range
                         if end_period < start_period:
-                            st.error("End period must be equal to or after start period")
+                            st.error("❌ End period must be equal to or after start period")
                             validation_error = True
                         
                         # Validate required fields
                         if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                            st.error("Please fill in all required fields marked with *")
+                            st.error("❌ Please fill in all required fields marked with *")
                             validation_error = True
                         
                         if not validation_error:
@@ -461,10 +461,10 @@ elif page == "Placements":
                                 
                                 st.session_state.placement_created = True
                                 st.session_state.navigate_to_dashboard = True
-                                st.success(f"✓ Cool-Down created for {first_name} {last_name}")
+                                st.success(f"✅ Cool-Down created for {first_name} {last_name}")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error creating cool-down: {str(e)}")
+                                st.error(f"❌ Error creating cool-down: {str(e)}")
                                 import traceback
                                 st.error(traceback.format_exc())
             
@@ -507,12 +507,12 @@ elif page == "Placements":
                         
                         # Validate period range
                         if end_period < start_period:
-                            st.error("End period must be equal to or after start period")
+                            st.error("❌ End period must be equal to or after start period")
                             validation_error = True
                         
                         # Validate required fields
                         if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                            st.error("Please fill in all required fields marked with *")
+                            st.error("❌ Please fill in all required fields marked with *")
                             validation_error = True
                         
                         if not validation_error:
@@ -556,10 +556,10 @@ elif page == "Placements":
                                 
                                 st.session_state.placement_created = True
                                 st.session_state.navigate_to_dashboard = True
-                                st.success(f"✓ Class Referral created for {first_name} {last_name}")
+                                st.success(f"✅ Class Referral created for {first_name} {last_name}")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error creating referral: {str(e)}")
+                                st.error(f"❌ Error creating referral: {str(e)}")
                                 import traceback
                                 st.error(traceback.format_exc())
             
@@ -662,10 +662,10 @@ elif page == "Placements":
                                 st.session_state.placement_created = True
                                 st.session_state.navigate_to_dashboard = True
                                 placement_type_label = "ISS" if placement_type_value == "ISS" else "Lunch Detention"
-                                st.success(f"✓ {placement_type_label} placement created for {first_name} {last_name}")
+                                st.success(f"✅ {placement_type_label} placement created for {first_name} {last_name}")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error creating placement: {str(e)}")
+                                st.error(f"❌ Error creating placement: {str(e)}")
                                 import traceback
                                 st.error(traceback.format_exc())
         
@@ -933,7 +933,7 @@ elif page == "Placements":
             else:
                 # Show preview table
                 st.success("✅ Session Preview Generated")
-                st.markdown("### Sessions to be Created")
+                st.subheader("Sessions to be Created")
                 st.caption("Review the sessions below before creating them")
                 
                 sessions = st.session_state.preview_sessions
@@ -1073,7 +1073,7 @@ elif page == "Placements":
                                      if search_reason.lower() in p['reason'].lower()]
             
             st.write(f"**Showing {len(filtered_placements)} of {completed_count} completed placements**")
-            st.markdown("---")
+            st.divider()
             
             # Display completed placements
             for placement in filtered_placements:
@@ -1094,7 +1094,7 @@ elif page == "Placements":
                     # Restore button
                     if st.button(f"Restore to Active", key=f"restore_{placement['_id']}"):
                         dm.restore_placement_to_active(placement['_id'])
-                        st.success("Placement restored to active!")
+                        st.success("✅ Placement restored to active!")
                         st.rerun()
         else:
             st.info("No completed placements found.")
@@ -1120,7 +1120,7 @@ elif page == "Daily Logs":
             # Session-scoped header with back button
             header_col1, header_col2 = st.columns([5, 1])
             with header_col1:
-                st.markdown(f"### {session_context['student_name']} · {session_context['type_label']}")
+                st.subheader(f"{session_context['student_name']} · {session_context['type_label']}")
             with header_col2:
                 if st.button("← Back", key="exit_session_view"):
                     # Clear the session view state
@@ -1191,10 +1191,10 @@ elif page == "Daily Logs":
                 if current_status == 'scheduled':
                     if st.button("✓ Check-in", key=f"checkin_{current_session_id}", use_container_width=True):
                         if dm.update_session_status(current_session_id, 'in_progress'):
-                            st.success("Student checked in!")
+                            st.success("✅ Student checked in!")
                             st.rerun()
                         else:
-                            st.error("Failed to check in")
+                            st.error("❌ Failed to check in")
                 else:
                     st.button("✓ Check-in", disabled=True, use_container_width=True)
             
@@ -1203,10 +1203,10 @@ elif page == "Daily Logs":
                 if current_status == 'in_progress':
                     if st.button("✓ Check-out", key=f"checkout_{current_session_id}", use_container_width=True):
                         if dm.update_session_status(current_session_id, 'fulfilled'):
-                            st.success("Student checked out!")
+                            st.success("✅ Student checked out!")
                             st.rerun()
                         else:
-                            st.error("Failed to check out")
+                            st.error("❌ Failed to check out")
                 else:
                     st.button("✓ Check-out", disabled=True, use_container_width=True)
             
@@ -1215,10 +1215,10 @@ elif page == "Daily Logs":
                 if current_status == 'scheduled':
                     if st.button("⚠ Mark No-show", key=f"noshow_{current_session_id}", use_container_width=True):
                         if dm.update_session_status(current_session_id, 'no_show', set_alert=True):
-                            st.warning("Marked as no-show. Supervisor alert created.")
+                            st.warning("⚠️ Marked as no-show. Supervisor alert created.")
                             st.rerun()
                         else:
-                            st.error("Failed to mark no-show")
+                            st.error("❌ Failed to mark no-show")
                 else:
                     st.button("⚠ Mark No-show", disabled=True, use_container_width=True)
             
@@ -1340,7 +1340,7 @@ elif page == "Daily Logs":
                         else:
                             st.error("This behavior is not available")
                     
-                    st.markdown("---")
+                    st.divider()
                     
                     # Negative Behaviors - Dropdown to add
                     st.markdown("**Add Negative Behavior**")
@@ -1371,13 +1371,13 @@ elif page == "Daily Logs":
                         })
                         st.rerun()
                     
-                    st.markdown("---")
+                    st.divider()
                 else:
                     # Show finalized metrics
                     st.metric("Positive Points", daily_log['positiveTotal'])
                     st.metric("Negative Points", daily_log['negativeTotal'])
                     
-                    st.markdown("---")
+                    st.divider()
                 
                 # Daily Total section
                 st.subheader("Daily Total")
@@ -1395,10 +1395,10 @@ elif page == "Daily Logs":
                         help="Points must be set (not both zero) to finalize"
                     ):
                         dm.finalize_daily_log(daily_log['_id'], "Staff")
-                        st.success("Daily log finalized!")
+                        st.success("✅ Daily log finalized!")
                         st.rerun()
                 else:
-                    st.success(f"✓ Finalized by: {daily_log['finalizedBy']}")
+                    st.success(f"✅ Finalized by: {daily_log['finalizedBy']}")
                     st.caption(f"At: {daily_log.get('finalizedAt', 'Unknown')}")
             
             with col2:
@@ -1492,7 +1492,7 @@ elif page == "Daily Logs":
                             else:
                                 st.error("This behavior is not available")
                         
-                        st.markdown("---")
+                        st.divider()
                         
                         # Negative Behaviors - Dropdown to add
                         st.markdown("**Add Negative Behavior**")
@@ -1522,13 +1522,13 @@ elif page == "Daily Logs":
                             })
                             st.rerun()
                         
-                        st.markdown("---")
+                        st.divider()
                     else:
                         # Show finalized metrics
                         st.metric("Positive Points", daily_log['positiveTotal'])
                         st.metric("Negative Points", daily_log['negativeTotal'])
                         
-                        st.markdown("---")
+                        st.divider()
                     
                     # Daily Total section
                     st.subheader("Daily Total")

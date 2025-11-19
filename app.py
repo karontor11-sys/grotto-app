@@ -412,12 +412,24 @@ elif page == "Placements":
                 
                 reason = st.text_area("Reason for Placement*")
                 
-                # Date fields
-                col3, col4 = st.columns(2)
-                with col3:
+                # Date fields - conditional based on placement type
+                # ISS (Partial) only uses Start Date (single-day placement)
+                # Other types may use both Start Date and End Date
+                if placement_category == "In-School Suspension (Partial)":
+                    # Partial ISS - only show Start Date
                     start_date = st.date_input("Start Date*", value=date.today())
-                with col4:
-                    end_date = st.date_input("End Date*", value=date.today())
+                    end_date = start_date  # Automatically set to same day for single-day placement
+                elif placement_category == "In-School Suspension (Full)":
+                    # Full ISS - only show Start Date (end date calculated from iss_days)
+                    start_date = st.date_input("Start Date*", value=date.today())
+                    end_date = start_date  # Will be calculated based on iss_days
+                else:
+                    # Lunch Detention and Class Period Referral - show both dates
+                    col3, col4 = st.columns(2)
+                    with col3:
+                        start_date = st.date_input("Start Date*", value=date.today())
+                    with col4:
+                        end_date = st.date_input("End Date*", value=date.today())
                 
                 created_by = st.text_input("Created By*", value="Staff")
                 

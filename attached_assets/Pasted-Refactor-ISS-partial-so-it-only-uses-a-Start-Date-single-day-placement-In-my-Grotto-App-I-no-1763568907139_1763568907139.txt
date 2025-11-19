@@ -1,0 +1,87 @@
+Refactor “ISS (partial)” so it only uses a Start Date (single-day placement)
+
+In my Grotto App, I now have two separate ISS placement types:
+
+“In-School Suspension (ISS)” for full days
+
+“In-School Suspension (partial)” for less-than-full-day ISS
+
+I want to update the behavior and UI for “In-School Suspension (partial)” only.
+
+1. ISS (partial) should use a Start Date only
+
+When the user selects “In-School Suspension (partial)” as the placement type on the Create New Placement page:
+
+The form should:
+
+Show a Start Date field.
+
+Allow the user to pick today or any future date.
+
+Not show an End Date field for ISS (partial).
+
+Treat ISS (partial) as a one-day placement.
+
+In the data model for ISS (partial):
+
+Store:
+
+placement_type = "ISS (partial)"
+
+start_date
+
+Do not require or store an end_date for ISS (partial).
+
+Do not use iss_days or multi-day scheduling logic.
+
+2. Period selection for ISS (partial)
+
+ISS (partial) represents a student spending part of a single day in ISS (for example, one or more class periods).
+
+When placement_type is ISS (partial):
+
+Continue to show whatever period selection UI we already use for “Class Period Referral” (for example, period dropdowns or checkboxes).
+
+The chosen periods should apply only to the selected Start Date.
+
+Save these period values in a way that clearly belongs to the ISS (partial) placement (e.g. partial_periods or reuse the existing period fields if appropriate).
+
+3. Behavior and logic differences from full-day ISS
+
+Please ensure that:
+
+ISS (partial):
+
+Uses Start Date only.
+
+Is treated as a single-day placement.
+
+Does not use multi-day ISS logic (iss_days, scheduled_iss_dates, end_date, skip-weekend logic, or absence extension).
+
+Full-day ISS:
+
+Keeps the existing behavior we implemented earlier:
+
+iss_days, start_date, auto-calculated end_date, scheduled_iss_dates, and absence-handling logic that can extend the end date.
+
+4. UI consistency and safety
+
+Make sure the Create New Placement form clearly updates which fields are shown based on the selected placement type:
+
+For ISS (partial):
+
+Show: Start Date, period selection, and any standard fields (student info, reason, etc.).
+
+Hide: End Date, multi-day ISS controls, ISS days count.
+
+Do not remove or break any existing logic for:
+
+Full-day ISS
+
+Lunch Detention
+
+Class Period Referral
+
+Cool-Down Referral
+
+Please update the relevant components / routes / handlers so this logic is enforced both in the UI and in how the placement is stored.

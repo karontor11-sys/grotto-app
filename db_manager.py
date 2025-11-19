@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import enum
-from utils import add_business_days
+from utils import add_business_days, get_school_days
 
 Base = declarative_base()
 
@@ -322,6 +322,15 @@ class DatabaseManager:
             if 'endDate' in placement_data and placement_data['endDate']:
                 end_date = datetime.fromisoformat(placement_data['endDate']).date()
             
+            # Generate scheduled ISS dates for full-day ISS placements
+            scheduled_iss_dates = []
+            served_dates = []
+            
+            if placement_category == PlacementCategory.ISS and placement_type == PlacementType.iss_full_day:
+                start_date_obj = datetime.fromisoformat(placement_data['startDate']).date()
+                days_assigned = placement_data['daysAssigned']
+                scheduled_iss_dates = get_school_days(start_date_obj, days_assigned)
+            
             placement = Placement(
                 id=placement_id,
                 student_id=placement_data['studentId'],
@@ -336,6 +345,8 @@ class DatabaseManager:
                 end_date=end_date,
                 start_period=placement_data.get('startPeriod'),
                 end_period=placement_data.get('endPeriod'),
+                scheduled_iss_dates=scheduled_iss_dates,
+                served_dates=served_dates,
                 status=PlacementStatus.active,
                 created_by=placement_data.get('createdBy'),
                 created_at=datetime.fromisoformat(placement_data.get('createdAt', datetime.now().isoformat()))
@@ -498,6 +509,68 @@ class DatabaseManager:
                 session.commit()
                 return True
             return False
+        finally:
+            session.close()
+    
+    def update_iss_attendance(self, placement_id: str, attendance_date: str, is_present: bool) -> bool:
+        """Update ISS attendance for a specific date.
+        
+        Args:
+            placement_id: ID of the placement
+            attendance_date: ISO format date string
+            is_present: True if student was present, False if absent
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Only apply to ISS full-day placements
+            if placement.placement_type != PlacementCategory.ISS or placement.type != PlacementType.iss_full_day:
+                return False
+            
+            date_obj = datetime.fromisoformat(attendance_date).date()
+            date_str = date_obj.isoformat()
+            
+            # Get current arrays (handle None)
+            served_dates = placement.served_dates if placement.served_dates else []
+            scheduled_dates = placement.scheduled_iss_dates if placement.scheduled_iss_dates else []
+            
+            if is_present:
+                # Add date to served_dates if not already there
+                if date_str not in served_dates:
+                    served_dates.append(date_str)
+                    placement.served_dates = served_dates
+                
+                # Check if placement should be completed
+                total_required = placement.days_assigned
+                if len(served_dates) >= total_required:
+                    placement.status = PlacementStatus.completed
+                    placement.end_date = date_obj
+            else:
+                # Student was absent - extend schedule by one school day
+                if not scheduled_dates:
+                    return False
+                
+                last_date_str = scheduled_dates[-1]
+                last_date = datetime.fromisoformat(last_date_str).date()
+                
+                # Find next school day
+                next_date = last_date + timedelta(days=1)
+                while next_date.weekday() >= 5:  # Skip weekends
+                    next_date += timedelta(days=1)
+                
+                # Append to scheduled dates and update end date
+                scheduled_dates.append(next_date.isoformat())
+                placement.scheduled_iss_dates = scheduled_dates
+                placement.end_date = next_date
+            
+            session.commit()
+            return True
         finally:
             session.close()
     
@@ -1309,6 +1382,8 @@ class DatabaseManager:
             'endDate': placement.end_date.isoformat() if placement.end_date else None,
             'startPeriod': placement.start_period,
             'endPeriod': placement.end_period,
+            'scheduledIssDates': placement.scheduled_iss_dates or [],
+            'servedDates': placement.served_dates or [],
             'status': placement.status.value,
             'createdBy': placement.created_by,
             'createdAt': placement.created_at.isoformat() if placement.created_at else None

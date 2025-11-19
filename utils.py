@@ -595,3 +595,86 @@ def get_placement_duration_info(placement: dict, reference_date: date = None) ->
         'progress_label': progress_label,
         'days_remaining': days_remaining
     }
+
+
+def get_school_days(start_date: date, days_needed: int) -> list:
+    """Generate a list of school days (weekdays) starting from start_date.
+    
+    Args:
+        start_date: The starting date (must be a weekday)
+        days_needed: Number of school days to include
+        
+    Returns:
+        List of date objects representing scheduled school days (ISO format strings)
+    """
+    school_dates = []
+    current_date = start_date
+    
+    while len(school_dates) < days_needed:
+        if is_school_day(current_date):
+            school_dates.append(current_date.isoformat())
+        current_date += timedelta(days=1)
+    
+    return school_dates
+
+
+def extend_iss_schedule_for_absence(placement: dict) -> dict:
+    """Extend ISS schedule by one school day when student is absent.
+    
+    Finds the next weekday after the current last scheduled date and appends it.
+    Updates scheduled_iss_dates and end_date.
+    
+    Args:
+        placement: Placement dictionary with scheduled_iss_dates
+        
+    Returns:
+        Updated placement dictionary
+    """
+    scheduled_dates = placement.get('scheduledIssDates', []) or placement.get('scheduled_iss_dates', [])
+    
+    if not scheduled_dates:
+        return placement
+    
+    last_date_str = scheduled_dates[-1]
+    last_date = datetime.fromisoformat(last_date_str).date()
+    
+    next_date = last_date + timedelta(days=1)
+    while not is_school_day(next_date):
+        next_date += timedelta(days=1)
+    
+    scheduled_dates.append(next_date.isoformat())
+    
+    placement['scheduledIssDates'] = scheduled_dates
+    placement['scheduled_iss_dates'] = scheduled_dates
+    placement['endDate'] = next_date.isoformat()
+    placement['end_date'] = next_date
+    
+    return placement
+
+
+def mark_iss_present_for_today(placement: dict, today: date) -> dict:
+    """Mark student as present for ISS on today's date.
+    
+    Adds today to served_dates if not already present.
+    
+    Args:
+        placement: Placement dictionary with served_dates
+        today: Date to mark as present
+        
+    Returns:
+        Updated placement dictionary
+    """
+    served_dates = placement.get('servedDates', []) or placement.get('served_dates', [])
+    
+    if not served_dates:
+        served_dates = []
+    
+    today_str = today.isoformat()
+    
+    if today_str not in served_dates:
+        served_dates.append(today_str)
+    
+    placement['servedDates'] = served_dates
+    placement['served_dates'] = served_dates
+    
+    return placement

@@ -374,9 +374,6 @@ elif page == "Placements":
         # ISS (Full) - Multi-day ISS with ISS Days field
         if placement_category == "In-School Suspension (Full)":
             with st.form("iss_full_form"):
-                st.markdown("### ISS Configuration")
-                iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days")
-                
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -388,10 +385,14 @@ elif page == "Placements":
                 
                 st.markdown("### Placement Details")
                 reason = st.text_area("Reason for Placement*")
+                
+                st.markdown("### Scheduling")
+                iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days")
                 start_date = st.date_input("Start Date*", value=date.today())
+                
                 created_by = st.text_input("Created By*", value="Staff")
                 
-                if st.form_submit_button("Create ISS Full-Day Placement"):
+                if st.form_submit_button("Create ISS Full-Day Placement", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                         st.error("❌ Please fill in all required fields marked with *")
                     else:
@@ -435,14 +436,6 @@ elif page == "Placements":
         # ISS (Partial) - Single-day partial ISS with period selection
         elif placement_category == "In-School Suspension (Partial)":
             with st.form("iss_partial_form"):
-                st.markdown("### Period Selection")
-                col1, col2 = st.columns(2)
-                with col1:
-                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
-                with col2:
-                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
-                st.info("For a single period, select the same period for both Start and End.")
-                
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -454,10 +447,19 @@ elif page == "Placements":
                 
                 st.markdown("### Placement Details")
                 reason = st.text_area("Reason for Placement*")
+                
+                st.markdown("### Scheduling")
+                col1, col2 = st.columns(2)
+                with col1:
+                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                with col2:
+                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                st.info("For a single period, select the same period for both Start and End.")
                 start_date = st.date_input("Start Date*", value=date.today())
+                
                 created_by = st.text_input("Created By*", value="Staff")
                 
-                if st.form_submit_button("Create ISS Partial Placement"):
+                if st.form_submit_button("Create ISS Partial Placement", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                         st.error("❌ Please fill in all required fields marked with *")
                     elif selected_end_period < selected_start_period:
@@ -505,9 +507,6 @@ elif page == "Placements":
         # Lunch Detention - Multi-day placement with automatic scheduling
         elif placement_category == "Lunch Detention":
             with st.form("lunch_detention_form"):
-                st.markdown("### Lunch Detention Configuration")
-                lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
-                
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -519,10 +518,14 @@ elif page == "Placements":
                 
                 st.markdown("### Placement Details")
                 reason = st.text_area("Reason for Placement*")
+                
+                st.markdown("### Scheduling")
+                lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
                 start_date = st.date_input("Start Date*", value=date.today())
+                
                 created_by = st.text_input("Created By*", value="Staff")
                 
-                if st.form_submit_button("Create Lunch Detention"):
+                if st.form_submit_button("Create Lunch Detention", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                         st.error("❌ Please fill in all required fields marked with *")
                     else:
@@ -572,14 +575,6 @@ elif page == "Placements":
         # Class Period Referral - Single-day with period selection
         elif placement_category == "Class Period Referral":
             with st.form("class_referral_form"):
-                st.markdown("### Period Selection")
-                col1, col2 = st.columns(2)
-                with col1:
-                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
-                with col2:
-                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
-                st.info("For a single period, select the same period for both Start and End.")
-                
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -591,10 +586,19 @@ elif page == "Placements":
                 
                 st.markdown("### Placement Details")
                 reason = st.text_area("Reason for Placement*")
+                
+                st.markdown("### Scheduling")
+                col1, col2 = st.columns(2)
+                with col1:
+                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                with col2:
+                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                st.info("For a single period, select the same period for both Start and End.")
                 start_date = st.date_input("Start Date*", value=date.today())
+                
                 created_by = st.text_input("Created By*", value="Staff")
                 
-                if st.form_submit_button("Create Class Period Referral"):
+                if st.form_submit_button("Create Class Period Referral", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                         st.error("❌ Please fill in all required fields marked with *")
                     elif selected_end_period < selected_start_period:
@@ -642,10 +646,8 @@ elif page == "Placements":
         # Cool-Down Referral - show cool-down form with date and period fields
         elif placement_category == "Cool-Down Referral":
             with st.form("create_cooldown_form"):
-                # Student information section
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     first_name = st.text_input("First Name*", key="cd_first_name")
                     grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="cd_grade")
@@ -653,12 +655,10 @@ elif page == "Placements":
                     last_name = st.text_input("Last Name*", key="cd_last_name")
                     homeroom_teacher = st.text_input("Homeroom Teacher*", key="cd_homeroom")
                 
-                # Placement information section
-                st.markdown("### Cool-Down Details")
-                
+                st.markdown("### Placement Details")
                 reason = st.text_area("Reason for Cool-Down*", key="cd_reason")
                 
-                # Date and period fields for cool-down
+                st.markdown("### Scheduling")
                 col3, col4, col5 = st.columns(3)
                 with col3:
                     cooldown_date = st.date_input("Date*", value=date.today(), key="cd_date")
@@ -666,13 +666,11 @@ elif page == "Placements":
                     start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}", key="cd_start_period")
                 with col5:
                     end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}", key="cd_end_period")
-                
                 st.info("For a short cool-down, select the same period for both Start and End. For a longer cool-down, select a later period for End.")
                 
                 created_by = st.text_input("Created By*", value="Staff", key="cd_created_by")
                 
-                # Submit button
-                if st.form_submit_button("Create Cool-Down"):
+                if st.form_submit_button("Create Cool-Down", type="primary", use_container_width=True):
                     # Validation
                     validation_error = False
                     
@@ -753,10 +751,10 @@ elif page == "Placements":
                     last_name = st.text_input("Last Name*", key="pp_last_name")
                     homeroom_teacher = st.text_input("Homeroom Teacher*", key="pp_homeroom")
                 
-                st.markdown("### Referral Details")
+                st.markdown("### Placement Details")
                 reason = st.text_area("Reason for Referral*", key="pp_reason")
                 
-                st.markdown("### Schedule Builder")
+                st.markdown("### Scheduling")
                 st.caption("Add one or more date+period combinations for this referral")
                 
                 # Display schedule rows

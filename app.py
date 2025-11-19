@@ -340,19 +340,26 @@ elif page == "Placements":
         # Single Placement Type selector (outside form for dynamic updates)
         # Initialize session state if not set
         if 'placement_category' not in st.session_state:
-            st.session_state.placement_category = "In-School Suspension (ISS)"
+            st.session_state.placement_category = "In-School Suspension (Full)"
         
         placement_category = st.radio(
             "Placement Type*",
-            options=["In-School Suspension (ISS)", "Lunch Detention", "Class Period Referral", "Cool-Down Referral"],
-            horizontal=True,
+            options=[
+                "In-School Suspension (Full)", 
+                "In-School Suspension (Partial)", 
+                "Lunch Detention", 
+                "Class Period Referral", 
+                "Cool-Down Referral"
+            ],
+            horizontal=False,
             help="Select the type of placement",
             key="placement_category"
         )
         
         # Map display names to internal values
         placement_type_map = {
-            "In-School Suspension (ISS)": "ISS",
+            "In-School Suspension (Full)": "ISS",
+            "In-School Suspension (Partial)": "ISS",
             "Lunch Detention": "LUNCH_DETENTION",
             "Class Period Referral": "CLASS_REFERRAL",
             "Cool-Down Referral": "COOL_DOWN"
@@ -362,20 +369,163 @@ elif page == "Placements":
         st.divider()
         
         # Conditional fields based on placement type
-        if placement_category == "In-School Suspension (ISS)":
+        if placement_category == "In-School Suspension (Full)":
+            iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days")
+        elif placement_category in ["In-School Suspension (Partial)", "Class Period Referral"]:
+            # Show period selection for both Partial ISS and Class Period Referral
             col1, col2 = st.columns(2)
             with col1:
-                iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of ISS days")
+                selected_start_period = st.selectbox(
+                    "Start Period*", 
+                    options=[1, 2, 3, 4, 5, 6, 7, 8], 
+                    format_func=lambda x: f"Period {x}",
+                    help="Select the starting class period"
+                )
             with col2:
-                partial_day_iss = st.checkbox("Partial Day ISS", help="Check if this is a partial-day ISS placement")
-        elif placement_category == "Lunch Detention":
-            num_lunch_detentions = st.number_input("Number of Lunch Detentions*", min_value=1, value=1, step=1, help="Number of lunch detention sessions")
+                selected_end_period = st.selectbox(
+                    "End Period*", 
+                    options=[1, 2, 3, 4, 5, 6, 7, 8], 
+                    format_func=lambda x: f"Period {x}",
+                    help="Select the ending class period"
+                )
+            st.info("For a single period, select the same period for both Start and End.")
         
         st.divider()
         
         # Show conditional content based on placement category
+        # ISS Full, ISS Partial, Lunch Detention, and Class Period Referral use a unified form
+        if placement_category in ["In-School Suspension (Full)", "In-School Suspension (Partial)", "Lunch Detention", "Class Period Referral"]:
+            with st.form("create_placement_form"):
+                # Student information section
+                st.markdown("### Student Information")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    first_name = st.text_input("First Name*")
+                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                with col2:
+                    last_name = st.text_input("Last Name*")
+                    homeroom_teacher = st.text_input("Homeroom Teacher*")
+                
+                # Placement information section
+                st.markdown("### Placement Details")
+                
+                reason = st.text_area("Reason for Placement*")
+                
+                # Date fields
+                col3, col4 = st.columns(2)
+                with col3:
+                    start_date = st.date_input("Start Date*", value=date.today())
+                with col4:
+                    end_date = st.date_input("End Date*", value=date.today())
+                
+                created_by = st.text_input("Created By*", value="Staff")
+                
+                # Submit button
+                if st.form_submit_button("Create Placement"):
+                    # Validation
+                    validation_error = False
+                    
+                    # Validate required fields first
+                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                        st.error("❌ Please fill in all required fields marked with *")
+                        validation_error = True
+                    
+                    # Validate period range for Partial ISS and Class Period Referral
+                    if placement_category in ["In-School Suspension (Partial)", "Class Period Referral"]:
+                        try:
+                            if selected_end_period < selected_start_period:
+                                st.error("❌ End period must be equal to or after start period")
+                                validation_error = True
+                        except NameError:
+                            st.error("❌ Period fields not properly initialized")
+                            validation_error = True
+                    
+                    # Initialize variables
+                    days_assigned = 1
+                    placement_internal_type = "iss_full_day"
+                    
+                    # Determine placement type and days_assigned based on placement category
+                    if not validation_error:
+                        if placement_category == "In-School Suspension (Full)":
+                            # Full ISS - use iss_days field
+                            try:
+                                days_assigned = iss_days
+                                placement_internal_type = "iss_full_day"
+                            except NameError:
+                                st.error("❌ ISS Days field not properly initialized")
+                                validation_error = True
+                        elif placement_category == "In-School Suspension (Partial)":
+                            # Partial ISS - always 1 day, partial type
+                            days_assigned = 1
+                            placement_internal_type = "partial"
+                        elif placement_category == "Lunch Detention":
+                            # Lunch Detention - always 1 day, full day type
+                            days_assigned = 1
+                            placement_internal_type = "iss_full_day"
+                        elif placement_category == "Class Period Referral":
+                            # Class Period Referral - always 1 day, partial type
+                            days_assigned = 1
+                            placement_internal_type = "partial"
+                    
+                    if not validation_error:
+                        try:
+                            # Create new student
+                            new_student_data = {
+                                "firstName": first_name,
+                                "lastName": last_name,
+                                "grade": grade,
+                                "homeroomTeacher": homeroom_teacher,
+                                "guardianContacts": [],
+                                "status": "active"
+                            }
+                            student_id = dm.add_student(new_student_data)
+                            
+                            # Create placement with new student
+                            placement_data = {
+                                "studentId": student_id,
+                                "homeroomTeacherId": homeroom_teacher,
+                                "reason": reason,
+                                "type": placement_internal_type,
+                                "placementType": placement_type_value,
+                                "completionRule": "iss_days" if placement_category == "In-School Suspension (Full)" else "all_sessions_fulfilled",
+                                "minSessionsRequired": None,
+                                "daysAssigned": days_assigned,
+                                "startDate": start_date.isoformat(),
+                                "endDate": end_date.isoformat(),
+                                "status": "active",
+                                "createdBy": created_by,
+                                "createdAt": datetime.now().isoformat()
+                            }
+                            
+                            # Add period fields for Partial ISS and Class Period Referral
+                            if placement_category in ["In-School Suspension (Partial)", "Class Period Referral"]:
+                                placement_data["startPeriod"] = selected_start_period
+                                placement_data["endPeriod"] = selected_end_period
+                            
+                            placement_id = dm.add_placement(placement_data)
+                            
+                            # Generate sessions based on placement category
+                            if placement_category == "In-School Suspension (Full)":
+                                dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned)
+                            elif placement_category == "In-School Suspension (Partial)":
+                                dm.generate_partial_iss_session(placement_id, start_date, selected_start_period, selected_end_period)
+                            elif placement_category == "Lunch Detention":
+                                dm.generate_lunch_detention_sessions(placement_id, start_date, end_date)
+                            elif placement_category == "Class Period Referral":
+                                dm.generate_class_referral_session(placement_id, start_date, selected_start_period, selected_end_period)
+                            
+                            st.session_state.placement_created = True
+                            st.session_state.navigate_to_dashboard = True
+                            st.success(f"✅ {placement_category} created for {first_name} {last_name}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error creating placement: {str(e)}")
+                            import traceback
+                            st.error(traceback.format_exc())
+        
         # Cool-Down Referral - show cool-down form with date and period fields
-        if placement_category == "Cool-Down Referral":
+        elif placement_category == "Cool-Down Referral":
             with st.form("create_cooldown_form"):
                 # Student information section
                 st.markdown("### Student Information")
@@ -466,218 +616,6 @@ elif page == "Placements":
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Error creating cool-down: {str(e)}")
-                            import traceback
-                            st.error(traceback.format_exc())
-        
-        # Class Period Referral - show referral form with date and period fields
-        elif placement_category == "Class Period Referral":
-            with st.form("create_referral_form"):
-                # Student information section
-                st.markdown("### Student Information")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
-                with col2:
-                    last_name = st.text_input("Last Name*")
-                    homeroom_teacher = st.text_input("Homeroom Teacher*")
-                
-                # Placement information section
-                st.markdown("### Referral Details")
-                
-                reason = st.text_area("Reason for Referral*")
-                
-                # Date and period fields for class referral
-                col3, col4, col5 = st.columns(3)
-                with col3:
-                    referral_date = st.date_input("Date*", value=date.today())
-                with col4:
-                    start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}")
-                with col5:
-                    end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}")
-                
-                st.info("For a single-period referral, select the same period for both Start and End.")
-                
-                created_by = st.text_input("Created By*", value="Staff")
-                
-                # Submit button
-                if st.form_submit_button("Create Referral"):
-                    # Validation
-                    validation_error = False
-                    
-                    # Validate period range
-                    if end_period < start_period:
-                        st.error("❌ End period must be equal to or after start period")
-                        validation_error = True
-                    
-                    # Validate required fields
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                        st.error("❌ Please fill in all required fields marked with *")
-                        validation_error = True
-                    
-                    if not validation_error:
-                        try:
-                            # Create new student
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Calculate days_assigned (always 1 for single-day referral)
-                            days_assigned = 1
-                            
-                            # Create placement with new student
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "partial",
-                                "placementType": "CLASS_REFERRAL",
-                                "completionRule": "all_sessions_fulfilled",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": referral_date.isoformat(),
-                                "endDate": referral_date.isoformat(),
-                                "startPeriod": start_period,
-                                "endPeriod": end_period,
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate single referral session
-                            dm.generate_class_referral_session(placement_id, referral_date, start_period, end_period)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.success(f"✅ Class Referral created for {first_name} {last_name}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error creating referral: {str(e)}")
-                            import traceback
-                            st.error(traceback.format_exc())
-        
-        # ISS Days and Lunch Detention - show full form with date range
-        elif placement_category in ["In-School Suspension (ISS)", "Lunch Detention"]:
-            with st.form("create_placement_form"):
-                # Student information section
-                st.markdown("### Student Information")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
-                with col2:
-                    last_name = st.text_input("Last Name*")
-                    homeroom_teacher = st.text_input("Homeroom Teacher*")
-                
-                # Placement information section
-                st.markdown("### Placement Details")
-                
-                reason = st.text_area("Reason for Placement*")
-                
-                # Date range fields (for both ISS and Lunch Detention)
-                col3, col4 = st.columns(2)
-                with col3:
-                    start_date = st.date_input("Start Date*", value=date.today())
-                with col4:
-                    if placement_type_value == "ISS":
-                        st.info("📅 End Date will be automatically calculated from ISS Days (weekends skipped)")
-                    elif placement_type_value == "LUNCH_DETENTION":
-                        st.info("📅 End Date will be automatically calculated from Number of Lunch Detentions (weekends skipped)")
-                
-                created_by = st.text_input("Created By*", value="Staff")
-                
-                # Submit button
-                if st.form_submit_button("Create Placement"):
-                    # Validation
-                    validation_error = False
-                    
-                    # Validate required fields first
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                        st.error("❌ Please fill in all required fields marked with *")
-                        validation_error = True
-                    
-                    # Initialize variables
-                    days_assigned = 1
-                    placement_internal_type = "iss_full_day"
-                    calc_end_date = start_date
-                    
-                    # Determine days_assigned and placement type based on placement category
-                    if not validation_error:
-                        if placement_type_value == "ISS":
-                            # Access ISS-specific fields (these exist only when ISS is selected)
-                            try:
-                                days_assigned = iss_days
-                                placement_internal_type = "partial" if partial_day_iss else "iss_full_day"
-                                calc_end_date = add_business_days(start_date, days_assigned)
-                            except NameError:
-                                st.error("❌ ISS fields not properly initialized")
-                                validation_error = True
-                        elif placement_type_value == "LUNCH_DETENTION":
-                            # Access Lunch Detention-specific fields (these exist only when Lunch Detention is selected)
-                            try:
-                                days_assigned = num_lunch_detentions
-                                placement_internal_type = "iss_full_day"  # Lunch detention uses same type as full-day ISS
-                                calc_end_date = add_business_days(start_date, days_assigned)
-                            except NameError:
-                                st.error("❌ Lunch Detention fields not properly initialized")
-                                validation_error = True
-                        else:
-                            st.error("❌ Invalid placement type for this form")
-                            validation_error = True
-                    
-                    if not validation_error:
-                        try:
-                            # Create new student
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Create placement with new student
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": placement_internal_type,
-                                "placementType": placement_type_value,
-                                "completionRule": "iss_days",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": start_date.isoformat(),
-                                "endDate": calc_end_date.isoformat(),
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate sessions based on placement type (weekends automatically skipped)
-                            if placement_type_value == "ISS":
-                                dm.generate_iss_full_day_sessions(placement_id, start_date, days_assigned)
-                            elif placement_type_value == "LUNCH_DETENTION":
-                                dm.generate_lunch_detention_sessions(placement_id, start_date, calc_end_date)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            placement_type_label = "ISS" if placement_type_value == "ISS" else "Lunch Detention"
-                            st.success(f"✅ {placement_type_label} placement created for {first_name} {last_name}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error creating placement: {str(e)}")
                             import traceback
                             st.error(traceback.format_exc())
             

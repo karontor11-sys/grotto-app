@@ -739,6 +739,31 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def generate_partial_iss_session(self, placement_id: str, iss_date: date, start_period: int, end_period: int) -> str:
+        """Generate a single partial-day ISS session for a specific date and period range."""
+        db_session = self.get_session()
+        try:
+            session_id = self.generate_id()
+            
+            # Create list of periods (e.g., start=2, end=4 -> [2, 3, 4])
+            periods = list(range(start_period, end_period + 1))
+            
+            new_session = PartialDaySession(
+                id=session_id,
+                placement_id=placement_id,
+                date=iss_date,
+                type=SessionType.periods,
+                periods=periods,
+                location='ISS Room',
+                status=SessionStatus.scheduled
+            )
+            db_session.add(new_session)
+            
+            db_session.commit()
+            return session_id
+        finally:
+            db_session.close()
+    
     def generate_class_referral_session(self, placement_id: str, referral_date: date, start_period: int, end_period: int) -> str:
         """Generate a single class period referral session for a specific date and period range."""
         db_session = self.get_session()

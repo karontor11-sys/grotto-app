@@ -1,0 +1,75 @@
+In the “Create New Placement” form on the Placement Manager page, please refactor the Placement Type logic as follows.
+
+Update the Placement Type options
+
+Change the Placement Type field to be a single required radio group labeled “Placement Type*” with five options:
+
+“In-School Suspension (Full)”
+
+“In-School Suspension (Partial)”
+
+“Lunch Detention”
+
+“Class Period Referral”
+
+“Cool-Down Referral”
+
+Remove any duplicate “Placement Type” labels that are currently rendered above or around this field, and keep only this single, clear label and radio group.
+
+Full-Day ISS behavior
+
+When Placement Type = "In-School Suspension (Full)":
+
+Show a numeric field labeled “ISS Days” (minimum value 1).
+
+Hide any class period selection controls.
+
+It is OK to keep using the existing Start Date and End Date fields as they are.
+
+(Optional but nice: if End Date is empty, you may later auto-calculate it from Start Date + (ISS Days - 1), but do not remove End Date.)
+
+Partial ISS behavior
+
+When Placement Type = "In-School Suspension (Partial)":
+
+Hide the ISS Days field.
+
+Show a class period selection control, using the same UI pattern and options that you use for Class Period Referral. For example, if Class Period Referral uses a dropdown for “Period” with choices like 1, 2, 3, etc., reuse that same component (or an equivalent) for Partial ISS.
+
+Make this period selection required for Partial ISS.
+
+Keep Start Date and End Date visible as they currently are.
+
+Class Period Referral behavior
+
+When Placement Type = "Class Period Referral":
+
+Show the same class period selection control as above (the one reused for Partial ISS).
+
+Hide the ISS Days field.
+
+Keep Start Date and End Date visible as they currently are.
+
+Lunch Detention behavior
+
+When Placement Type = "Lunch Detention":
+
+Hide the ISS Days field and any period selection fields.
+
+Keep Start Date and End Date visible as they currently are.
+
+(You do not need to add any new fields for Lunch Detention yet.)
+
+Cool-Down Referral behavior
+
+When Placement Type = "Cool-Down Referral":
+
+Hide the ISS Days field and any period selection fields.
+
+Keep Start Date and End Date visible as they currently are.
+
+General
+
+Do not change the Student Information section or the other Placement Details fields (Reason for Placement, Created By, etc.).
+
+Make sure form state and validation update correctly when the Placement Type changes (for example, ISS Days should not be required unless “In-School Suspension (Full)” is selected, and the Period field should be required when either “In-School Suspension (Partial)” or “Class Period Referral” is selected).

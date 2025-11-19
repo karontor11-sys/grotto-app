@@ -368,34 +368,12 @@ elif page == "Placements":
         
         st.divider()
         
-        # Show conditional content based on placement category
-        # ISS Full, ISS Partial, Lunch Detention, and Class Period Referral use a unified form
-        # Use dynamic form key to force rerender when placement type changes
-        if placement_category in ["In-School Suspension (Full)", "In-School Suspension (Partial)", "Lunch Detention", "Class Period Referral"]:
-            with st.form(f"create_placement_form_{placement_category.replace(' ', '_')}"):
-                # Conditional fields INSIDE form based on placement type
-                st.markdown("### Placement Configuration")
-                
-                if placement_category == "In-School Suspension (Full)":
-                    iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days")
-                elif placement_category in ["In-School Suspension (Partial)", "Class Period Referral"]:
-                    # Show period selection for both Partial ISS and Class Period Referral
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        selected_start_period = st.selectbox(
-                            "Start Period*", 
-                            options=[1, 2, 3, 4, 5, 6, 7, 8], 
-                            format_func=lambda x: f"Period {x}",
-                            help="Select the starting class period"
-                        )
-                    with col2:
-                        selected_end_period = st.selectbox(
-                            "End Period*", 
-                            options=[1, 2, 3, 4, 5, 6, 7, 8], 
-                            format_func=lambda x: f"Period {x}",
-                            help="Select the ending class period"
-                        )
-                    st.info("For a single period, select the same period for both Start and End.")
+        # Create SEPARATE forms for each placement type
+        # ISS (Full) - Multi-day ISS with ISS Days field
+        if placement_category == "In-School Suspension (Full)":
+            with st.form("iss_full_form"):
+                st.markdown("### ISS Configuration")
+                iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days")
                 
                 # Student information section
                 st.markdown("### Student Information")

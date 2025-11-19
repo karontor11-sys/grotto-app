@@ -39,7 +39,12 @@ The UI features a **Dashboard** with:
   - Quick action buttons (Daily Logs, Complete Placement)
   
   Completed placements appear only in the "Completed Placements" tab.
-- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation.
+- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation. Features a streamlined single-selector interface with 5 placement type options:
+  - **In-School Suspension (Full)**: Multi-day ISS with "ISS Days" field for duration
+  - **In-School Suspension (Partial)**: Single-day partial ISS with period selection (Start/End Period)
+  - **Lunch Detention**: Single-day lunch detention placement
+  - **Class Period Referral**: Single-period or multi-period classroom referral with period selection
+  - **Cool-Down Referral**: Short-term cool-down placement with date and period selection (separate form)
 - **Daily Logs**: Interface for point tracking with "Session-Scoped View" (for specific sessions) and "Placement-Wide View" (default, for all placements).
 - **Assignments**: Manages academic tasks.
 - **Notes**: For general documentation.
@@ -55,8 +60,8 @@ The UI features a **Dashboard** with:
 - **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions for granular tracking, with behavior menus filtered by session type.
 - **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons, following a validated state machine.
 - **Flexible Placement Completion Rules**: Configurable completion criteria for different placement types with role-based "Complete Placement" button.
-- **Placement Type Toggle**: Allows selection between "ISS Days" and "Partial Day" placements, with dynamic UI adjustments.
-- **Partial Day Subtypes**: Four session type collection interfaces: Periods, Lunch Detention, Cool-down, and Single-period Referral.
+- **Five Placement Types**: Single radio selector for choosing between In-School Suspension (Full), In-School Suspension (Partial), Lunch Detention, Class Period Referral, and Cool-Down Referral with conditional fields based on selection.
+- **Conditional Form Fields**: Dynamic form fields that appear based on placement type selection - ISS Days for Full ISS, period selection for Partial ISS and Class Referral, no additional fields for Lunch Detention, and separate form for Cool-Down.
 
 ## External Dependencies
 

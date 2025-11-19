@@ -202,7 +202,8 @@ def get_placement_type_display_name(placement_type: str) -> str:
         'ISS': 'In-School Suspension (ISS)',
         'LUNCH_DETENTION': 'Lunch Detention',
         'CLASS_REFERRAL': 'Class Period Referral',
-        'COOL_DOWN': 'Cool-Down Referral'
+        'COOL_DOWN': 'Cool-Down Referral',
+        'PRE_PLANNED_REFERRAL': 'Pre-Planned Referral'
     }
     return type_labels.get(placement_type, placement_type)
 

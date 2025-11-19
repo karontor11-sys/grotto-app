@@ -1,0 +1,73 @@
+Add a new placement type “Pre-Planned Referral” with its own UI, Daily Log, and Dashboard behavior
+
+Please add a sixth placement type to my Grotto App called “Pre-Planned Referral.” This placement is used when a student is pre-scheduled to report to the office/Grotto during specific class periods on specific future dates (for example, when they will have a substitute teacher).
+
+It is not a continuous multi-day sentence like ISS or Lunch Detention. Instead, it is a set of individual date + period combinations planned ahead of time.
+
+1. Placement Type
+
+Add “Pre-Planned Referral” as a distinct placement option alongside the existing ones:
+
+ISS – Full Day
+
+ISS – Partial
+
+Lunch Detention
+
+Class Period Referral
+
+Cool-Down Referral
+
+Pre-Planned Referral ← new one
+
+2. Create New Placement – UI Layout and Behavior
+
+When the user selects “Pre-Planned Referral” on the Create New Placement page, show a dedicated form section with:
+
+Student selection (use the same student info fields we already use for other placement types)
+
+Reason for referral / notes
+
+Schedule builder for date + period pairs:
+
+The user should be able to add one or more rows.
+
+Each row contains:
+
+A Date selector (for a specific school date; can be today or a future date)
+
+A Period selection control (for that date)
+
+This can be a dropdown for a single period or a multi-select (e.g. checkboxes) for multiple periods on that date.
+
+Example the UI must allow:
+
+Thu 2025-11-20 → Periods 3, 6
+
+Fri 2025-11-21 → Periods 3, 6
+
+And also:
+
+Thu 2025-11-20 → Periods 5, 9 (single day with multiple periods)
+
+Provide an “Add another day” or “Add row” button to append additional date+period rows.
+
+Provide a way to remove a row if the user changes their mind.
+
+Important:
+
+Do not show Start Date / End Date fields in the usual “range” sense for Pre-Planned Referral.
+
+Everything is driven by the explicit list of dates and periods the user enters.
+
+3. Data Model for Pre-Planned Referral
+
+For placements where placement_type = "Pre-Planned Referral", please store:
+
+placement_type: "Pre-Planned Referral"
+
+Student info (same structure as other placements)
+
+reason / notes
+
+A field like scheduled_slots or similar, which is an array of objects:

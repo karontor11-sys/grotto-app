@@ -1021,6 +1021,44 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def generate_preplanned_sessions(self, placement_id: str, scheduled_slots: List[Dict[str, Any]]) -> List[str]:
+        """Generate multiple sessions from a list of scheduled date+period combinations.
+        
+        Args:
+            placement_id: The placement ID
+            scheduled_slots: List of dicts with 'date' (ISO string) and 'period' (int)
+            
+        Returns:
+            List of created session IDs
+        """
+        db_session = self.get_session()
+        try:
+            session_ids = []
+            
+            for slot in scheduled_slots:
+                session_id = self.generate_id()
+                session_ids.append(session_id)
+                
+                # Convert date string to date object
+                slot_date = datetime.fromisoformat(slot['date']).date()
+                period = slot['period']
+                
+                new_session = PartialDaySession(
+                    id=session_id,
+                    placement_id=placement_id,
+                    date=slot_date,
+                    type=SessionType.periods,
+                    periods=[period],
+                    location='Office/Grotto',
+                    status=SessionStatus.scheduled
+                )
+                db_session.add(new_session)
+            
+            db_session.commit()
+            return session_ids
+        finally:
+            db_session.close()
+    
     def get_todays_sessions(self) -> List[Dict[str, Any]]:
         """Get all sessions scheduled for today with student and placement info."""
         db_session = self.get_session()

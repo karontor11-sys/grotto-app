@@ -340,6 +340,9 @@ class DatabaseManager:
                 start_date_obj = datetime.fromisoformat(placement_data['startDate']).date()
                 days_assigned = placement_data['daysAssigned']
                 scheduled_iss_dates = get_school_days(start_date_obj, days_assigned)
+                # For ISS (Full), auto-calculate end_date from scheduled dates
+                if scheduled_iss_dates:
+                    end_date = datetime.fromisoformat(scheduled_iss_dates[-1]).date()
             
             placement = Placement(
                 id=placement_id,

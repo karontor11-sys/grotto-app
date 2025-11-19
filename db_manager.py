@@ -827,6 +827,63 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def calculate_scheduled_lunch_dates(self, start_date: date, num_days: int) -> List[date]:
+        """Calculate scheduled lunch dates, skipping weekends and no-lunch days.
+        
+        Args:
+            start_date: The first date to start scheduling from
+            num_days: Number of lunch detention days needed
+            
+        Returns:
+            List of scheduled lunch dates (weekdays only)
+        """
+        scheduled_dates = []
+        current_date = start_date
+        
+        while len(scheduled_dates) < num_days:
+            # Skip weekends
+            if current_date.weekday() < 5:  # Monday=0, Friday=4
+                # TODO: Add logic to skip specific no-lunch days (early dismissal, etc.)
+                # For now, just add all weekdays with lunch
+                scheduled_dates.append(current_date)
+            
+            current_date += timedelta(days=1)
+        
+        return scheduled_dates
+    
+    def generate_lunch_detention_sessions_from_scheduled(self, placement_id: str, scheduled_dates: List[date]) -> List[str]:
+        """Generate lunch detention sessions from a pre-calculated list of scheduled dates.
+        
+        Args:
+            placement_id: The placement ID
+            scheduled_dates: List of dates on which lunch detention is scheduled
+            
+        Returns:
+            List of created session IDs
+        """
+        db_session = self.get_session()
+        try:
+            session_ids = []
+            
+            for lunch_date in scheduled_dates:
+                session_id = self.generate_id()
+                session_ids.append(session_id)
+                
+                new_session = PartialDaySession(
+                    id=session_id,
+                    placement_id=placement_id,
+                    date=lunch_date,
+                    type=SessionType.lunch,
+                    location='Cafeteria',
+                    status=SessionStatus.scheduled
+                )
+                db_session.add(new_session)
+            
+            db_session.commit()
+            return session_ids
+        finally:
+            db_session.close()
+    
     def generate_partial_iss_session(self, placement_id: str, iss_date: date, start_period: int, end_period: int) -> str:
         """Generate a single partial-day ISS session for a specific date and period range."""
         db_session = self.get_session()

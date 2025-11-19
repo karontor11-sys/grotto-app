@@ -28,6 +28,7 @@ class PlacementCategory(enum.Enum):
     LUNCH_DETENTION = "LUNCH_DETENTION"
     CLASS_REFERRAL = "CLASS_REFERRAL"
     COOL_DOWN = "COOL_DOWN"
+    PRE_PLANNED_REFERRAL = "PRE_PLANNED_REFERRAL"
 
 class AssignmentStatus(enum.Enum):
     assigned = "assigned"

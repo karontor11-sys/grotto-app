@@ -374,6 +374,7 @@ elif page == "Placements":
         # ISS (Full) - Multi-day ISS with ISS Days field
         if placement_category == "In-School Suspension (Full)":
             with st.form("iss_full_form"):
+                st.markdown("## In-School – Full Days")
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -436,6 +437,7 @@ elif page == "Placements":
         # ISS (Partial) - Single-day partial ISS with period selection
         elif placement_category == "In-School Suspension (Partial)":
             with st.form("iss_partial_form"):
+                st.markdown("## In-School – Partial Day")
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -507,6 +509,7 @@ elif page == "Placements":
         # Lunch Detention - Multi-day placement with automatic scheduling
         elif placement_category == "Lunch Detention":
             with st.form("lunch_detention_form"):
+                st.markdown("## Lunch Detention")
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -575,6 +578,7 @@ elif page == "Placements":
         # Class Period Referral - Single-day with period selection
         elif placement_category == "Class Period Referral":
             with st.form("class_referral_form"):
+                st.markdown("## Class Period Referral")
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -646,6 +650,7 @@ elif page == "Placements":
         # Cool-Down Referral - show cool-down form with date and period fields
         elif placement_category == "Cool-Down Referral":
             with st.form("create_cooldown_form"):
+                st.markdown("## Cool-Down Referral")
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -734,7 +739,7 @@ elif page == "Placements":
         
         # Pre-Planned Referral - schedule-based referral with multiple date+period combinations
         elif placement_category == "Pre-Planned Referral":
-            st.markdown("### Pre-Planned Referral Configuration")
+            st.markdown("## Pre-Planned Referral")
             st.info("📅 This placement type allows you to schedule a student for specific periods on specific dates (e.g., when they will have a substitute teacher)")
             
             # Initialize session state for schedule rows

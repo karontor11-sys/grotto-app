@@ -1,0 +1,127 @@
+PROMPT: Add daily ISS attendance controls on the Daily Log page with default “Present” and auto-shift end date on absences
+
+I’m working on my Grotto App in Replit. I already have placement types including In-School Suspension (ISS) and a Daily Log page. Please extend the ISS full-day logic as follows:
+
+1. Keep the ISS full-day scheduling behavior
+
+For full-day ISS placements, keep (or implement) this behavior:
+
+When placement_type is “In-School Suspension (ISS)” full days, the user chooses:
+
+iss_days (the required number of ISS days to serve)
+
+start_date
+
+The system:
+
+Computes scheduled_iss_dates:
+
+Start from start_date.
+
+Move forward by calendar day.
+
+Include only Monday–Friday.
+
+Skip Saturdays and Sundays.
+
+Stop when we have iss_days dates.
+
+Sets end_date to the last date in scheduled_iss_dates.
+
+Saves:
+
+start_date
+
+end_date
+
+iss_days (or total_required_days)
+
+scheduled_iss_dates (array of dates)
+
+served_dates (initially empty).
+
+2. Add daily attendance controls on the Daily Log page
+
+On the Daily Log page, for today’s date:
+
+Find all active ISS full-day placements where:
+
+Today is in their scheduled_iss_dates.
+
+The placement is not yet completed (served_dates length < total_required_days).
+
+For each such placement, display a row that includes:
+
+Student name
+
+Placement info (e.g. “ISS – full day, X of Y days”)
+
+A Present / Absent toggle or radio buttons for today with:
+
+Default selection: “Present”
+
+3. Behavior when saving the Daily Log
+
+When the user submits/saves the Daily Log for today:
+
+For each ISS full-day placement shown:
+
+If “Present” is selected (the default):
+
+Add today’s date to served_dates if it is not already there.
+
+Recalculate served_days = len(served_dates).
+
+If served_days >= total_required_days, mark the placement as completed (e.g. set a status flag or similar).
+
+Do not alter scheduled_iss_dates or end_date in this case.
+
+If “Absent” is selected:
+
+Do not add today’s date to served_dates.
+
+served_days remains unchanged.
+
+Extend the ISS schedule by one additional school day:
+
+Look at the current last date in scheduled_iss_dates.
+
+Starting from the next calendar day after that date, find the next weekday (Mon–Fri), skipping weekends.
+
+Append that date to scheduled_iss_dates.
+
+Update end_date to this new last date.
+
+This models the rule that if a student is gone during their ISS “sentence,” that day does not count, and the sentence is pushed out.
+
+4. UI details for Daily Log
+
+Make sure the Present/Absent toggle:
+
+Defaults to Present for each ISS placement row when the page loads.
+
+Lets the user manually change it to Absent before saving.
+
+Once the form is submitted:
+
+Persist that day’s choice so that if we reload the Daily Log for the same date, it reflects what was recorded (optional but ideal).
+
+Keep the Daily Log layout simple and readable, since staff will use it quickly:
+
+One row per ISS placement with student name, basic info, and Present/Absent choice.
+
+5. Helper functions and structure
+
+Please implement or refactor using small helper functions, for example:
+
+get_school_days(start_date, days_needed) -> List[date]
+
+extend_iss_schedule_for_absence(placement) -> placement
+
+mark_iss_present_for_today(placement, today) -> placement
+
+Make sure the new logic only applies to ISS full-day placements and does not break existing behavior for lunch detentions, period referrals, or cool-down referrals.
+
+Use clear, well-commented code so it’s easy to adjust later if I change how the Daily Log is displayed.
+
+That’s all for this change. Please show me the updated sections of code for the ISS scheduling logic and the Daily Log page where these Present/Absent controls are implemented.

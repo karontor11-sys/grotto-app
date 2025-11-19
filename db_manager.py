@@ -91,6 +91,8 @@ class Placement(Base):
     end_date = Column(Date, nullable=True)  # Set when placement is completed
     start_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: starting period (e.g., 1 for P1)
     end_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: ending period (e.g., 3 for P3)
+    scheduled_iss_dates = Column(JSON, default=list)  # Array of scheduled ISS dates (ISO format strings) for full-day ISS
+    served_dates = Column(JSON, default=list)  # Array of dates when student was present (ISO format strings)
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now)

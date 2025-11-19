@@ -209,12 +209,12 @@ class DatabaseManager:
         """Run database migrations to add missing columns."""
         session = self.get_session()
         try:
-            # Check if start_period and end_period columns exist in placements table
+            # Check which columns exist in placements table
             result = session.execute("""
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'served_dates')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -226,6 +226,16 @@ class DatabaseManager:
             # Add end_period column if it doesn't exist
             if 'end_period' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN end_period INTEGER")
+                session.commit()
+            
+            # Add scheduled_iss_dates column if it doesn't exist
+            if 'scheduled_iss_dates' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN scheduled_iss_dates JSON DEFAULT '[]'::json")
+                session.commit()
+            
+            # Add served_dates column if it doesn't exist
+            if 'served_dates' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN served_dates JSON DEFAULT '[]'::json")
                 session.commit()
                 
         except Exception as e:

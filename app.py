@@ -670,6 +670,88 @@ elif page == "Placements":
 elif page == "Daily Logs":
     st.header("Daily Log Manager")
     
+    # ISS Attendance Section - Show for today's full-day ISS placements
+    today = date.today()
+    today_str = today.isoformat()
+    
+    # Get all active ISS full-day placements scheduled for today
+    active_placements = dm.get_active_placements_with_students()
+    todays_iss_placements = []
+    
+    for placement in active_placements:
+        if placement.get('placementType') == 'ISS' and placement.get('type') == 'iss_full_day':
+            scheduled_dates = placement.get('scheduledIssDates', [])
+            served_dates = placement.get('servedDates', [])
+            total_required = placement.get('daysAssigned', 0)
+            
+            # Check if today is in scheduled dates and placement not yet completed
+            if today_str in scheduled_dates and len(served_dates) < total_required:
+                todays_iss_placements.append(placement)
+    
+    if todays_iss_placements:
+        st.subheader("📋 Today's ISS Attendance")
+        st.info(f"**{format_date(today_str)}** - Mark attendance for students in full-day ISS")
+        
+        # Initialize attendance state if not exists
+        if 'iss_attendance' not in st.session_state:
+            st.session_state.iss_attendance = {}
+        
+        # Display each ISS placement with attendance controls
+        for placement in todays_iss_placements:
+            student = placement.get('student', {})
+            student_name = f"{student.get('firstName', '')} {student.get('lastName', '')}"
+            placement_id = placement.get('_id')
+            
+            # Calculate progress
+            served_count = len(placement.get('servedDates', []))
+            total_days = placement.get('daysAssigned', 0)
+            
+            with st.container():
+                col1, col2, col3 = st.columns([3, 2, 2])
+                
+                with col1:
+                    st.write(f"**{student_name}**")
+                    st.caption(f"Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
+                
+                with col2:
+                    st.write(f"ISS – Full Day")
+                    st.caption(f"Day {served_count + 1} of {total_days}")
+                
+                with col3:
+                    # Default to Present
+                    default_value = st.session_state.iss_attendance.get(placement_id, "Present")
+                    attendance_status = st.radio(
+                        "Attendance",
+                        options=["Present", "Absent"],
+                        index=0 if default_value == "Present" else 1,
+                        key=f"attendance_{placement_id}",
+                        horizontal=True
+                    )
+                    st.session_state.iss_attendance[placement_id] = attendance_status
+                
+                st.divider()
+        
+        # Save button for all attendance
+        if st.button("💾 Save Today's ISS Attendance", type="primary", use_container_width=True):
+            saved_count = 0
+            for placement in todays_iss_placements:
+                placement_id = placement.get('_id')
+                attendance_status = st.session_state.iss_attendance.get(placement_id, "Present")
+                is_present = attendance_status == "Present"
+                
+                if dm.update_iss_attendance(placement_id, today_str, is_present):
+                    saved_count += 1
+            
+            if saved_count > 0:
+                st.success(f"✅ Saved attendance for {saved_count} student(s)!")
+                # Clear attendance state after saving
+                st.session_state.iss_attendance = {}
+                st.rerun()
+            else:
+                st.error("❌ Failed to save attendance")
+        
+        st.divider()
+    
     # Check if we navigated from a session chip (session-scoped view)
     # Use persistent session ID that survives reruns
     if 'selected_session_id' in st.session_state:

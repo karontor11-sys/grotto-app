@@ -761,7 +761,38 @@ elif page == "Placements":
                 
                 # Display schedule rows
                 schedule_data = []
-                for idx in range(len(st.session_state.preplanned_schedule)):
+                
+                # Display Day 1
+                row_data = st.session_state.preplanned_schedule[0]
+                st.markdown("**Day 1**")
+                col_date, col_periods = st.columns([2, 3])
+                
+                with col_date:
+                    row_date = st.date_input(
+                        f"Date",
+                        value=row_data.get("date", date.today()),
+                        key=f"pp_date_0",
+                        label_visibility="collapsed"
+                    )
+                
+                with col_periods:
+                    row_periods = st.multiselect(
+                        f"Periods",
+                        options=[1, 2, 3, 4, 5, 6, 7, 8],
+                        default=row_data.get("periods", [1]),
+                        format_func=lambda x: f"Period {x}",
+                        key=f"pp_periods_0",
+                        label_visibility="collapsed"
+                    )
+                
+                schedule_data.append({"date": row_date, "periods": row_periods})
+                
+                # Add Day button immediately after Day 1
+                add_row_button = st.form_submit_button("+ Add Day", use_container_width=False)
+                st.divider()
+                
+                # Display remaining schedule rows (Day 2, Day 3, etc.)
+                for idx in range(1, len(st.session_state.preplanned_schedule)):
                     row_data = st.session_state.preplanned_schedule[idx]
                     
                     st.markdown(f"**Day {idx + 1}**")
@@ -790,13 +821,8 @@ elif page == "Placements":
                 
                 created_by = st.text_input("Created By*", value="Staff", key="pp_created_by")
                 
-                # Form buttons
-                col_submit, col_add = st.columns([3, 1])
-                with col_submit:
-                    submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)
-                with col_add:
-                    # This button is inside the form but won't submit it
-                    add_row_button = st.form_submit_button("+ Add Day", use_container_width=True)
+                # Form submit button
+                submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)
                 
                 if add_row_button:
                     # Add a new schedule row

@@ -1,0 +1,91 @@
+Update Lunch Detention to behave like a multi-day sentence with automatic end-date calculation and absence handling
+
+Please update the Lunch Detention placement type so that it behaves similarly to ISS Full Day, with its own dedicated form and logic. Lunch Detention should function as a multi-day placement where each “day” means one lunch period on a valid school day.
+
+1. Create New Placement form behavior
+
+When the user selects Lunch Detention, the form should show:
+
+Start Date (today or any future date)
+
+Number of Lunch Detention Days (integer input such as 1, 2, 3, 5…)
+
+Student info, reason, etc.
+
+Do not show any End Date field; the system should calculate this automatically.
+
+2. Automatic scheduling logic (like ISS Full Day)
+
+When the user selects a Start Date and a number of detention days:
+
+Compute a list called scheduled_lunch_dates, where each date:
+
+Is a school day (Mon–Fri)
+
+Has a lunch period (i.e., skip days without lunch, such as early dismissal days)
+
+Continue adding valid dates until the list length equals the required number.
+
+Then:
+
+Set total_required_days = number selected
+
+Set served_dates = []
+
+Set end_date = last item in scheduled_lunch_dates
+
+Save all of the above in the placement record.
+
+3. Daily Log behavior
+
+On the Daily Log page:
+
+For today’s date, find all active Lunch Detention placements where:
+
+Today is one of the scheduled_lunch_dates, and
+
+The placement is not yet completed (served_dates < total_required_days)
+
+For each placement, display:
+
+Student name
+
+Summary info
+
+Present / Absent toggle (default = Present)
+
+Behavior when saving:
+
+If “Present” is selected:
+
+Add today to served_dates (if not already there)
+
+If served_dates count equals total_required_days, mark the placement completed
+
+If “Absent” is selected OR today is a day with no lunch period:
+
+Do not add today to served_dates
+
+Extend scheduled_lunch_dates by adding the next valid school day that has lunch
+
+Skip weekends
+
+Skip days without a lunch period
+
+Update end_date to this new final date
+
+This ensures absences or “no lunch” days push the sentence forward.
+
+4. UI separation
+
+Lunch Detention should have its own distinct Create Placement form, showing only:
+
+Start Date
+
+Number of Lunch Detention Days
+
+Reason / student info
+
+No multi-day ISS fields should appear for this type.
+
+Please implement this as described and keep the code organized with helper functions for date scheduling, absence extension, and completion checks.

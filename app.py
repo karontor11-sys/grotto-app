@@ -500,9 +500,12 @@ elif page == "Placements":
                             import traceback
                             st.error(traceback.format_exc())
         
-        # Lunch Detention - Single-day placement with date range
+        # Lunch Detention - Multi-day placement with automatic scheduling
         elif placement_category == "Lunch Detention":
             with st.form("lunch_detention_form"):
+                st.markdown("### Lunch Detention Configuration")
+                lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
+                
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -514,11 +517,7 @@ elif page == "Placements":
                 
                 st.markdown("### Placement Details")
                 reason = st.text_area("Reason for Placement*")
-                col3, col4 = st.columns(2)
-                with col3:
-                    start_date = st.date_input("Start Date*", value=date.today())
-                with col4:
-                    end_date = st.date_input("End Date*", value=date.today())
+                start_date = st.date_input("Start Date*", value=date.today())
                 created_by = st.text_input("Created By*", value="Staff")
                 
                 if st.form_submit_button("Create Lunch Detention"):
@@ -536,6 +535,10 @@ elif page == "Placements":
                             }
                             student_id = dm.add_student(new_student_data)
                             
+                            # Generate scheduled lunch dates (skip weekends, skip no-lunch days)
+                            scheduled_lunch_dates = dm.calculate_scheduled_lunch_dates(start_date, int(lunch_days))
+                            end_date = scheduled_lunch_dates[-1] if scheduled_lunch_dates else start_date
+                            
                             placement_data = {
                                 "studentId": student_id,
                                 "homeroomTeacherId": homeroom_teacher,
@@ -544,18 +547,20 @@ elif page == "Placements":
                                 "placementType": "LUNCH_DETENTION",
                                 "completionRule": "all_sessions_fulfilled",
                                 "minSessionsRequired": None,
-                                "daysAssigned": 1,
+                                "daysAssigned": int(lunch_days),
                                 "startDate": start_date.isoformat(),
                                 "endDate": end_date.isoformat(),
+                                "scheduledLunchDates": [d.isoformat() for d in scheduled_lunch_dates],
+                                "servedDates": [],
                                 "status": "active",
                                 "createdBy": created_by,
                                 "createdAt": datetime.now().isoformat()
                             }
                             
                             placement_id = dm.add_placement(placement_data)
-                            dm.generate_lunch_detention_sessions(placement_id, start_date, end_date)
+                            dm.generate_lunch_detention_sessions_from_scheduled(placement_id, scheduled_lunch_dates)
                             
-                            st.success(f"✅ Lunch Detention created for {first_name} {last_name}")
+                            st.success(f"✅ Lunch Detention created for {first_name} {last_name} - {lunch_days} day(s) scheduled through {end_date.strftime('%b %d, %Y')}")
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")

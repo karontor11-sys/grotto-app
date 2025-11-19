@@ -379,19 +379,19 @@ elif page == "Placements":
                 col1, col2 = st.columns(2)
                 with col1:
                     first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                    grade = st.selectbox("Grade*", ["6", "7", "8"])
                 with col2:
                     last_name = st.text_input("Last Name*")
                     homeroom_teacher = st.text_input("Homeroom Teacher*")
                 
                 st.markdown("### Placement Details")
-                reason = st.text_area("Reason for Placement*")
+                reason = st.text_area("Reason*")
                 
                 st.markdown("### Scheduling")
                 iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days")
                 start_date = st.date_input("Start Date*", value=date.today())
                 
-                created_by = st.text_input("Created By*", value="Staff")
+                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
                 if st.form_submit_button("Create ISS Full-Day Placement", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
@@ -442,13 +442,13 @@ elif page == "Placements":
                 col1, col2 = st.columns(2)
                 with col1:
                     first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                    grade = st.selectbox("Grade*", ["6", "7", "8"])
                 with col2:
                     last_name = st.text_input("Last Name*")
                     homeroom_teacher = st.text_input("Homeroom Teacher*")
                 
                 st.markdown("### Placement Details")
-                reason = st.text_area("Reason for Placement*")
+                reason = st.text_area("Reason*")
                 
                 st.markdown("### Scheduling")
                 col1, col2 = st.columns(2)
@@ -459,7 +459,7 @@ elif page == "Placements":
                 st.info("For a single period, select the same period for both Start and End.")
                 start_date = st.date_input("Start Date*", value=date.today())
                 
-                created_by = st.text_input("Created By*", value="Staff")
+                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
                 if st.form_submit_button("Create ISS Partial Placement", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
@@ -514,19 +514,19 @@ elif page == "Placements":
                 col1, col2 = st.columns(2)
                 with col1:
                     first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                    grade = st.selectbox("Grade*", ["6", "7", "8"])
                 with col2:
                     last_name = st.text_input("Last Name*")
                     homeroom_teacher = st.text_input("Homeroom Teacher*")
                 
                 st.markdown("### Placement Details")
-                reason = st.text_area("Reason for Placement*")
+                reason = st.text_area("Reason*")
                 
                 st.markdown("### Scheduling")
                 lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
                 start_date = st.date_input("Start Date*", value=date.today())
                 
-                created_by = st.text_input("Created By*", value="Staff")
+                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
                 if st.form_submit_button("Create Lunch Detention", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
@@ -583,13 +583,13 @@ elif page == "Placements":
                 col1, col2 = st.columns(2)
                 with col1:
                     first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                    grade = st.selectbox("Grade*", ["6", "7", "8"])
                 with col2:
                     last_name = st.text_input("Last Name*")
                     homeroom_teacher = st.text_input("Homeroom Teacher*")
                 
                 st.markdown("### Placement Details")
-                reason = st.text_area("Reason for Placement*")
+                reason = st.text_area("Reason*")
                 
                 st.markdown("### Scheduling")
                 col1, col2 = st.columns(2)
@@ -600,7 +600,7 @@ elif page == "Placements":
                 st.info("For a single period, select the same period for both Start and End.")
                 start_date = st.date_input("Start Date*", value=date.today())
                 
-                created_by = st.text_input("Created By*", value="Staff")
+                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
                 if st.form_submit_button("Create Class Period Referral", type="primary", use_container_width=True):
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
@@ -655,13 +655,13 @@ elif page == "Placements":
                 col1, col2 = st.columns(2)
                 with col1:
                     first_name = st.text_input("First Name*", key="cd_first_name")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="cd_grade")
+                    grade = st.selectbox("Grade*", ["6", "7", "8"], key="cd_grade")
                 with col2:
                     last_name = st.text_input("Last Name*", key="cd_last_name")
                     homeroom_teacher = st.text_input("Homeroom Teacher*", key="cd_homeroom")
                 
                 st.markdown("### Placement Details")
-                reason = st.text_area("Reason for Cool-Down*", key="cd_reason")
+                reason = st.text_area("Reason*", key="cd_reason")
                 
                 st.markdown("### Scheduling")
                 col3, col4, col5 = st.columns(3)
@@ -673,7 +673,7 @@ elif page == "Placements":
                     end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}", key="cd_end_period")
                 st.info("For a short cool-down, select the same period for both Start and End. For a longer cool-down, select a later period for End.")
                 
-                created_by = st.text_input("Created By*", value="Staff", key="cd_created_by")
+                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="cd_created_by")
                 
                 if st.form_submit_button("Create Cool-Down", type="primary", use_container_width=True):
                     # Validation
@@ -751,13 +751,13 @@ elif page == "Placements":
                 col1, col2 = st.columns(2)
                 with col1:
                     first_name = st.text_input("First Name*", key="pp_first_name")
-                    grade = st.selectbox("Grade*", ["K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="pp_grade")
+                    grade = st.selectbox("Grade*", ["6", "7", "8"], key="pp_grade")
                 with col2:
                     last_name = st.text_input("Last Name*", key="pp_last_name")
                     homeroom_teacher = st.text_input("Homeroom Teacher*", key="pp_homeroom")
                 
                 st.markdown("### Placement Details")
-                reason = st.text_area("Reason for Referral*", key="pp_reason")
+                reason = st.text_area("Reason*", key="pp_reason")
                 
                 st.markdown("### Scheduling")
                 st.caption("Add one or more date+period combinations for this referral")
@@ -822,7 +822,7 @@ elif page == "Placements":
                     schedule_data.append({"date": row_date, "periods": row_periods})
                     st.divider()
                 
-                created_by = st.text_input("Created By*", value="Staff", key="pp_created_by")
+                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="pp_created_by")
                 
                 # Form submit button
                 submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)

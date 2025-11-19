@@ -587,6 +587,68 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def update_lunch_detention_attendance(self, placement_id: str, attendance_date: str, is_present: bool) -> bool:
+        """Update Lunch Detention attendance for a specific date.
+        
+        Args:
+            placement_id: ID of the placement
+            attendance_date: ISO format date string
+            is_present: True if student was present, False if absent
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Only apply to Lunch Detention placements
+            if placement.placement_type != PlacementCategory.LUNCH_DETENTION or placement.type != PlacementType.iss_full_day:
+                return False
+            
+            date_obj = datetime.fromisoformat(attendance_date).date()
+            date_str = date_obj.isoformat()
+            
+            # Get current arrays (handle None)
+            served_dates = placement.served_dates if placement.served_dates else []
+            scheduled_lunch_dates = placement.scheduled_lunch_dates if placement.scheduled_lunch_dates else []
+            
+            if is_present:
+                # Add date to served_dates if not already there
+                if date_str not in served_dates:
+                    served_dates.append(date_str)
+                    placement.served_dates = served_dates
+                
+                # Check if placement should be completed
+                total_required = placement.days_assigned
+                if len(served_dates) >= total_required:
+                    placement.status = PlacementStatus.completed
+                    placement.end_date = date_obj
+            else:
+                # Student was absent - extend schedule by one school day with lunch
+                if not scheduled_lunch_dates:
+                    return False
+                
+                last_date_str = scheduled_lunch_dates[-1]
+                last_date = datetime.fromisoformat(last_date_str).date()
+                
+                # Find next school day with lunch (skip weekends)
+                next_date = last_date + timedelta(days=1)
+                while next_date.weekday() >= 5:  # Skip weekends
+                    next_date += timedelta(days=1)
+                
+                # Append to scheduled lunch dates and update end date
+                scheduled_lunch_dates.append(next_date.isoformat())
+                placement.scheduled_lunch_dates = scheduled_lunch_dates
+                placement.end_date = next_date
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def get_completed_placements_with_students(self) -> List[Dict[str, Any]]:
         """Get all completed placements with student info."""
         session = self.get_session()

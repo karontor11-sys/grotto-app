@@ -984,8 +984,164 @@ elif page == "Placements":
         # Create SEPARATE forms for each placement type
         # ISS - Unified form with full-day and partial-day options
         if placement_category == "In-School Suspension (ISS)":
+            st.markdown("## In-School Suspension")
+            
+            # ISS Type selector (OUTSIDE FORM for reactivity)
+            st.markdown("### Scheduling")
+            
+            # Initialize ISS type in session state if needed
+            if 'iss_type_selected' not in st.session_state:
+                st.session_state.iss_type_selected = "Full-Day"
+            
+            # ISS Type selector (Full-Day or Partial-Day)
+            iss_type = st.radio(
+                "ISS Type*",
+                options=["Full-Day", "Partial-Day"],
+                index=0 if st.session_state.iss_type_selected == "Full-Day" else 1,
+                horizontal=True,
+                help="Select whether this is a full-day or partial-day ISS placement",
+                key="iss_type_selected"
+            )
+            
+            st.divider()
+            
+            # Conditional fields based on ISS type
+            if iss_type == "Full-Day":
+                # ISS Assignment section (OUTSIDE FORM for reactivity)
+                st.markdown("### ISS Assignment")
+                
+                # Initialize default value in session state if not present
+                if 'total_iss_days_input' not in st.session_state:
+                    st.session_state.total_iss_days_input = 1
+                
+                # Use session state binding - no explicit value parameter
+                st.number_input(
+                    "Total ISS Days*", 
+                    min_value=1, 
+                    step=1, 
+                    help="Number of full ISS days assigned",
+                    key="total_iss_days_input"
+                )
+                total_iss_days = st.session_state.total_iss_days_input
+                total_iss_periods = int(total_iss_days) * 10
+                
+                # Display Total ISS Periods
+                st.markdown("**Total ISS Periods**")
+                st.info(f"**{total_iss_periods} periods** (Total ISS Days × 10 = {int(total_iss_days)} × 10)")
+                
+                st.divider()
+                
+                # ISS Session Builder (OUTSIDE FORM for reactivity)
+                st.markdown("### ISS Session Builder")
+                st.caption("Schedule specific dates and periods for this ISS placement")
+                
+                # Initialize session state for ISS sessions if needed
+                if 'iss_sessions' not in st.session_state:
+                    st.session_state.iss_sessions = [{"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10}]
+                
+                # Display ISS session rows
+                iss_session_data = []
+                total_scheduled_periods = 0
+                
+                for idx in range(len(st.session_state.iss_sessions)):
+                    session_row = st.session_state.iss_sessions[idx]
+                    
+                    st.markdown(f"**Session {idx + 1}**")
+                    col_date, col_type, col_periods = st.columns([2, 2, 3])
+                    
+                    with col_date:
+                        session_date = st.date_input(
+                            "Date",
+                            value=session_row.get("date", date.today()),
+                            key=f"iss_date_{idx}",
+                            label_visibility="collapsed"
+                        )
+                    
+                    with col_type:
+                        session_type = st.selectbox(
+                            "Session Type",
+                            options=["Full Day", "Custom Period Range"],
+                            index=0 if session_row.get("session_type") == "Full Day" else 1,
+                            key=f"iss_type_{idx}",
+                            label_visibility="collapsed"
+                        )
+                    
+                    with col_periods:
+                        if session_type == "Full Day":
+                            st.text_input(
+                                "Periods",
+                                value="Periods 1–10 (10 periods)",
+                                disabled=True,
+                                key=f"iss_periods_display_{idx}",
+                                label_visibility="collapsed"
+                            )
+                            session_start = 1
+                            session_end = 10
+                            session_periods = 10
+                        else:  # Custom Period Range
+                            col_start, col_end = st.columns(2)
+                            with col_start:
+                                session_start = st.selectbox(
+                                    "Start",
+                                    options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                                    index=session_row.get("start_period", 1) - 1,
+                                    format_func=lambda x: f"P{x}",
+                                    key=f"iss_start_{idx}",
+                                    label_visibility="collapsed"
+                                )
+                            with col_end:
+                                session_end = st.selectbox(
+                                    "End",
+                                    options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                                    index=session_row.get("end_period", 10) - 1,
+                                    format_func=lambda x: f"P{x}",
+                                    key=f"iss_end_{idx}",
+                                    label_visibility="collapsed"
+                                )
+                            session_periods = max(0, session_end - session_start + 1)
+                    
+                    # Store session data
+                    iss_session_data.append({
+                        "date": session_date,
+                        "session_type": session_type,
+                        "start_period": session_start,
+                        "end_period": session_end,
+                        "periods": session_periods
+                    })
+                    
+                    # Show period count for custom ranges
+                    if session_type == "Custom Period Range":
+                        if session_end >= session_start:
+                            st.caption(f"Periods {session_start}–{session_end} ({session_periods} periods)")
+                        else:
+                            st.error(f"End period must be >= start period")
+                    
+                    total_scheduled_periods += session_periods
+                
+                # Add Session button (OUTSIDE FORM)
+                if st.button("+ Add ISS Session", key="add_iss_session_btn"):
+                    st.session_state.iss_sessions.append({"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10})
+                    st.rerun()
+                
+                st.divider()
+                
+                # Running total display
+                st.markdown("**Scheduled ISS Periods Summary**")
+                if total_scheduled_periods < total_iss_periods:
+                    st.warning(f"**{total_scheduled_periods} of {total_iss_periods} periods scheduled** - You still have unscheduled ISS periods for this placement.")
+                elif total_scheduled_periods == total_iss_periods:
+                    st.success(f"**{total_scheduled_periods} of {total_iss_periods} periods scheduled** - All assigned ISS periods are scheduled.")
+                else:  # total_scheduled_periods > total_iss_periods
+                    st.error(f"**{total_scheduled_periods} of {total_iss_periods} periods scheduled** - Warning: Scheduled ISS periods exceed the total assigned. Please adjust the sessions or total days.")
+                
+                st.divider()
+                
+                # Store session data in session state for form submission
+                st.session_state.iss_session_data = iss_session_data
+                st.session_state.total_iss_periods_calculated = total_iss_periods
+            
+            # NOW START THE FORM (student info, reason, submit button)
             with st.form("iss_form"):
-                st.markdown("## In-School Suspension")
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -998,157 +1154,9 @@ elif page == "Placements":
                 st.markdown("### Placement Details")
                 reason = st.text_area("Reason*")
                 
-                st.markdown("### Scheduling")
-                
-                # Initialize ISS type in session state if needed
-                if 'iss_type_selected' not in st.session_state:
-                    st.session_state.iss_type_selected = "Full-Day"
-                
-                # ISS Type selector (Full-Day or Partial-Day)
-                iss_type = st.radio(
-                    "ISS Type*",
-                    options=["Full-Day", "Partial-Day"],
-                    index=0 if st.session_state.iss_type_selected == "Full-Day" else 1,
-                    horizontal=True,
-                    help="Select whether this is a full-day or partial-day ISS placement",
-                    key="iss_type_selected"
-                )
-                
-                st.divider()
-                
-                # Conditional fields based on ISS type
-                if iss_type == "Full-Day":
-                    # ISS Assignment section (Days → Periods)
-                    st.markdown("### ISS Assignment")
-                    
-                    # Initialize default value in session state if not present
-                    if 'total_iss_days_input' not in st.session_state:
-                        st.session_state.total_iss_days_input = 1
-                    
-                    total_iss_days = st.number_input(
-                        "Total ISS Days*", 
-                        min_value=1, 
-                        value=st.session_state.total_iss_days_input, 
-                        step=1, 
-                        help="Number of full ISS days assigned",
-                        key="total_iss_days_input"
-                    )
-                    total_iss_periods = int(total_iss_days) * 10
-                    
-                    # Display Total ISS Periods
-                    st.markdown("**Total ISS Periods**")
-                    st.info(f"**{total_iss_periods} periods** (Total ISS Days × 10 = {int(total_iss_days)} × 10)")
-                    
+                # Partial-Day scheduling (INSIDE FORM)
+                if iss_type == "Partial-Day":
                     st.divider()
-                    
-                    # ISS Session Builder
-                    st.markdown("### ISS Session Builder")
-                    st.caption("Schedule specific dates and periods for this ISS placement")
-                    
-                    # Initialize session state for ISS sessions if needed
-                    if 'iss_sessions' not in st.session_state:
-                        st.session_state.iss_sessions = [{"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10}]
-                    
-                    # Display ISS session rows
-                    iss_session_data = []
-                    total_scheduled_periods = 0
-                    
-                    for idx in range(len(st.session_state.iss_sessions)):
-                        session_row = st.session_state.iss_sessions[idx]
-                        
-                        st.markdown(f"**Session {idx + 1}**")
-                        col_date, col_type, col_periods = st.columns([2, 2, 3])
-                        
-                        with col_date:
-                            session_date = st.date_input(
-                                "Date",
-                                value=session_row.get("date", date.today()),
-                                key=f"iss_date_{idx}",
-                                label_visibility="collapsed"
-                            )
-                        
-                        with col_type:
-                            session_type = st.selectbox(
-                                "Session Type",
-                                options=["Full Day", "Custom Period Range"],
-                                index=0 if session_row.get("session_type") == "Full Day" else 1,
-                                key=f"iss_type_{idx}",
-                                label_visibility="collapsed"
-                            )
-                        
-                        with col_periods:
-                            if session_type == "Full Day":
-                                st.text_input(
-                                    "Periods",
-                                    value="Periods 1–10 (10 periods)",
-                                    disabled=True,
-                                    key=f"iss_periods_display_{idx}",
-                                    label_visibility="collapsed"
-                                )
-                                session_start = 1
-                                session_end = 10
-                                session_periods = 10
-                            else:  # Custom Period Range
-                                col_start, col_end = st.columns(2)
-                                with col_start:
-                                    session_start = st.selectbox(
-                                        "Start",
-                                        options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                                        index=session_row.get("start_period", 1) - 1,
-                                        format_func=lambda x: f"P{x}",
-                                        key=f"iss_start_{idx}",
-                                        label_visibility="collapsed"
-                                    )
-                                with col_end:
-                                    session_end = st.selectbox(
-                                        "End",
-                                        options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                                        index=session_row.get("end_period", 10) - 1,
-                                        format_func=lambda x: f"P{x}",
-                                        key=f"iss_end_{idx}",
-                                        label_visibility="collapsed"
-                                    )
-                                session_periods = max(0, session_end - session_start + 1)
-                        
-                        # Store session data
-                        iss_session_data.append({
-                            "date": session_date,
-                            "session_type": session_type,
-                            "start_period": session_start,
-                            "end_period": session_end,
-                            "periods": session_periods
-                        })
-                        
-                        # Show period count for custom ranges
-                        if session_type == "Custom Period Range":
-                            if session_end >= session_start:
-                                st.caption(f"Periods {session_start}–{session_end} ({session_periods} periods)")
-                            else:
-                                st.error(f"End period must be >= start period")
-                        
-                        total_scheduled_periods += session_periods
-                    
-                    # Add Session button
-                    add_session_button = st.form_submit_button("+ Add Session", use_container_width=False)
-                    
-                    st.divider()
-                    
-                    # Running total display
-                    st.markdown("**Scheduled ISS Periods Summary**")
-                    if total_scheduled_periods < total_iss_periods:
-                        st.warning(f"**{total_scheduled_periods} of {total_iss_periods} periods scheduled** - You still have unscheduled ISS periods for this placement.")
-                    elif total_scheduled_periods == total_iss_periods:
-                        st.success(f"**{total_scheduled_periods} of {total_iss_periods} periods scheduled** - All assigned ISS periods are scheduled.")
-                    else:  # total_scheduled_periods > total_iss_periods
-                        st.error(f"**{total_scheduled_periods} of {total_iss_periods} periods scheduled** - Warning: Scheduled ISS periods exceed the total assigned. Please adjust the sessions or total days.")
-                    
-                    st.divider()
-                    
-                    start_date = st.date_input("Start Date*", value=date.today())
-                    iss_days = total_iss_days
-                    selected_start_period = None
-                    selected_end_period = None
-                else:  # Partial-Day
                     col1, col2 = st.columns(2)
                     with col1:
                         selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
@@ -1156,19 +1164,11 @@ elif page == "Placements":
                         selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                     st.info("For a single period, select the same period for both Start and End.")
                     start_date = st.date_input("Date*", value=date.today())
-                    iss_days = 1
-                    total_iss_periods = None
                 
                 created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
                 # Handle form submission
                 submit_clicked = st.form_submit_button("Create ISS Placement", type="primary", use_container_width=True)
-                
-                # Handle Add Session button for Full-Day ISS
-                if st.session_state.get('iss_type_selected') == "Full-Day" and add_session_button:
-                    # Add a new session to the list
-                    st.session_state.iss_sessions.append({"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10})
-                    st.rerun()
                 
                 if submit_clicked:
                     # Validation
@@ -1195,6 +1195,11 @@ elif page == "Placements":
                             student_id = dm.add_student(new_student_data)
                             
                             if iss_type == "Full-Day":
+                                # Get session data from session state
+                                iss_session_data = st.session_state.get('iss_session_data', [])
+                                total_iss_periods = st.session_state.get('total_iss_periods_calculated', 10)
+                                total_iss_days = st.session_state.get('total_iss_days_input', 1)
+                                
                                 # Validate ISS session data
                                 for idx, session in enumerate(iss_session_data):
                                     if session["session_type"] == "Custom Period Range" and session["end_period"] < session["start_period"]:
@@ -1217,8 +1222,8 @@ elif page == "Placements":
                                 
                                 # Calculate start and end dates from sessions
                                 all_session_dates = [session["date"] for session in iss_session_data]
-                                calc_start_date = min(all_session_dates) if all_session_dates else start_date
-                                calc_end_date = max(all_session_dates) if all_session_dates else start_date
+                                calc_start_date = min(all_session_dates) if all_session_dates else date.today()
+                                calc_end_date = max(all_session_dates) if all_session_dates else date.today()
                                 
                                 placement_data = {
                                     "studentId": student_id,
@@ -1228,7 +1233,7 @@ elif page == "Placements":
                                     "placementType": "ISS",
                                     "completionRule": "iss_days",
                                     "minSessionsRequired": None,
-                                    "daysAssigned": iss_days,
+                                    "daysAssigned": total_iss_days,
                                     "totalIssPeriods": total_iss_periods,
                                     "scheduledIssSessions": scheduled_iss_sessions,
                                     "startDate": calc_start_date.isoformat(),
@@ -1239,10 +1244,11 @@ elif page == "Placements":
                                 }
                                 
                                 placement_id = dm.add_placement(placement_data)
-                                dm.generate_iss_full_day_sessions(placement_id, calc_start_date, iss_days)
+                                dm.generate_iss_full_day_sessions(placement_id, calc_start_date, total_iss_days)
                                 
                                 # Reset ISS sessions for next placement
                                 st.session_state.iss_sessions = [{"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10}]
+                                st.session_state.total_iss_days_input = 1
                                 
                                 st.success(f"✅ ISS placement created for {first_name} {last_name}")
                             else:  # Partial-Day

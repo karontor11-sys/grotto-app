@@ -1340,7 +1340,11 @@ class DatabaseManager:
             session.close()
     
     def complete_placement_day(self, placement_id: str, log_date: str, completed_by: str) -> bool:
-        """Mark a placement day as complete by setting daily_fulfillment to 'yes'."""
+        """Mark a placement day as complete by setting daily_fulfillment to 'yes'.
+        
+        This method supports retroactive completion - staff can mark incomplete
+        records from past dates as complete while preserving alert history.
+        """
         session = self.get_session()
         try:
             date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date

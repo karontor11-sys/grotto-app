@@ -453,9 +453,9 @@ elif page == "Placements":
                 st.markdown("### Scheduling")
                 col1, col2 = st.columns(2)
                 with col1:
-                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                 with col2:
-                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                 st.info("For a single period, select the same period for both Start and End.")
                 start_date = st.date_input("Start Date*", value=date.today())
                 
@@ -594,9 +594,9 @@ elif page == "Placements":
                 st.markdown("### Scheduling")
                 col1, col2 = st.columns(2)
                 with col1:
-                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                 with col2:
-                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"Period {x}")
+                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                 st.info("For a single period, select the same period for both Start and End.")
                 start_date = st.date_input("Start Date*", value=date.today())
                 
@@ -668,9 +668,9 @@ elif page == "Placements":
                 with col3:
                     cooldown_date = st.date_input("Date*", value=date.today(), key="cd_date")
                 with col4:
-                    start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}", key="cd_start_period")
+                    start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_start_period")
                 with col5:
-                    end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8], format_func=lambda x: f"P{x}", key="cd_end_period")
+                    end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_end_period")
                 st.info("For a short cool-down, select the same period for both Start and End. For a longer cool-down, select a later period for End.")
                 
                 created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="cd_created_by")
@@ -781,7 +781,7 @@ elif page == "Placements":
                 with col_periods:
                     row_periods = st.multiselect(
                         f"Periods",
-                        options=[1, 2, 3, 4, 5, 6, 7, 8],
+                        options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                         default=row_data.get("periods", [1]),
                         format_func=lambda x: f"Period {x}",
                         key=f"pp_periods_0",
@@ -812,7 +812,7 @@ elif page == "Placements":
                     with col_periods:
                         row_periods = st.multiselect(
                             f"Periods",
-                            options=[1, 2, 3, 4, 5, 6, 7, 8],
+                            options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                             default=row_data.get("periods", [1]),
                             format_func=lambda x: f"Period {x}",
                             key=f"pp_periods_{idx}",

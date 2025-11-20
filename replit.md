@@ -62,6 +62,9 @@ The UI features a **Dashboard** with:
 - **Flexible Placement Completion Rules**: Configurable completion criteria for different placement types with role-based "Complete Placement" button.
 - **Five Placement Types**: Single radio selector for choosing between In-School Suspension (Full), In-School Suspension (Partial), Lunch Detention, Class Period Referral, and Cool-Down Referral with conditional fields based on selection.
 - **Conditional Form Fields**: Dynamic form fields that appear based on placement type selection - ISS Days for Full ISS, period selection for Partial ISS and Class Referral, no additional fields for Lunch Detention, and separate form for Cool-Down.
+- **End-of-Day Processing**: Automated system that runs on app startup to process any pending dates, marking incomplete daily logs (where daily_fulfillment is not 'yes') as 'no' with alert_flag=True. Processing is tracked via EndOfDayProcessing table to ensure each date is processed exactly once.
+- **Retroactive Completion**: Staff can mark incomplete records from past dates as complete using the "✓ Complete" button. The alert_flag is preserved for audit accountability - if alerts were sent for an incomplete record, that history is maintained even after the record is marked complete.
+- **Status Indicators**: Visual status badges using color coding - Green (completed/daily_fulfillment='yes'), Yellow (in progress/today), Red (not completed/past date). Past dates marked incomplete by end-of-day processing display red until manually completed.
 
 ## External Dependencies
 

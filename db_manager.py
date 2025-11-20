@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import enum
@@ -1723,10 +1723,11 @@ class DatabaseManager:
             if existing:
                 return 0  # Already processed
             
-            # Find all DailyLog records for this date where daily_fulfillment != 'yes'
+            # Find all DailyLog records for this date where daily_fulfillment is not 'yes'
+            # This includes NULL values and 'no' values
             incomplete_logs = session.query(DailyLog).filter(
                 DailyLog.date == target_date,
-                DailyLog.daily_fulfillment != 'yes'
+                or_(DailyLog.daily_fulfillment != 'yes', DailyLog.daily_fulfillment.is_(None))
             ).all()
             
             # Mark each as 'no' and set alert_flag

@@ -1012,8 +1012,19 @@ elif page == "Placements":
                 
                 # Conditional fields based on ISS type
                 if iss_type == "Full-Day":
-                    iss_days = st.number_input("ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days")
+                    # ISS Assignment section (Days → Periods)
+                    st.markdown("### ISS Assignment")
+                    total_iss_days = st.number_input("Total ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days assigned")
+                    total_iss_periods = int(total_iss_days) * 10
+                    
+                    # Display Total ISS Periods
+                    st.markdown("**Total ISS Periods**")
+                    st.info(f"**{total_iss_periods} periods** (Total ISS Days × 10 = {int(total_iss_days)} × 10)")
+                    
+                    st.divider()
+                    
                     start_date = st.date_input("Start Date*", value=date.today())
+                    iss_days = total_iss_days
                     selected_start_period = None
                     selected_end_period = None
                 else:  # Partial-Day
@@ -1025,6 +1036,7 @@ elif page == "Placements":
                     st.info("For a single period, select the same period for both Start and End.")
                     start_date = st.date_input("Date*", value=date.today())
                     iss_days = 1
+                    total_iss_periods = None
                 
                 created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
@@ -1062,6 +1074,7 @@ elif page == "Placements":
                                     "completionRule": "iss_days",
                                     "minSessionsRequired": None,
                                     "daysAssigned": iss_days,
+                                    "totalIssPeriods": total_iss_periods,
                                     "startDate": start_date.isoformat(),
                                     "endDate": start_date.isoformat(),
                                     "status": "active",

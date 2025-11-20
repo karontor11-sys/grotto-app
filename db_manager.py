@@ -88,6 +88,7 @@ class Placement(Base):
     min_sessions_required = Column(Integer, nullable=True)  # For min_sessions_n rule
     days_assigned = Column(Integer, nullable=False)
     days_completed = Column(Integer, default=0)  # Days earned through Daily Fulfillment = Yes
+    total_iss_periods = Column(Integer, nullable=True)  # For ISS: Total periods assigned (days_assigned × 10)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # Set when placement is completed
     start_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: starting period (e.g., 1 for P1)
@@ -225,7 +226,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'served_dates')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'served_dates', 'total_iss_periods')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -247,6 +248,11 @@ class DatabaseManager:
             # Add served_dates column if it doesn't exist
             if 'served_dates' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN served_dates JSON DEFAULT '[]'::json")
+                session.commit()
+            
+            # Add total_iss_periods column if it doesn't exist
+            if 'total_iss_periods' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN total_iss_periods INTEGER")
                 session.commit()
                 
         except Exception as e:
@@ -365,6 +371,7 @@ class DatabaseManager:
                 completion_rule=completion_rule,
                 min_sessions_required=placement_data.get('minSessionsRequired'),
                 days_assigned=placement_data['daysAssigned'],
+                total_iss_periods=placement_data.get('totalIssPeriods'),
                 start_date=datetime.fromisoformat(placement_data['startDate']).date(),
                 end_date=end_date,
                 start_period=placement_data.get('startPeriod'),
@@ -1638,6 +1645,7 @@ class DatabaseManager:
             'minSessionsRequired': placement.min_sessions_required,
             'daysAssigned': placement.days_assigned,
             'daysCompleted': placement.days_completed or 0,
+            'totalIssPeriods': placement.total_iss_periods,
             'startDate': placement.start_date.isoformat(),
             'endDate': placement.end_date.isoformat() if placement.end_date else None,
             'startPeriod': placement.start_period,

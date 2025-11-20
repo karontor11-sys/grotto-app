@@ -457,7 +457,7 @@ elif page == "Placements":
                 with col2:
                     selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                 st.info("For a single period, select the same period for both Start and End.")
-                start_date = st.date_input("Start Date*", value=date.today())
+                start_date = st.date_input("Date*", value=date.today())
                 
                 created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
@@ -598,7 +598,7 @@ elif page == "Placements":
                 with col2:
                     selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                 st.info("For a single period, select the same period for both Start and End.")
-                start_date = st.date_input("Start Date*", value=date.today())
+                start_date = st.date_input("Date*", value=date.today())
                 
                 created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 

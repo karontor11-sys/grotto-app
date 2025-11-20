@@ -94,6 +94,7 @@ class Placement(Base):
     start_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: starting period (e.g., 1 for P1)
     end_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: ending period (e.g., 3 for P3)
     scheduled_iss_dates = Column(JSON, default=list)  # Array of scheduled ISS dates (ISO format strings) for full-day ISS
+    scheduled_iss_sessions = Column(JSON, default=list)  # Array of scheduled ISS sessions with date, periods, and session type
     served_dates = Column(JSON, default=list)  # Array of dates when student was present (ISO format strings)
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
@@ -226,7 +227,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'served_dates', 'total_iss_periods')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -253,6 +254,11 @@ class DatabaseManager:
             # Add total_iss_periods column if it doesn't exist
             if 'total_iss_periods' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN total_iss_periods INTEGER")
+                session.commit()
+            
+            # Add scheduled_iss_sessions column if it doesn't exist
+            if 'scheduled_iss_sessions' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN scheduled_iss_sessions JSON DEFAULT '[]'::json")
                 session.commit()
                 
         except Exception as e:
@@ -377,6 +383,7 @@ class DatabaseManager:
                 start_period=placement_data.get('startPeriod'),
                 end_period=placement_data.get('endPeriod'),
                 scheduled_iss_dates=scheduled_iss_dates,
+                scheduled_iss_sessions=placement_data.get('scheduledIssSessions', []),
                 served_dates=served_dates,
                 status=PlacementStatus.active,
                 created_by=placement_data.get('createdBy'),
@@ -1651,6 +1658,7 @@ class DatabaseManager:
             'startPeriod': placement.start_period,
             'endPeriod': placement.end_period,
             'scheduledIssDates': placement.scheduled_iss_dates or [],
+            'scheduledIssSessions': placement.scheduled_iss_sessions or [],
             'servedDates': placement.served_dates or [],
             'status': placement.status.value,
             'createdBy': placement.created_by,

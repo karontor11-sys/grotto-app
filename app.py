@@ -1602,7 +1602,7 @@ elif page == "Daily Logs":
                     st.caption(f"Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
                 
                 with col2:
-                    st.write(f"ISS – Full Day")
+                    st.write(f"ISS")
                     st.caption(f"Day {served_count + 1} of {total_days}")
                 
                 with col3:

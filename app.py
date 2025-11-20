@@ -1010,11 +1010,7 @@ elif page == "Placements":
                 # ISS Assignment section (OUTSIDE FORM for reactivity)
                 st.markdown("### ISS Assignment")
                 
-                # Initialize default value in session state if not present
-                if 'total_iss_days_input' not in st.session_state:
-                    st.session_state.total_iss_days_input = 1
-                
-                # Use session state binding - no explicit value parameter
+                # Use session state binding - key only, no value parameter
                 st.number_input(
                     "Total ISS Days*", 
                     min_value=1, 
@@ -1022,11 +1018,13 @@ elif page == "Placements":
                     help="Number of full ISS days assigned",
                     key="total_iss_days_input"
                 )
-                total_iss_days = st.session_state.total_iss_days_input
+                total_iss_days = st.session_state.get('total_iss_days_input', 1)
                 total_iss_periods = int(total_iss_days) * 10
                 
                 # Display Total ISS Periods
                 st.markdown("**Total ISS Periods**")
+                st.write(f"DEBUG: total_iss_days_input in session_state = {st.session_state.get('total_iss_days_input', 'NOT FOUND')}")
+                st.write(f"DEBUG: total_iss_days = {total_iss_days}, total_iss_periods = {total_iss_periods}")
                 st.info(f"**{total_iss_periods} periods** (Total ISS Days × 10 = {int(total_iss_days)} × 10)")
                 
                 st.divider()
@@ -1249,9 +1247,10 @@ elif page == "Placements":
                                 placement_id = dm.add_placement(placement_data)
                                 dm.generate_iss_full_day_sessions(placement_id, calc_start_date, total_iss_days)
                                 
-                                # Reset ISS sessions for next placement
+                                # Reset ISS sessions and days for next placement
                                 st.session_state.iss_sessions_initialized = False
-                                st.session_state.total_iss_days_input = 1
+                                if 'total_iss_days_input' in st.session_state:
+                                    del st.session_state.total_iss_days_input
                                 
                                 st.success(f"✅ ISS placement created for {first_name} {last_name}")
                             else:  # Partial-Day

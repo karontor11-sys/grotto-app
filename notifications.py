@@ -226,6 +226,42 @@ class NotificationManager:
             print(f"Error fetching placements ending soon: {e}")
             return []
     
+    def get_end_of_day_incomplete_notifications(self, days_back: int = 7) -> List[Dict[str, Any]]:
+        """Get notifications for records marked as incomplete during end-of-day processing.
+        
+        Args:
+            days_back: Number of days to look back for incomplete records
+            
+        Returns:
+            List of notifications for incomplete records
+        """
+        notifications = []
+        today = date.today()
+        
+        # Check the last N days for incomplete records
+        for i in range(1, days_back + 1):
+            check_date = today - timedelta(days=i)
+            
+            # Get incomplete records for this date
+            incomplete_records = self.db.get_eod_incomplete_records(check_date)
+            
+            if incomplete_records:
+                # Create a summary notification for this date
+                student_names = [rec['student_name'] for rec in incomplete_records]
+                
+                notifications.append({
+                    'type': 'end_of_day_incomplete',
+                    'severity': 'warning',
+                    'timestamp': datetime.combine(check_date, datetime.min.time()),
+                    'title': f'Incomplete Records - {check_date.strftime("%m/%d/%Y")}',
+                    'message': f"{len(incomplete_records)} student(s) did not complete their placement requirements: {', '.join(student_names)}",
+                    'date': check_date.isoformat(),
+                    'incomplete_count': len(incomplete_records),
+                    'recipients': ['Aaron Toronto', 'Matthew Christie']
+                })
+        
+        return notifications
+    
     def get_all_notifications(self) -> List[Dict[str, Any]]:
         """Get all notifications sorted by timestamp."""
         all_notifications = []
@@ -237,6 +273,7 @@ class NotificationManager:
         all_notifications.extend(self.get_pending_daily_logs())
         all_notifications.extend(self.get_overdue_assignments())
         all_notifications.extend(self.get_placement_ending_soon(days_threshold=2))
+        all_notifications.extend(self.get_end_of_day_incomplete_notifications(days_back=7))
         
         # Sort by timestamp (most recent first)
         all_notifications.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)

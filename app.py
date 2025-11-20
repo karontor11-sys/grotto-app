@@ -353,8 +353,7 @@ if page == "Dashboard":
     st.divider()
     
     # Group placements by type
-    iss_full_placements = []
-    iss_partial_placements = []
+    iss_placements = []
     lunch_detention_placements = []
     class_referral_placements = []
     cooldown_placements = []
@@ -362,13 +361,9 @@ if page == "Dashboard":
     
     for placement in placements_for_date:
         placement_type = placement.get('placementType', '').upper()
-        internal_type = placement.get('type', '')
         
         if placement_type == 'ISS':
-            if internal_type == 'iss_full_day':
-                iss_full_placements.append(placement)
-            elif internal_type == 'partial':
-                iss_partial_placements.append(placement)
+            iss_placements.append(placement)
         elif placement_type == 'LUNCH_DETENTION':
             lunch_detention_placements.append(placement)
         elif placement_type == 'CLASS_REFERRAL':
@@ -890,24 +885,21 @@ if page == "Dashboard":
             
             st.divider()
     
-    # Six Collapsible Sections
-    # 1. ISS - Full Day
-    with st.expander(f"ISS – Full Day ({len(iss_full_placements)})", expanded=len(iss_full_placements) > 0):
-        if len(iss_full_placements) == 0:
-            st.info("No students in ISS Full Day for this date.")
+    # Five Collapsible Sections
+    # 1. ISS (Unified - includes both full-day and partial-day)
+    with st.expander(f"ISS ({len(iss_placements)})", expanded=len(iss_placements) > 0):
+        if len(iss_placements) == 0:
+            st.info("No students in ISS for this date.")
         else:
-            for placement in iss_full_placements:
-                render_iss_full_card(placement, selected_date)
+            for placement in iss_placements:
+                # Render appropriate card based on internal type
+                internal_type = placement.get('type', '')
+                if internal_type == 'iss_full_day':
+                    render_iss_full_card(placement, selected_date)
+                elif internal_type == 'partial':
+                    render_iss_partial_card(placement, selected_date)
     
-    # 2. ISS - Partial Day
-    with st.expander(f"ISS – Partial Day ({len(iss_partial_placements)})", expanded=len(iss_partial_placements) > 0):
-        if len(iss_partial_placements) == 0:
-            st.info("No students in ISS Partial Day for this date.")
-        else:
-            for placement in iss_partial_placements:
-                render_iss_partial_card(placement, selected_date)
-    
-    # 3. Lunch Detention
+    # 2. Lunch Detention
     with st.expander(f"Lunch Detention ({len(lunch_detention_placements)})", expanded=len(lunch_detention_placements) > 0):
         if len(lunch_detention_placements) == 0:
             st.info("No students in Lunch Detention for this date.")

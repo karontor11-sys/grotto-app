@@ -372,6 +372,79 @@ if page == "Dashboard":
         elif placement_type == 'PRE_PLANNED_REFERRAL':
             preplanned_placements.append(placement)
     
+    # Helper function to render universal student card
+    def render_student_card(placement: dict, target_date: date):
+        """Render a universal student card with status, notes, and completion button."""
+        student = placement['student']
+        placement_id = placement['_id']
+        student_name = f"{student['firstName']} {student['lastName']}"
+        date_str = target_date.isoformat()
+        
+        # Get or create daily log for this placement and date
+        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        
+        # Determine status color
+        from utils import get_daily_status_color
+        status_color = get_daily_status_color(daily_log.get('dailyFulfillment'), date_str)
+        
+        # Map colors to emojis
+        status_icons = {
+            'green': '🟢',
+            'yellow': '🟡',
+            'red': '🔴'
+        }
+        status_icon = status_icons.get(status_color, '⚪')
+        
+        with st.container():
+            # Student name (clickable) with status indicator
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            with col1:
+                # Clickable student name that navigates to Daily Logs
+                if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
+                    st.session_state.navigate_to_daily_logs = True
+                    st.session_state.selected_log_date = target_date
+                    st.rerun()
+            
+            with col2:
+                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            
+            with col3:
+                # Complete button
+                if daily_log.get('dailyFulfillment') != 'yes':
+                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        st.rerun()
+                else:
+                    st.success("Completed")
+            
+            # Notes field (collapsed by default)
+            notes_key = f"notes_{placement_id}_{date_str}"
+            show_notes_key = f"show_notes_{placement_id}_{date_str}"
+            
+            if show_notes_key not in st.session_state:
+                st.session_state[show_notes_key] = False
+            
+            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
+                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
+                st.rerun()
+            
+            if st.session_state[show_notes_key]:
+                current_notes = daily_log.get('notes', '')
+                new_notes = st.text_area(
+                    "Notes for this student on this date:",
+                    value=current_notes or '',
+                    key=notes_key,
+                    height=100
+                )
+                
+                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
+                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                    st.success("Notes saved!")
+                    st.rerun()
+            
+            st.divider()
+    
     # Six Collapsible Sections
     # 1. ISS - Full Day
     with st.expander(f"ISS – Full Day ({len(iss_full_placements)})", expanded=len(iss_full_placements) > 0):
@@ -379,10 +452,7 @@ if page == "Dashboard":
             st.info("No students in ISS Full Day for this date.")
         else:
             for placement in iss_full_placements:
-                student = placement['student']
-                with st.container():
-                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
-                    st.divider()
+                render_student_card(placement, selected_date)
     
     # 2. ISS - Partial Day
     with st.expander(f"ISS – Partial Day ({len(iss_partial_placements)})", expanded=len(iss_partial_placements) > 0):
@@ -390,10 +460,7 @@ if page == "Dashboard":
             st.info("No students in ISS Partial Day for this date.")
         else:
             for placement in iss_partial_placements:
-                student = placement['student']
-                with st.container():
-                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
-                    st.divider()
+                render_student_card(placement, selected_date)
     
     # 3. Lunch Detention
     with st.expander(f"Lunch Detention ({len(lunch_detention_placements)})", expanded=len(lunch_detention_placements) > 0):
@@ -401,10 +468,7 @@ if page == "Dashboard":
             st.info("No students in Lunch Detention for this date.")
         else:
             for placement in lunch_detention_placements:
-                student = placement['student']
-                with st.container():
-                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
-                    st.divider()
+                render_student_card(placement, selected_date)
     
     # 4. Class Period Referral
     with st.expander(f"Class Period Referral ({len(class_referral_placements)})", expanded=len(class_referral_placements) > 0):
@@ -412,10 +476,7 @@ if page == "Dashboard":
             st.info("No students in Class Period Referral for this date.")
         else:
             for placement in class_referral_placements:
-                student = placement['student']
-                with st.container():
-                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
-                    st.divider()
+                render_student_card(placement, selected_date)
     
     # 5. Cool-Down Referral
     with st.expander(f"Cool-Down Referral ({len(cooldown_placements)})", expanded=len(cooldown_placements) > 0):
@@ -423,10 +484,7 @@ if page == "Dashboard":
             st.info("No students in Cool-Down Referral for this date.")
         else:
             for placement in cooldown_placements:
-                student = placement['student']
-                with st.container():
-                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
-                    st.divider()
+                render_student_card(placement, selected_date)
     
     # 6. Pre-Planned Referral
     with st.expander(f"Pre-Planned Referral ({len(preplanned_placements)})", expanded=len(preplanned_placements) > 0):
@@ -434,10 +492,7 @@ if page == "Dashboard":
             st.info("No students in Pre-Planned Referral for this date.")
         else:
             for placement in preplanned_placements:
-                student = placement['student']
-                with st.container():
-                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
-                    st.divider()
+                render_student_card(placement, selected_date)
 
 # Placements Page
 elif page == "Placements":

@@ -1370,7 +1370,8 @@ class DatabaseManager:
                 log.daily_fulfillment = 'yes'
                 log.finalized_by = completed_by
                 log.finalized_at = datetime.now()
-                log.alert_flag = False
+                # Note: We preserve alert_flag for audit history (if alerts were sent for incomplete records)
+                # The record is now completed, but the alert history is maintained for accountability
                 
                 placement = session.query(Placement).filter(Placement.id == placement_id).first()
                 if placement and old_fulfillment != 'yes':

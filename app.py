@@ -1000,12 +1000,18 @@ elif page == "Placements":
                 
                 st.markdown("### Scheduling")
                 
+                # Initialize ISS type in session state if needed
+                if 'iss_type_selected' not in st.session_state:
+                    st.session_state.iss_type_selected = "Full-Day"
+                
                 # ISS Type selector (Full-Day or Partial-Day)
                 iss_type = st.radio(
                     "ISS Type*",
                     options=["Full-Day", "Partial-Day"],
+                    index=0 if st.session_state.iss_type_selected == "Full-Day" else 1,
                     horizontal=True,
-                    help="Select whether this is a full-day or partial-day ISS placement"
+                    help="Select whether this is a full-day or partial-day ISS placement",
+                    key="iss_type_selected"
                 )
                 
                 st.divider()
@@ -1014,7 +1020,19 @@ elif page == "Placements":
                 if iss_type == "Full-Day":
                     # ISS Assignment section (Days → Periods)
                     st.markdown("### ISS Assignment")
-                    total_iss_days = st.number_input("Total ISS Days*", min_value=1, value=1, step=1, help="Number of full ISS days assigned")
+                    
+                    # Initialize default value in session state if not present
+                    if 'total_iss_days_input' not in st.session_state:
+                        st.session_state.total_iss_days_input = 1
+                    
+                    total_iss_days = st.number_input(
+                        "Total ISS Days*", 
+                        min_value=1, 
+                        value=st.session_state.total_iss_days_input, 
+                        step=1, 
+                        help="Number of full ISS days assigned",
+                        key="total_iss_days_input"
+                    )
                     total_iss_periods = int(total_iss_days) * 10
                     
                     # Display Total ISS Periods
@@ -1147,7 +1165,7 @@ elif page == "Placements":
                 submit_clicked = st.form_submit_button("Create ISS Placement", type="primary", use_container_width=True)
                 
                 # Handle Add Session button for Full-Day ISS
-                if iss_type == "Full-Day" and add_session_button:
+                if st.session_state.get('iss_type_selected') == "Full-Day" and add_session_button:
                     # Add a new session to the list
                     st.session_state.iss_sessions.append({"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10})
                     st.rerun()

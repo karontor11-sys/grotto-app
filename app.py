@@ -242,8 +242,7 @@ if page == "Dashboard":
     placements_for_date = dm.get_active_placements_for_date(selected_date)
     
     # Count placements by category
-    iss_full_count = 0
-    iss_partial_count = 0
+    iss_count = 0
     lunch_detention_count = 0
     class_referral_count = 0
     cooldown_count = 0
@@ -251,13 +250,9 @@ if page == "Dashboard":
     
     for placement in placements_for_date:
         placement_type = placement.get('placementType', '').upper()
-        internal_type = placement.get('type', '')
         
         if placement_type == 'ISS':
-            if internal_type == 'iss_full_day':
-                iss_full_count += 1
-            elif internal_type == 'partial':
-                iss_partial_count += 1
+            iss_count += 1
         elif placement_type == 'LUNCH_DETENTION':
             lunch_detention_count += 1
         elif placement_type == 'CLASS_REFERRAL':
@@ -268,18 +263,16 @@ if page == "Dashboard":
             preplanned_count += 1
     
     # Display summary in columns
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        st.metric("ISS Full Day", iss_full_count)
+        st.metric("ISS", iss_count)
     with col2:
-        st.metric("ISS Partial Day", iss_partial_count)
-    with col3:
         st.metric("Lunch Detention", lunch_detention_count)
-    with col4:
+    with col3:
         st.metric("Class Period Referral", class_referral_count)
-    with col5:
+    with col4:
         st.metric("Cool-Down Referral", cooldown_count)
-    with col6:
+    with col5:
         st.metric("Pre-Planned Referral", preplanned_count)
     
     st.divider()

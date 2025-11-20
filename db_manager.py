@@ -113,6 +113,7 @@ class DailyLog(Base):
     alert_flag = Column(Boolean, default=False)
     finalized_by = Column(String)
     finalized_at = Column(DateTime)
+    notes = Column(Text)
     
     __table_args__ = (UniqueConstraint('placement_id', 'date', name='uix_placement_date'),)
 
@@ -1297,6 +1298,80 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def update_daily_log_notes(self, placement_id: str, log_date: str, notes: str) -> bool:
+        """Update notes for a daily log."""
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    notes=notes
+                )
+                session.add(log)
+            else:
+                log.notes = notes
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
+    def complete_placement_day(self, placement_id: str, log_date: str, completed_by: str) -> bool:
+        """Mark a placement day as complete by setting daily_fulfillment to 'yes'."""
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    daily_fulfillment='yes',
+                    finalized_by=completed_by,
+                    finalized_at=datetime.now()
+                )
+                session.add(log)
+            else:
+                old_fulfillment = log.daily_fulfillment
+                log.daily_fulfillment = 'yes'
+                log.finalized_by = completed_by
+                log.finalized_at = datetime.now()
+                log.alert_flag = False
+                
+                placement = session.query(Placement).filter(Placement.id == placement_id).first()
+                if placement and old_fulfillment != 'yes':
+                    placement.days_completed = (placement.days_completed or 0) + 1
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def update_daily_log_totals(self, placement_id: str, log_date: str):
         """Update daily log totals based on point events."""
         session = self.get_session()
@@ -1573,7 +1648,8 @@ class DatabaseManager:
             'dailyFulfillment': log.daily_fulfillment,
             'alertFlag': log.alert_flag,
             'finalizedBy': log.finalized_by,
-            'finalizedAt': log.finalized_at.isoformat() if log.finalized_at else None
+            'finalizedAt': log.finalized_at.isoformat() if log.finalized_at else None,
+            'notes': log.notes
         }
     
     def _point_event_to_dict(self, event: PointEvent) -> Dict[str, Any]:

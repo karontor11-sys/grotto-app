@@ -243,7 +243,7 @@ if page == "Dashboard":
         if placement_type == 'ISS':
             if internal_type == 'iss_full_day':
                 iss_full_count += 1
-            else:  # iss_partial_day
+            elif internal_type == 'partial':
                 iss_partial_count += 1
         elif placement_type == 'LUNCH_DETENTION':
             lunch_detention_count += 1

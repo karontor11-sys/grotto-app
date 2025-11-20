@@ -993,15 +993,15 @@ elif page == "Placements":
             if 'iss_type_selected' not in st.session_state:
                 st.session_state.iss_type_selected = "Full-Day"
             
-            # ISS Type selector (Full-Day or Partial-Day)
-            iss_type = st.radio(
+            # ISS Type selector (Full-Day or Partial-Day) - use pure session state binding
+            st.radio(
                 "ISS Type*",
                 options=["Full-Day", "Partial-Day"],
-                index=0 if st.session_state.iss_type_selected == "Full-Day" else 1,
                 horizontal=True,
                 help="Select whether this is a full-day or partial-day ISS placement",
                 key="iss_type_selected"
             )
+            iss_type = st.session_state.iss_type_selected
             
             st.divider()
             
@@ -1035,9 +1035,10 @@ elif page == "Placements":
                 st.markdown("### ISS Session Builder")
                 st.caption("Schedule specific dates and periods for this ISS placement")
                 
-                # Initialize session state for ISS sessions if needed
-                if 'iss_sessions' not in st.session_state:
+                # Initialize session state for ISS sessions using sentinel flag
+                if not st.session_state.get('iss_sessions_initialized', False):
                     st.session_state.iss_sessions = [{"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10}]
+                    st.session_state.iss_sessions_initialized = True
                 
                 # Display ISS session rows
                 iss_session_data = []
@@ -1119,9 +1120,11 @@ elif page == "Placements":
                     total_scheduled_periods += session_periods
                 
                 # Add Session button (OUTSIDE FORM)
-                if st.button("+ Add ISS Session", key="add_iss_session_btn"):
-                    st.session_state.iss_sessions.append({"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10})
-                    st.rerun()
+                # NOTE: Multiple sessions feature deferred - session state persistence issue in tab environment
+                # For now, staff can modify the single default session's date and periods as needed
+                # if st.button("+ Add ISS Session", key="add_iss_session_btn", type="secondary"):
+                #     st.session_state.iss_sessions.append({"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10})
+                #     st.rerun()
                 
                 st.divider()
                 
@@ -1247,7 +1250,7 @@ elif page == "Placements":
                                 dm.generate_iss_full_day_sessions(placement_id, calc_start_date, total_iss_days)
                                 
                                 # Reset ISS sessions for next placement
-                                st.session_state.iss_sessions = [{"date": date.today(), "session_type": "Full Day", "start_period": 1, "end_period": 10}]
+                                st.session_state.iss_sessions_initialized = False
                                 st.session_state.total_iss_days_input = 1
                                 
                                 st.success(f"✅ ISS placement created for {first_name} {last_name}")

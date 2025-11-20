@@ -20,11 +20,24 @@ if 'import_export_manager' not in st.session_state:
 if 'notification_manager' not in st.session_state:
     st.session_state.notification_manager = NotificationManager(st.session_state.data_manager)
 
+# Initialize end-of-day processing flag (runs once per session)
+if 'eod_processing_checked' not in st.session_state:
+    st.session_state.eod_processing_checked = False
+
 dm = st.session_state.data_manager
 ps = st.session_state.point_system
 analytics = st.session_state.analytics_engine
 import_export = st.session_state.import_export_manager
 notifications = st.session_state.notification_manager
+
+# Check and process end-of-day for pending dates (runs once per session)
+if not st.session_state.eod_processing_checked:
+    processing_results = dm.check_and_process_pending_dates()
+    st.session_state.eod_processing_checked = True
+    
+    # Store results for potential display
+    if processing_results:
+        st.session_state.eod_processing_results = processing_results
 
 # Helper functions for session generation
 def generate_periods_sessions(session_date, periods, repeat_days, location):

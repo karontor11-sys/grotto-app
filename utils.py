@@ -218,6 +218,33 @@ def get_status_color(status: str) -> str:
     }
     return status_colors.get(status, 'gray')
 
+def get_daily_status_color(daily_fulfillment: str, log_date: str) -> str:
+    """Determine status color for a daily log based on fulfillment and date.
+    
+    Args:
+        daily_fulfillment: 'yes', 'no', or None
+        log_date: ISO format date string for the log
+        
+    Returns:
+        'green' (completed), 'yellow' (in progress), or 'red' (not completed)
+    """
+    try:
+        log_date_obj = datetime.fromisoformat(log_date).date()
+        today = date.today()
+        
+        if daily_fulfillment == 'yes':
+            return 'green'
+        elif daily_fulfillment == 'no':
+            return 'red'
+        elif log_date_obj == today:
+            return 'yellow'
+        elif log_date_obj < today:
+            return 'red'
+        else:
+            return 'yellow'
+    except (ValueError, TypeError):
+        return 'yellow'
+
 def format_datetime(datetime_str: str) -> str:
     """Format a datetime string for display."""
     try:

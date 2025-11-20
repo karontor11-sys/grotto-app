@@ -385,7 +385,8 @@ if page == "Dashboard":
         
         # Determine status color
         from utils import get_daily_status_color
-        status_color = get_daily_status_color(daily_log.get('dailyFulfillment'), date_str)
+        fulfillment = daily_log.get('dailyFulfillment') or ''
+        status_color = get_daily_status_color(fulfillment, date_str)
         
         # Map colors to emojis
         status_icons = {

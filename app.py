@@ -345,95 +345,99 @@ if page == "Dashboard":
                     st.rerun()
     
     st.divider()
-    st.subheader(f"Active Placements for {selected_date.strftime('%B %d, %Y')}")
     
-    # Get active placements for selected date
-    active_placements = placements_for_date
+    # Group placements by type
+    iss_full_placements = []
+    iss_partial_placements = []
+    lunch_detention_placements = []
+    class_referral_placements = []
+    cooldown_placements = []
+    preplanned_placements = []
     
-    if not active_placements:
-        st.info("No active placements found.")
-    else:
-        # Display student cards in columns
-        cols_per_row = 3
-        for i in range(0, len(active_placements), cols_per_row):
-            cols = st.columns(cols_per_row)
-            for j, placement in enumerate(active_placements[i:i+cols_per_row]):
-                with cols[j]:
-                    student = placement['student']
-                    
-                    # Calculate metrics
-                    days_completed = placement.get('daysCompleted', 0)
-                    days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
-                    
-                    # Get points for selected date (only show if selected date is today)
-                    selected_points = None
-                    if selected_date == date.today():
-                        selected_points = dm.get_todays_points(placement['_id'])
-                    
-                    # Get placement type label and duration info
-                    placement_label = get_placement_type_label(placement)
-                    duration_info = get_placement_duration_info(placement)
-                    
-                    # Check if placement is active on selected date
-                    is_active_selected_date = True  # Already filtered by get_active_placements_for_date
-                    is_active_today = (selected_date == date.today())
-                    
-                    # Student card
-                    with st.container():
-                        st.subheader(f"{student['firstName']} {student['lastName']}")
-                        
-                        # Placement type label (prominent display)
-                        st.markdown(f"**{placement_label}**")
-                        
-                        # Active Today badge (visual highlight) - only show if selected date is today
-                        if is_active_today:
-                            st.success("🟢 Active Today")
-                        
-                        # Progress indicator for multi-day placements
-                        if duration_info.get('progress_label'):
-                            st.info(f"📅 {duration_info['progress_label']}")
-                        
-                        st.write(f"**Grade:** {student['grade']}")
-                        st.write(f"**Homeroom Teacher:** {student['homeroomTeacher']}")
-                        
-                        # Points badge (only show if selected date is today)
-                        if selected_points is not None:
-                            if selected_points >= 0:
-                                st.success(f"Today's Points: +{selected_points}")
-                            else:
-                                st.error(f"Today's Points: {selected_points}")
-                        
-                        # Quick actions
-                        col_btn1, col_btn2 = st.columns(2)
-                        with col_btn1:
-                            if st.button("Daily Logs", key=f"daily_logs_{placement['_id']}", use_container_width=True):
-                                st.session_state.selected_placement_for_daily_logs = placement['_id']
-                                st.session_state.navigate_to_daily_logs = True
-                                st.rerun()
-                        
-                        # Complete Placement button (Supervisor/Admin only)
-                        with col_btn2:
-                            if user_role in ["Supervisor", "Admin"]:
-                                # Check completion criteria
-                                completion_check = dm.check_placement_completion_criteria(placement['_id'])
-                                can_complete = completion_check.get('can_complete', False)
-                                
-                                if st.button(
-                                    "Complete",
-                                    key=f"complete_{placement['_id']}",
-                                    disabled=not can_complete,
-                                    use_container_width=True,
-                                    type="primary" if can_complete else "secondary"
-                                ):
-                                    if dm.complete_placement(placement['_id']):
-                                        st.success(f"✅ Placement completed for {student['firstName']} {student['lastName']}")
-                                        st.rerun()
-                                    else:
-                                        st.error("❌ Failed to complete placement")
-                                
-                                # Show completion status as help text
-                                if not can_complete:
-                                    st.caption(f"⏳ {completion_check.get('reason', 'Not ready')}")
+    for placement in placements_for_date:
+        placement_type = placement.get('placementType', '').upper()
+        internal_type = placement.get('type', '')
+        
+        if placement_type == 'ISS':
+            if internal_type == 'iss_full_day':
+                iss_full_placements.append(placement)
+            elif internal_type == 'partial':
+                iss_partial_placements.append(placement)
+        elif placement_type == 'LUNCH_DETENTION':
+            lunch_detention_placements.append(placement)
+        elif placement_type == 'CLASS_REFERRAL':
+            class_referral_placements.append(placement)
+        elif placement_type == 'COOL_DOWN':
+            cooldown_placements.append(placement)
+        elif placement_type == 'PRE_PLANNED_REFERRAL':
+            preplanned_placements.append(placement)
+    
+    # Six Collapsible Sections
+    # 1. ISS - Full Day
+    with st.expander(f"ISS – Full Day ({len(iss_full_placements)})", expanded=len(iss_full_placements) > 0):
+        if len(iss_full_placements) == 0:
+            st.info("No students in ISS Full Day for this date.")
+        else:
+            for placement in iss_full_placements:
+                student = placement['student']
+                with st.container():
+                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
+                    st.divider()
+    
+    # 2. ISS - Partial Day
+    with st.expander(f"ISS – Partial Day ({len(iss_partial_placements)})", expanded=len(iss_partial_placements) > 0):
+        if len(iss_partial_placements) == 0:
+            st.info("No students in ISS Partial Day for this date.")
+        else:
+            for placement in iss_partial_placements:
+                student = placement['student']
+                with st.container():
+                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
+                    st.divider()
+    
+    # 3. Lunch Detention
+    with st.expander(f"Lunch Detention ({len(lunch_detention_placements)})", expanded=len(lunch_detention_placements) > 0):
+        if len(lunch_detention_placements) == 0:
+            st.info("No students in Lunch Detention for this date.")
+        else:
+            for placement in lunch_detention_placements:
+                student = placement['student']
+                with st.container():
+                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
+                    st.divider()
+    
+    # 4. Class Period Referral
+    with st.expander(f"Class Period Referral ({len(class_referral_placements)})", expanded=len(class_referral_placements) > 0):
+        if len(class_referral_placements) == 0:
+            st.info("No students in Class Period Referral for this date.")
+        else:
+            for placement in class_referral_placements:
+                student = placement['student']
+                with st.container():
+                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
+                    st.divider()
+    
+    # 5. Cool-Down Referral
+    with st.expander(f"Cool-Down Referral ({len(cooldown_placements)})", expanded=len(cooldown_placements) > 0):
+        if len(cooldown_placements) == 0:
+            st.info("No students in Cool-Down Referral for this date.")
+        else:
+            for placement in cooldown_placements:
+                student = placement['student']
+                with st.container():
+                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
+                    st.divider()
+    
+    # 6. Pre-Planned Referral
+    with st.expander(f"Pre-Planned Referral ({len(preplanned_placements)})", expanded=len(preplanned_placements) > 0):
+        if len(preplanned_placements) == 0:
+            st.info("No students in Pre-Planned Referral for this date.")
+        else:
+            for placement in preplanned_placements:
+                student = placement['student']
+                with st.container():
+                    st.markdown(f"**{student['firstName']} {student['lastName']}**")
+                    st.divider()
 
 # Placements Page
 elif page == "Placements":

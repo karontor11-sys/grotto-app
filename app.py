@@ -211,17 +211,126 @@ if page == "Dashboard":
         st.success("✅ Placement created successfully! The new placement appears below.")
         del st.session_state.placement_created
     
+    # Date Selector
+    if 'dashboard_selected_date' not in st.session_state:
+        st.session_state.dashboard_selected_date = date.today()
+    
+    selected_date = st.date_input(
+        "Select Date",
+        value=st.session_state.dashboard_selected_date,
+        key="dashboard_date_selector"
+    )
+    st.session_state.dashboard_selected_date = selected_date
+    
+    # Summary Bar - Placement counts for selected date
+    st.markdown("### At-a-Glance Summary")
+    
+    # Get all active placements for selected date
+    placements_for_date = dm.get_active_placements_for_date(selected_date)
+    
+    # Count placements by category
+    iss_full_count = 0
+    iss_partial_count = 0
+    lunch_detention_count = 0
+    class_referral_count = 0
+    cooldown_count = 0
+    preplanned_count = 0
+    
+    for placement in placements_for_date:
+        placement_type = placement.get('placementType', '').upper()
+        internal_type = placement.get('type', '')
+        
+        if placement_type == 'ISS':
+            if internal_type == 'iss_full_day':
+                iss_full_count += 1
+            else:  # iss_partial_day
+                iss_partial_count += 1
+        elif placement_type == 'LUNCH_DETENTION':
+            lunch_detention_count += 1
+        elif placement_type == 'CLASS_REFERRAL':
+            class_referral_count += 1
+        elif placement_type == 'COOL_DOWN':
+            cooldown_count += 1
+        elif placement_type == 'PRE_PLANNED_REFERRAL':
+            preplanned_count += 1
+    
+    # Display summary in columns
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        st.metric("ISS Full Day", iss_full_count)
+    with col2:
+        st.metric("ISS Partial Day", iss_partial_count)
+    with col3:
+        st.metric("Lunch Detention", lunch_detention_count)
+    with col4:
+        st.metric("Class Period Referral", class_referral_count)
+    with col5:
+        st.metric("Cool-Down Referral", cooldown_count)
+    with col6:
+        st.metric("Pre-Planned Referral", preplanned_count)
+    
+    st.divider()
+    
     # Create New Placement button
     if st.button("Create New Placement", type="primary"):
         st.session_state.navigate_to_create_placement = True
         st.rerun()
     
-    # Today's Sessions strip
-    st.subheader("Today's Sessions")
-    todays_sessions = dm.get_todays_sessions()
+    # Today's Sessions strip (using selected date)
+    st.subheader(f"Sessions for {selected_date.strftime('%B %d, %Y')}")
+    
+    # Get sessions for selected date (need to query database)
+    from db_manager import PartialDaySession, SessionStatus
+    db_session = dm.get_session()
+    try:
+        sessions_query = db_session.query(PartialDaySession).filter(
+            PartialDaySession.date == selected_date,
+            PartialDaySession.status.in_([SessionStatus.scheduled, SessionStatus.in_progress])
+        ).all()
+        
+        todays_sessions = []
+        for sess in sessions_query:
+            from db_manager import Placement, Student
+            placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
+            if placement:
+                student = db_session.query(Student).filter(Student.id == placement.student_id).first()
+                if student:
+                    from db_manager import SessionType
+                    # Format scope based on session type
+                    scope = ""
+                    if sess.type == SessionType.periods:
+                        if sess.periods:
+                            period_list = ", ".join([f"P{p}" for p in sess.periods])
+                            scope = period_list
+                    elif sess.type == SessionType.lunch:
+                        scope = "Lunch"
+                    elif sess.type == SessionType.cool_down:
+                        if sess.time_start and sess.time_end:
+                            scope = f"{sess.time_start}–{sess.time_end}"
+                        else:
+                            scope = "Cool-down"
+                    elif sess.type == SessionType.referral:
+                        if sess.periods and len(sess.periods) > 0:
+                            scope = f"P{sess.periods[0]}"
+                        else:
+                            scope = "Referral"
+                    elif sess.type == SessionType.iss_full_day:
+                        scope = "Full Day"
+                    
+                    todays_sessions.append({
+                        'session_id': sess.id,
+                        'placement_id': sess.placement_id,
+                        'student_name': f"{student.first_name} {student.last_name[0]}",
+                        'student_full_name': f"{student.first_name} {student.last_name}",
+                        'scope': scope,
+                        'type': sess.type.value,
+                        'location': sess.location or ''
+                    })
+    finally:
+        db_session.close()
     
     if not todays_sessions:
-        st.info("No sessions today.")
+        st.info(f"No sessions scheduled for {selected_date.strftime('%B %d, %Y')}.")
     else:
         # Display sessions as horizontal chips
         cols = st.columns(min(len(todays_sessions), 4))
@@ -236,10 +345,10 @@ if page == "Dashboard":
                     st.rerun()
     
     st.divider()
-    st.subheader("Active Placements")
+    st.subheader(f"Active Placements for {selected_date.strftime('%B %d, %Y')}")
     
-    # Get all active placements with student info
-    active_placements = dm.get_active_placements_with_students()
+    # Get active placements for selected date
+    active_placements = placements_for_date
     
     if not active_placements:
         st.info("No active placements found.")
@@ -255,12 +364,19 @@ if page == "Dashboard":
                     # Calculate metrics
                     days_completed = placement.get('daysCompleted', 0)
                     days_remaining = calculate_days_remaining(placement['startDate'], placement['daysAssigned'], days_completed)
-                    todays_points = dm.get_todays_points(placement['_id'])
+                    
+                    # Get points for selected date (only show if selected date is today)
+                    selected_points = None
+                    if selected_date == date.today():
+                        selected_points = dm.get_todays_points(placement['_id'])
                     
                     # Get placement type label and duration info
                     placement_label = get_placement_type_label(placement)
                     duration_info = get_placement_duration_info(placement)
-                    is_active_today = is_placement_active_today(placement)
+                    
+                    # Check if placement is active on selected date
+                    is_active_selected_date = True  # Already filtered by get_active_placements_for_date
+                    is_active_today = (selected_date == date.today())
                     
                     # Student card
                     with st.container():
@@ -269,7 +385,7 @@ if page == "Dashboard":
                         # Placement type label (prominent display)
                         st.markdown(f"**{placement_label}**")
                         
-                        # Active Today badge (visual highlight)
+                        # Active Today badge (visual highlight) - only show if selected date is today
                         if is_active_today:
                             st.success("🟢 Active Today")
                         
@@ -280,11 +396,12 @@ if page == "Dashboard":
                         st.write(f"**Grade:** {student['grade']}")
                         st.write(f"**Homeroom Teacher:** {student['homeroomTeacher']}")
                         
-                        # Points badge
-                        if todays_points >= 0:
-                            st.success(f"Today's Points: +{todays_points}")
-                        else:
-                            st.error(f"Today's Points: {todays_points}")
+                        # Points badge (only show if selected date is today)
+                        if selected_points is not None:
+                            if selected_points >= 0:
+                                st.success(f"Today's Points: +{selected_points}")
+                            else:
+                                st.error(f"Today's Points: {selected_points}")
                         
                         # Quick actions
                         col_btn1, col_btn2 = st.columns(2)

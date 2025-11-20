@@ -420,7 +420,7 @@ if page == "Dashboard":
                 # Attendance toggle
                 attendance_key = f"attendance_{placement_id}_{date_str}"
                 if attendance_key not in st.session_state:
-                    st.session_state[attendance_key] = "Present" if is_present else "Present"
+                    st.session_state[attendance_key] = "Present" if is_present else "Absent"
                 
                 attendance = st.radio(
                     "Attendance",
@@ -642,7 +642,7 @@ if page == "Dashboard":
                 # Attendance toggle
                 attendance_key = f"attendance_{placement_id}_{date_str}"
                 if attendance_key not in st.session_state:
-                    st.session_state[attendance_key] = "Present" if is_present else "Present"
+                    st.session_state[attendance_key] = "Present" if is_present else "Absent"
                 
                 attendance = st.radio(
                     "Attendance",

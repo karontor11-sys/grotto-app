@@ -40,11 +40,11 @@ The UI features a **Dashboard** with:
   
   Completed placements appear only in the "Completed Placements" tab.
 - **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation. Features a streamlined single-selector interface with 5 placement type options:
-  - **In-School Suspension (Full)**: Multi-day ISS with "ISS Days" field for duration
-  - **In-School Suspension (Partial)**: Single-day partial ISS with period selection (Start/End Period)
-  - **Lunch Detention**: Single-day lunch detention placement
+  - **In-School Suspension (ISS)**: Unified ISS placement type with sub-selector for Full-Day (multi-day with "ISS Days" field) or Partial-Day (single-day with period selection)
+  - **Lunch Detention**: Multi-day lunch detention placement
   - **Class Period Referral**: Single-period or multi-period classroom referral with period selection
-  - **Cool-Down Referral**: Short-term cool-down placement with date and period selection (separate form)
+  - **Cool-Down Referral**: Short-term cool-down placement with date and period selection
+  - **Pre-Planned Referral**: Schedule-based referral with multiple date+period combinations
 - **Daily Logs**: Interface for point tracking with "Session-Scoped View" (for specific sessions) and "Placement-Wide View" (default, for all placements).
 - **Assignments**: Manages academic tasks.
 - **Notes**: For general documentation.
@@ -60,8 +60,9 @@ The UI features a **Dashboard** with:
 - **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions for granular tracking, with behavior menus filtered by session type.
 - **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons, following a validated state machine.
 - **Flexible Placement Completion Rules**: Configurable completion criteria for different placement types with role-based "Complete Placement" button.
-- **Five Placement Types**: Single radio selector for choosing between In-School Suspension (Full), In-School Suspension (Partial), Lunch Detention, Class Period Referral, and Cool-Down Referral with conditional fields based on selection.
-- **Conditional Form Fields**: Dynamic form fields that appear based on placement type selection - ISS Days for Full ISS, period selection for Partial ISS and Class Referral, no additional fields for Lunch Detention, and separate form for Cool-Down.
+- **Five Placement Types**: Single radio selector for choosing between In-School Suspension (ISS), Lunch Detention, Class Period Referral, Cool-Down Referral, and Pre-Planned Referral with conditional fields based on selection.
+- **Unified ISS Form**: The ISS placement form includes a sub-selector for Full-Day or Partial-Day, with dynamic fields that appear based on the selection - ISS Days field for Full-Day, period selection for Partial-Day.
+- **Conditional Form Fields**: Dynamic form fields that appear based on placement type selection - period selection for Class Referral, date and period selection for Cool-Down, no additional fields for Lunch Detention, and multi-date schedule builder for Pre-Planned Referral.
 - **End-of-Day Processing**: Automated system that runs on app startup to process any pending dates, marking incomplete daily logs (where daily_fulfillment is not 'yes') as 'no' with alert_flag=True. Processing is tracked via EndOfDayProcessing table to ensure each date is processed exactly once.
 - **Retroactive Completion**: Staff can mark incomplete records from past dates as complete using the "✓ Complete" button. The alert_flag is preserved for audit accountability - if alerts were sent for an incomplete record, that history is maintained even after the record is marked complete.
 - **Status Indicators**: Visual status badges using color coding - Green (completed/daily_fulfillment='yes'), Yellow (in progress/today), Red (not completed/past date). Past dates marked incomplete by end-of-day processing display red until manually completed.

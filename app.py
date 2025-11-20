@@ -372,36 +372,42 @@ if page == "Dashboard":
         elif placement_type == 'PRE_PLANNED_REFERRAL':
             preplanned_placements.append(placement)
     
-    # Helper function to render universal student card
-    def render_student_card(placement: dict, target_date: date):
-        """Render a universal student card with status, notes, and completion button."""
+    # Helper function to render ISS Full Day student card
+    def render_iss_full_card(placement: dict, target_date: date):
+        """Render ISS Full Day card with attendance, Day X of Y, points, and behaviors."""
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
-        # Get or create daily log for this placement and date
+        # Get or create daily log
         daily_log = dm.get_or_create_daily_log(placement_id, date_str)
         
         # Determine status color
-        from utils import get_daily_status_color
+        from utils import get_daily_status_color, calculate_school_day_number
         fulfillment = daily_log.get('dailyFulfillment') or ''
         status_color = get_daily_status_color(fulfillment, date_str)
+        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
         
-        # Map colors to emojis
-        status_icons = {
-            'green': '🟢',
-            'yellow': '🟡',
-            'red': '🔴'
-        }
-        status_icon = status_icons.get(status_color, '⚪')
+        # Calculate Day X of Y
+        served_dates = placement.get('servedDates', [])
+        total_days = placement.get('daysAssigned', 0)
+        day_number = calculate_school_day_number(placement['startDate'], date_str)
+        
+        # Get point events
+        point_events = dm.get_point_events_for_date(placement_id, date_str)
+        positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
+        negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
+        total_points = positive_points + negative_points
+        
+        # Check if student is marked present for this date
+        is_present = date_str in served_dates
         
         with st.container():
-            # Student name (clickable) with status indicator
-            col1, col2, col3 = st.columns([3, 1, 1])
+            # Header row: Name, Grade, Attendance
+            col1, col2, col3 = st.columns([3, 1, 2])
             
             with col1:
-                # Clickable student name that navigates to Daily Logs
                 if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
                     st.session_state.navigate_to_daily_logs = True
                     st.session_state.selected_log_date = target_date
@@ -411,6 +417,90 @@ if page == "Dashboard":
                 st.caption(f"Grade {student.get('grade', 'N/A')}")
             
             with col3:
+                # Attendance toggle
+                attendance_key = f"attendance_{placement_id}_{date_str}"
+                if attendance_key not in st.session_state:
+                    st.session_state[attendance_key] = "Present" if is_present else "Present"
+                
+                attendance = st.radio(
+                    "Attendance",
+                    ["Present", "Absent"],
+                    index=0 if st.session_state[attendance_key] == "Present" else 1,
+                    horizontal=True,
+                    key=f"radio_{attendance_key}",
+                    label_visibility="collapsed"
+                )
+                
+                if attendance != st.session_state[attendance_key]:
+                    st.session_state[attendance_key] = attendance
+                    dm.update_iss_attendance(placement_id, date_str, attendance == "Present")
+                    st.rerun()
+            
+            # Day X of Y
+            if day_number > 0 and day_number <= total_days:
+                st.caption(f"📅 Day {day_number} of {total_days}")
+            
+            # Points section with behaviors
+            col_left, col_right = st.columns([1, 1])
+            
+            with col_left:
+                st.markdown("**Behaviors**")
+                
+                # Positive behaviors dropdown
+                positive_menu = ps.get_positive_point_menu()
+                positive_options = ["-- Add Positive --"] + [item['label'] for item in positive_menu]
+                selected_positive = st.selectbox(
+                    "Positive",
+                    positive_options,
+                    key=f"pos_{placement_id}_{date_str}",
+                    label_visibility="collapsed"
+                )
+                
+                if selected_positive != "-- Add Positive --":
+                    item = next((i for i in positive_menu if i['label'] == selected_positive), None)
+                    if item:
+                        dm.add_point_event({
+                            'placementId': placement_id,
+                            'studentId': student['_id'],
+                            'code': item['code'],
+                            'type': 'positive',
+                            'value': item['value'],
+                            'date': date_str
+                        })
+                        st.rerun()
+                
+                # Negative behaviors dropdown
+                negative_menu = ps.get_negative_point_menu()
+                negative_options = ["-- Add Negative --"] + [item['label'] for item in negative_menu]
+                selected_negative = st.selectbox(
+                    "Negative",
+                    negative_options,
+                    key=f"neg_{placement_id}_{date_str}",
+                    label_visibility="collapsed"
+                )
+                
+                if selected_negative != "-- Add Negative --":
+                    item = next((i for i in negative_menu if i['label'] == selected_negative), None)
+                    if item:
+                        dm.add_point_event({
+                            'placementId': placement_id,
+                            'studentId': student['_id'],
+                            'code': item['code'],
+                            'type': 'negative',
+                            'value': item['value'],
+                            'date': date_str
+                        })
+                        st.rerun()
+            
+            with col_right:
+                st.markdown("**Points Total**")
+                if total_points >= 10:
+                    st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
+                    st.caption("✓ Eligible for completion")
+                else:
+                    st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
+                    st.caption(f"Need {10 - total_points} more points")
+                
                 # Complete button
                 if daily_log.get('dailyFulfillment') != 'yes':
                     if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
@@ -419,10 +509,8 @@ if page == "Dashboard":
                 else:
                     st.success("Completed")
             
-            # Notes field (collapsed by default)
-            notes_key = f"notes_{placement_id}_{date_str}"
+            # Notes (collapsed)
             show_notes_key = f"show_notes_{placement_id}_{date_str}"
-            
             if show_notes_key not in st.session_state:
                 st.session_state[show_notes_key] = False
             
@@ -431,14 +519,364 @@ if page == "Dashboard":
                 st.rerun()
             
             if st.session_state[show_notes_key]:
-                current_notes = daily_log.get('notes', '')
                 new_notes = st.text_area(
-                    "Notes for this student on this date:",
-                    value=current_notes or '',
-                    key=notes_key,
+                    "Notes:",
+                    value=daily_log.get('notes', '') or '',
+                    key=f"notes_{placement_id}_{date_str}",
                     height=100
                 )
+                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
+                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                    st.success("Notes saved!")
+                    st.rerun()
+            
+            st.divider()
+    
+    # Helper function to render ISS Partial Day student card
+    def render_iss_partial_card(placement: dict, target_date: date):
+        """Render ISS Partial Day card with periods, points, and behaviors."""
+        student = placement['student']
+        placement_id = placement['_id']
+        student_name = f"{student['firstName']} {student['lastName']}"
+        date_str = target_date.isoformat()
+        
+        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        from utils import get_daily_status_color
+        fulfillment = daily_log.get('dailyFulfillment') or ''
+        status_color = get_daily_status_color(fulfillment, date_str)
+        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
+        
+        # Get periods
+        start_period = placement.get('startPeriod', 'N/A')
+        end_period = placement.get('endPeriod', 'N/A')
+        if start_period == end_period:
+            period_label = f"Period {start_period}"
+        else:
+            period_label = f"Periods {start_period}–{end_period}"
+        
+        # Get points
+        point_events = dm.get_point_events_for_date(placement_id, date_str)
+        total_points = sum([e['value'] for e in point_events])
+        
+        with st.container():
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            with col1:
+                if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
+                    st.session_state.navigate_to_daily_logs = True
+                    st.session_state.selected_log_date = target_date
+                    st.rerun()
+            
+            with col2:
+                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            
+            with col3:
+                if daily_log.get('dailyFulfillment') != 'yes':
+                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        st.rerun()
+                else:
+                    st.success("Completed")
+            
+            st.caption(f"📚 {period_label}")
+            st.caption(f"Points: {total_points}")
+            
+            # Notes
+            show_notes_key = f"show_notes_{placement_id}_{date_str}"
+            if show_notes_key not in st.session_state:
+                st.session_state[show_notes_key] = False
+            
+            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
+                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
+                st.rerun()
+            
+            if st.session_state[show_notes_key]:
+                new_notes = st.text_area(
+                    "Notes:",
+                    value=daily_log.get('notes', '') or '',
+                    key=f"notes_{placement_id}_{date_str}",
+                    height=100
+                )
+                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
+                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                    st.success("Notes saved!")
+                    st.rerun()
+            
+            st.divider()
+    
+    # Helper function to render Lunch Detention student card
+    def render_lunch_detention_card(placement: dict, target_date: date):
+        """Render Lunch Detention card with attendance and Day X of Y."""
+        student = placement['student']
+        placement_id = placement['_id']
+        student_name = f"{student['firstName']} {student['lastName']}"
+        date_str = target_date.isoformat()
+        
+        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        from utils import get_daily_status_color, calculate_school_day_number
+        fulfillment = daily_log.get('dailyFulfillment') or ''
+        status_color = get_daily_status_color(fulfillment, date_str)
+        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
+        
+        # Day X of Y for multi-day lunch detention
+        total_days = placement.get('daysAssigned', 0)
+        day_number = calculate_school_day_number(placement['startDate'], date_str)
+        
+        # Check attendance
+        served_dates = placement.get('servedDates', [])
+        is_present = date_str in served_dates
+        
+        with st.container():
+            col1, col2, col3 = st.columns([3, 1, 2])
+            
+            with col1:
+                if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
+                    st.session_state.navigate_to_daily_logs = True
+                    st.session_state.selected_log_date = target_date
+                    st.rerun()
+            
+            with col2:
+                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            
+            with col3:
+                # Attendance toggle
+                attendance_key = f"attendance_{placement_id}_{date_str}"
+                if attendance_key not in st.session_state:
+                    st.session_state[attendance_key] = "Present" if is_present else "Present"
                 
+                attendance = st.radio(
+                    "Attendance",
+                    ["Present", "Absent"],
+                    index=0 if st.session_state[attendance_key] == "Present" else 1,
+                    horizontal=True,
+                    key=f"radio_{attendance_key}",
+                    label_visibility="collapsed"
+                )
+                
+                if attendance != st.session_state[attendance_key]:
+                    st.session_state[attendance_key] = attendance
+                    dm.update_lunch_detention_attendance(placement_id, date_str, attendance == "Present")
+                    st.rerun()
+            
+            # Day X of Y
+            if total_days > 1 and day_number > 0:
+                st.caption(f"📅 Day {day_number} of {total_days}")
+            
+            # Complete button
+            if daily_log.get('dailyFulfillment') != 'yes':
+                if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                    dm.complete_placement_day(placement_id, date_str, "Admin")
+                    st.rerun()
+            else:
+                st.success("Completed")
+            
+            # Notes
+            show_notes_key = f"show_notes_{placement_id}_{date_str}"
+            if show_notes_key not in st.session_state:
+                st.session_state[show_notes_key] = False
+            
+            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
+                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
+                st.rerun()
+            
+            if st.session_state[show_notes_key]:
+                new_notes = st.text_area(
+                    "Notes:",
+                    value=daily_log.get('notes', '') or '',
+                    key=f"notes_{placement_id}_{date_str}",
+                    height=100
+                )
+                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
+                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                    st.success("Notes saved!")
+                    st.rerun()
+            
+            st.divider()
+    
+    # Helper function to render Class Period Referral student card
+    def render_class_referral_card(placement: dict, target_date: date):
+        """Render Class Period Referral card with periods only."""
+        student = placement['student']
+        placement_id = placement['_id']
+        student_name = f"{student['firstName']} {student['lastName']}"
+        date_str = target_date.isoformat()
+        
+        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        from utils import get_daily_status_color
+        fulfillment = daily_log.get('dailyFulfillment') or ''
+        status_color = get_daily_status_color(fulfillment, date_str)
+        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
+        
+        # Get periods
+        start_period = placement.get('startPeriod', 'N/A')
+        end_period = placement.get('endPeriod', 'N/A')
+        if start_period == end_period:
+            period_label = f"Period {start_period}"
+        else:
+            period_label = f"Periods {start_period}–{end_period}"
+        
+        with st.container():
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            with col1:
+                if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
+                    st.session_state.navigate_to_daily_logs = True
+                    st.session_state.selected_log_date = target_date
+                    st.rerun()
+            
+            with col2:
+                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            
+            with col3:
+                if daily_log.get('dailyFulfillment') != 'yes':
+                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        st.rerun()
+                else:
+                    st.success("Completed")
+            
+            st.caption(f"📚 {period_label}")
+            
+            # Notes
+            show_notes_key = f"show_notes_{placement_id}_{date_str}"
+            if show_notes_key not in st.session_state:
+                st.session_state[show_notes_key] = False
+            
+            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
+                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
+                st.rerun()
+            
+            if st.session_state[show_notes_key]:
+                new_notes = st.text_area(
+                    "Notes:",
+                    value=daily_log.get('notes', '') or '',
+                    key=f"notes_{placement_id}_{date_str}",
+                    height=100
+                )
+                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
+                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                    st.success("Notes saved!")
+                    st.rerun()
+            
+            st.divider()
+    
+    # Helper function to render Cool-Down Referral student card
+    def render_cooldown_card(placement: dict, target_date: date):
+        """Render Cool-Down Referral card with periods only."""
+        student = placement['student']
+        placement_id = placement['_id']
+        student_name = f"{student['firstName']} {student['lastName']}"
+        date_str = target_date.isoformat()
+        
+        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        from utils import get_daily_status_color
+        fulfillment = daily_log.get('dailyFulfillment') or ''
+        status_color = get_daily_status_color(fulfillment, date_str)
+        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
+        
+        # Get periods
+        start_period = placement.get('startPeriod', 'N/A')
+        end_period = placement.get('endPeriod', 'N/A')
+        if start_period == end_period:
+            period_label = f"Period {start_period}"
+        else:
+            period_label = f"Periods {start_period}–{end_period}"
+        
+        with st.container():
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            with col1:
+                if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
+                    st.session_state.navigate_to_daily_logs = True
+                    st.session_state.selected_log_date = target_date
+                    st.rerun()
+            
+            with col2:
+                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            
+            with col3:
+                if daily_log.get('dailyFulfillment') != 'yes':
+                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        st.rerun()
+                else:
+                    st.success("Completed")
+            
+            st.caption(f"🧘 {period_label}")
+            
+            # Notes
+            show_notes_key = f"show_notes_{placement_id}_{date_str}"
+            if show_notes_key not in st.session_state:
+                st.session_state[show_notes_key] = False
+            
+            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
+                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
+                st.rerun()
+            
+            if st.session_state[show_notes_key]:
+                new_notes = st.text_area(
+                    "Notes:",
+                    value=daily_log.get('notes', '') or '',
+                    key=f"notes_{placement_id}_{date_str}",
+                    height=100
+                )
+                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
+                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                    st.success("Notes saved!")
+                    st.rerun()
+            
+            st.divider()
+    
+    # Helper function to render Pre-Planned Referral student card
+    def render_preplanned_card(placement: dict, target_date: date):
+        """Render Pre-Planned Referral card (simplified for now)."""
+        student = placement['student']
+        placement_id = placement['_id']
+        student_name = f"{student['firstName']} {student['lastName']}"
+        date_str = target_date.isoformat()
+        
+        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        from utils import get_daily_status_color
+        fulfillment = daily_log.get('dailyFulfillment') or ''
+        status_color = get_daily_status_color(fulfillment, date_str)
+        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
+        
+        with st.container():
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            with col1:
+                if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
+                    st.session_state.navigate_to_daily_logs = True
+                    st.session_state.selected_log_date = target_date
+                    st.rerun()
+            
+            with col2:
+                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            
+            with col3:
+                if daily_log.get('dailyFulfillment') != 'yes':
+                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        st.rerun()
+                else:
+                    st.success("Completed")
+            
+            # Notes
+            show_notes_key = f"show_notes_{placement_id}_{date_str}"
+            if show_notes_key not in st.session_state:
+                st.session_state[show_notes_key] = False
+            
+            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
+                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
+                st.rerun()
+            
+            if st.session_state[show_notes_key]:
+                new_notes = st.text_area(
+                    "Notes:",
+                    value=daily_log.get('notes', '') or '',
+                    key=f"notes_{placement_id}_{date_str}",
+                    height=100
+                )
                 if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
                     dm.update_daily_log_notes(placement_id, date_str, new_notes)
                     st.success("Notes saved!")
@@ -453,7 +891,7 @@ if page == "Dashboard":
             st.info("No students in ISS Full Day for this date.")
         else:
             for placement in iss_full_placements:
-                render_student_card(placement, selected_date)
+                render_iss_full_card(placement, selected_date)
     
     # 2. ISS - Partial Day
     with st.expander(f"ISS – Partial Day ({len(iss_partial_placements)})", expanded=len(iss_partial_placements) > 0):
@@ -461,7 +899,7 @@ if page == "Dashboard":
             st.info("No students in ISS Partial Day for this date.")
         else:
             for placement in iss_partial_placements:
-                render_student_card(placement, selected_date)
+                render_iss_partial_card(placement, selected_date)
     
     # 3. Lunch Detention
     with st.expander(f"Lunch Detention ({len(lunch_detention_placements)})", expanded=len(lunch_detention_placements) > 0):
@@ -469,7 +907,7 @@ if page == "Dashboard":
             st.info("No students in Lunch Detention for this date.")
         else:
             for placement in lunch_detention_placements:
-                render_student_card(placement, selected_date)
+                render_lunch_detention_card(placement, selected_date)
     
     # 4. Class Period Referral
     with st.expander(f"Class Period Referral ({len(class_referral_placements)})", expanded=len(class_referral_placements) > 0):
@@ -477,7 +915,7 @@ if page == "Dashboard":
             st.info("No students in Class Period Referral for this date.")
         else:
             for placement in class_referral_placements:
-                render_student_card(placement, selected_date)
+                render_class_referral_card(placement, selected_date)
     
     # 5. Cool-Down Referral
     with st.expander(f"Cool-Down Referral ({len(cooldown_placements)})", expanded=len(cooldown_placements) > 0):
@@ -485,7 +923,7 @@ if page == "Dashboard":
             st.info("No students in Cool-Down Referral for this date.")
         else:
             for placement in cooldown_placements:
-                render_student_card(placement, selected_date)
+                render_cooldown_card(placement, selected_date)
     
     # 6. Pre-Planned Referral
     with st.expander(f"Pre-Planned Referral ({len(preplanned_placements)})", expanded=len(preplanned_placements) > 0):
@@ -493,7 +931,7 @@ if page == "Dashboard":
             st.info("No students in Pre-Planned Referral for this date.")
         else:
             for placement in preplanned_placements:
-                render_student_card(placement, selected_date)
+                render_preplanned_card(placement, selected_date)
 
 # Placements Page
 elif page == "Placements":

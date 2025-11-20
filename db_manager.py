@@ -170,6 +170,15 @@ class PartialDaySession(Base):
     alert_flag = Column(Boolean, default=False)  # Supervisor alert for no-show
     notes = Column(Text)
 
+class EndOfDayProcessing(Base):
+    __tablename__ = 'end_of_day_processing'
+    
+    id = Column(String, primary_key=True)
+    processing_date = Column(Date, nullable=False, unique=True)  # The date that was processed
+    processed_at = Column(DateTime, default=datetime.now)  # When the processing occurred
+    incomplete_count = Column(Integer, default=0)  # Number of incomplete records found
+    notification_sent = Column(Boolean, default=False)  # Whether notifications were sent
+
 class DatabaseManager:
     def __init__(self):
         """Initialize the database manager."""
@@ -1691,3 +1700,134 @@ class DatabaseManager:
             'shareWithParent': note.share_with_parent,
             'createdAt': note.created_at.isoformat() if note.created_at else None
         }
+    
+    def process_end_of_day(self, target_date: date) -> int:
+        """Process end-of-day for a specific date.
+        
+        Finds all DailyLog records for the date where daily_fulfillment is not 'yes',
+        marks them as 'no', sets alert_flag to True, and records the processing.
+        
+        Args:
+            target_date: The date to process (typically yesterday)
+            
+        Returns:
+            Number of incomplete records found and marked
+        """
+        session = self.get_session()
+        try:
+            # Check if this date has already been processed
+            existing = session.query(EndOfDayProcessing).filter(
+                EndOfDayProcessing.processing_date == target_date
+            ).first()
+            
+            if existing:
+                return 0  # Already processed
+            
+            # Find all DailyLog records for this date where daily_fulfillment != 'yes'
+            incomplete_logs = session.query(DailyLog).filter(
+                DailyLog.date == target_date,
+                DailyLog.daily_fulfillment != 'yes'
+            ).all()
+            
+            # Mark each as 'no' and set alert_flag
+            for log in incomplete_logs:
+                log.daily_fulfillment = 'no'
+                log.alert_flag = True
+            
+            # Record the processing
+            processing_id = self.generate_id()
+            processing_record = EndOfDayProcessing(
+                id=processing_id,
+                processing_date=target_date,
+                processed_at=datetime.now(),
+                incomplete_count=len(incomplete_logs),
+                notification_sent=True
+            )
+            session.add(processing_record)
+            session.commit()
+            
+            return len(incomplete_logs)
+        except Exception as e:
+            session.rollback()
+            print(f"Error processing end-of-day for {target_date}: {e}")
+            return 0
+        finally:
+            session.close()
+    
+    def check_and_process_pending_dates(self) -> List[Dict[str, Any]]:
+        """Check for dates that need end-of-day processing and process them.
+        
+        Returns list of processing results with date and incomplete count.
+        """
+        session = self.get_session()
+        results = []
+        
+        try:
+            # Get the most recent processing date
+            latest_processing = session.query(EndOfDayProcessing).order_by(
+                EndOfDayProcessing.processing_date.desc()
+            ).first()
+            
+            # Determine start date for checking
+            today = date.today()
+            yesterday = today - timedelta(days=1)
+            
+            if latest_processing:
+                last_processed_date = latest_processing.processing_date
+                # Start checking from the day after the last processed date
+                check_date = last_processed_date + timedelta(days=1)
+            else:
+                # No previous processing - start from 7 days ago to avoid processing too far back
+                check_date = yesterday - timedelta(days=6)
+            
+            # Process each date from check_date up to (but not including) today
+            current_date = check_date
+            while current_date < today:
+                if current_date.weekday() < 5:  # Only process weekdays (Monday=0, Friday=4)
+                    incomplete_count = self.process_end_of_day(current_date)
+                    if incomplete_count > 0:
+                        results.append({
+                            'date': current_date.isoformat(),
+                            'incomplete_count': incomplete_count
+                        })
+                current_date += timedelta(days=1)
+            
+            return results
+        finally:
+            session.close()
+    
+    def get_eod_incomplete_records(self, target_date: date) -> List[Dict[str, Any]]:
+        """Get incomplete records that were marked during end-of-day processing.
+        
+        Args:
+            target_date: The date to get incomplete records for
+            
+        Returns:
+            List of incomplete record details with student and placement info
+        """
+        session = self.get_session()
+        try:
+            # Get all daily logs marked as incomplete (daily_fulfillment='no' and alert_flag=True)
+            incomplete_logs = session.query(DailyLog).filter(
+                DailyLog.date == target_date,
+                DailyLog.daily_fulfillment == 'no',
+                DailyLog.alert_flag == True
+            ).all()
+            
+            results = []
+            for log in incomplete_logs:
+                placement = session.query(Placement).filter(Placement.id == log.placement_id).first()
+                if placement:
+                    student = session.query(Student).filter(Student.id == placement.student_id).first()
+                    if student:
+                        results.append({
+                            'student_name': f"{student.first_name} {student.last_name}",
+                            'student_id': student.id,
+                            'placement_type': placement.placement_type.value,
+                            'date': target_date.isoformat(),
+                            'homeroom_teacher': placement.homeroom_teacher_id or student.homeroom_teacher
+                        })
+            
+            return results
+        finally:
+            session.close()

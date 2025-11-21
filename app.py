@@ -982,43 +982,12 @@ elif page == "Placements":
         st.divider()
         
         # Create SEPARATE forms for each placement type
-        # ISS - Unified form with full-day and partial-day options
+        # ISS - Simplified start date + number of days model
         if placement_category == "In-School Suspension (ISS)":
             with st.form("iss_form"):
                 st.markdown("## In-School Suspension")
                 
-                # ISS Type selector (inside form)
-                st.markdown("### Scheduling")
-                iss_type = st.radio(
-                    "ISS Type*",
-                    options=["Full-Day", "Partial-Day"],
-                    horizontal=True,
-                    help="Select whether this is a full-day or partial-day ISS placement"
-                )
-                
-                st.divider()
-                
-                # Conditional fields based on ISS type
-                if iss_type == "Full-Day":
-                    # ISS Assignment section (inside form)
-                    st.markdown("### ISS Assignment")
-                    
-                    total_iss_days = st.number_input(
-                        "Total ISS Days*", 
-                        min_value=1, 
-                        value=1,
-                        step=1, 
-                        help="Number of full ISS days assigned"
-                    )
-                    total_iss_periods = int(total_iss_days) * 10
-                    
-                    # Display Total ISS Periods
-                    st.markdown("**Total ISS Periods**")
-                    st.info(f"**{total_iss_periods} periods** (Total ISS Days × 10 = {int(total_iss_days)} × 10)")
-                    
-                    st.divider()
-                
-                # Student Information (inside form)
+                # Student Information
                 st.markdown("### Student Information")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1031,16 +1000,17 @@ elif page == "Placements":
                 st.markdown("### Placement Details")
                 reason = st.text_area("Reason*")
                 
-                # Partial-Day scheduling (INSIDE FORM)
-                if iss_type == "Partial-Day":
-                    st.divider()
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
-                    with col2:
-                        selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
-                    st.info("For a single period, select the same period for both Start and End.")
-                    start_date = st.date_input("Date*", value=date.today())
+                # ISS Scheduling - Simple start date + number of days
+                st.markdown("### Scheduling")
+                col1, col2 = st.columns(2)
+                with col1:
+                    iss_start_date = st.date_input("Start Date*", value=date.today(), help="First day of ISS placement")
+                with col2:
+                    iss_total_days = st.number_input("Number of ISS Days*", min_value=1, value=1, step=1, help="Total ISS days assigned")
+                
+                # Calculate and display Total ISS Periods
+                total_iss_periods = int(iss_total_days) * 10
+                st.info(f"**Total ISS Periods:** {total_iss_periods} (calculated as {int(iss_total_days)} days × 10 periods/day)")
                 
                 created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
@@ -1049,18 +1019,11 @@ elif page == "Placements":
                 
                 if submit_clicked:
                     # Validation
-                    validation_error = False
-                    
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                         st.error("❌ Please fill in all required fields marked with *")
-                        validation_error = True
-                    
-                    if iss_type == "Partial-Day" and selected_end_period < selected_start_period:
-                        st.error("❌ End period must be equal to or after start period")
-                        validation_error = True
-                    
-                    if not validation_error:
+                    else:
                         try:
+                            # Create student record
                             new_student_data = {
                                 "firstName": first_name,
                                 "lastName": last_name,
@@ -1071,54 +1034,30 @@ elif page == "Placements":
                             }
                             student_id = dm.add_student(new_student_data)
                             
-                            if iss_type == "Full-Day":
-                                # Use today as the start date for full-day ISS
-                                calc_start_date = date.today()
-                                
-                                placement_data = {
-                                    "studentId": student_id,
-                                    "homeroomTeacherId": homeroom_teacher,
-                                    "reason": reason,
-                                    "type": "iss_full_day",
-                                    "placementType": "ISS",
-                                    "completionRule": "iss_days",
-                                    "minSessionsRequired": None,
-                                    "daysAssigned": total_iss_days,
-                                    "totalIssPeriods": total_iss_periods,
-                                    "startDate": calc_start_date.isoformat(),
-                                    "status": "active",
-                                    "createdBy": created_by,
-                                    "createdAt": datetime.now().isoformat()
-                                }
-                                
-                                placement_id = dm.add_placement(placement_data)
-                                dm.generate_iss_full_day_sessions(placement_id, calc_start_date, total_iss_days)
-                                
-                                st.success(f"✅ ISS placement created for {first_name} {last_name}")
-                            else:  # Partial-Day
-                                placement_data = {
-                                    "studentId": student_id,
-                                    "homeroomTeacherId": homeroom_teacher,
-                                    "reason": reason,
-                                    "type": "partial",
-                                    "placementType": "ISS",
-                                    "completionRule": "all_sessions_fulfilled",
-                                    "minSessionsRequired": None,
-                                    "daysAssigned": 1,
-                                    "startDate": start_date.isoformat(),
-                                    "endDate": start_date.isoformat(),
-                                    "startPeriod": selected_start_period,
-                                    "endPeriod": selected_end_period,
-                                    "status": "active",
-                                    "createdBy": created_by,
-                                    "createdAt": datetime.now().isoformat()
-                                }
-                                
-                                placement_id = dm.add_placement(placement_data)
-                                dm.generate_partial_iss_session(placement_id, start_date, selected_start_period, selected_end_period)
-                                
-                                st.success(f"✅ ISS placement created for {first_name} {last_name}")
+                            # Create ISS placement with new simplified structure
+                            placement_data = {
+                                "studentId": student_id,
+                                "homeroomTeacherId": homeroom_teacher,
+                                "reason": reason,
+                                "type": "iss_full_day",
+                                "placementType": "ISS",
+                                "completionRule": "iss_days",
+                                "minSessionsRequired": None,
+                                "daysAssigned": iss_total_days,
+                                "totalIssPeriods": total_iss_periods,
+                                "issStartDate": iss_start_date.isoformat(),
+                                "issTotalDays": iss_total_days,
+                                "issRemainingDays": iss_total_days,  # Initialize remaining = total
+                                "startDate": iss_start_date.isoformat(),
+                                "status": "active",
+                                "createdBy": created_by,
+                                "createdAt": datetime.now().isoformat()
+                            }
                             
+                            placement_id = dm.add_placement(placement_data)
+                            dm.generate_iss_full_day_sessions(placement_id, iss_start_date, iss_total_days)
+                            
+                            st.success(f"✅ ISS placement created for {first_name} {last_name}")
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")

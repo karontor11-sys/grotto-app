@@ -1,0 +1,65 @@
+Update ISS on the Create Placement Page (Placement Manager)
+
+In our existing Grotto App (Python / Streamlit) please update the Create Placement page so that In-School Suspension (ISS) uses a simple start-date plus number-of-days model.
+
+Goals:
+
+Keep “In-School Suspension (ISS)” as one of the existing placement types.
+
+Keep the current Student Information section.
+
+Add a simplified ISS scheduling section that collects only a start date and a number of ISS days, with no end date.
+
+Details:
+
+On the Create Placement form, keep the existing fields:
+
+Student Information
+
+Grade
+
+Homeroom
+
+Reason for Placement
+
+Ensure “In-School Suspension (ISS)” remains one of the placement type options. When Placement Type is ISS, show a dedicated Scheduling subsection:
+
+Start Date (required)
+
+Use the same date picker style we already use elsewhere in the app.
+
+Store this as a date field, for example: iss_start_date.
+
+Number of ISS Days
+
+A slider or numeric input (minimum 1, integer).
+
+Store this as something like: iss_total_days.
+
+Do not require or calculate an end date on the Create Placement form. We should not show an ISS end date here. The final end date will be determined later by the Dashboard based on:
+
+Served days
+
+Absent days
+
+Overrides
+
+When the user saves an ISS placement, initialize ISS-related tracking fields in the data model so the Dashboard can use them later. For example:
+
+placement_type = "ISS"
+
+iss_start_date = <selected date>
+
+iss_total_days = <selected number>
+
+iss_remaining_days = iss_total_days (initialize remaining days equal to the total)
+
+Make sure this change does not affect non-ISS placement types (Lunch Detention, Class Period Referral, Cool-Down Referral, Other). Those should continue to behave as they do now.
+
+After implementing this, make sure the placement record structure includes everything needed for the Dashboard to:
+
+Generate daily ISS entries starting from iss_start_date
+
+Track iss_remaining_days
+
+Update that value as days are completed, skipped for absence, or overridden.

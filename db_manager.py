@@ -119,6 +119,11 @@ class DailyLog(Base):
     finalized_by = Column(String)
     finalized_at = Column(DateTime)
     notes = Column(Text)
+    # New fields for simplified ISS model
+    day_type = Column(String, nullable=True)  # 'full', 'partial', or 'absent'
+    periods_covered = Column(JSON, default=list)  # Array of period numbers covered for partial days
+    override_used = Column(Boolean, default=False)  # True if "Call It Good" override was used
+    override_comment = Column(Text, nullable=True)  # Required comment when override is used
     
     __table_args__ = (UniqueConstraint('placement_id', 'date', name='uix_placement_date'),)
 
@@ -234,6 +239,15 @@ class DatabaseManager:
             """)
             existing_columns = {row[0] for row in result}
             
+            # Check which columns exist in daily_logs table
+            result = session.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'daily_logs' 
+                AND column_name IN ('day_type', 'periods_covered', 'override_used', 'override_comment')
+            """)
+            existing_daily_log_columns = {row[0] for row in result}
+            
             # Add start_period column if it doesn't exist
             if 'start_period' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN start_period INTEGER")
@@ -275,6 +289,23 @@ class DatabaseManager:
             
             if 'iss_remaining_days' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN iss_remaining_days INTEGER")
+                session.commit()
+            
+            # Add new daily_logs columns for simplified ISS model
+            if 'day_type' not in existing_daily_log_columns:
+                session.execute("ALTER TABLE daily_logs ADD COLUMN day_type VARCHAR")
+                session.commit()
+            
+            if 'periods_covered' not in existing_daily_log_columns:
+                session.execute("ALTER TABLE daily_logs ADD COLUMN periods_covered JSON DEFAULT '[]'::json")
+                session.commit()
+            
+            if 'override_used' not in existing_daily_log_columns:
+                session.execute("ALTER TABLE daily_logs ADD COLUMN override_used BOOLEAN DEFAULT FALSE")
+                session.commit()
+            
+            if 'override_comment' not in existing_daily_log_columns:
+                session.execute("ALTER TABLE daily_logs ADD COLUMN override_comment TEXT")
                 session.commit()
                 
         except Exception as e:
@@ -533,16 +564,44 @@ class DatabaseManager:
         return result
     
     def get_active_placements_for_date(self, target_date: date) -> List[Dict[str, Any]]:
-        """Get placements that are active on a specific date."""
+        """Get placements that are active on a specific date.
+        
+        For ISS placements using the new simplified model:
+        - Show if target_date >= iss_start_date
+        - AND iss_remaining_days > 0
+        - AND no override has ended the placement early
+        
+        For other placement types, use standard date range logic.
+        """
         active_placements = self.get_active_placements_with_students()
         result = []
         
         for placement in active_placements:
-            start_date = datetime.fromisoformat(placement['startDate']).date() if isinstance(placement['startDate'], str) else placement['startDate']
-            end_date = start_date + timedelta(days=placement['daysAssigned'])
+            placement_type = placement.get('placementType', '').upper()
             
-            if start_date <= target_date <= end_date:
-                result.append(placement)
+            # NEW SIMPLIFIED ISS LOGIC
+            if placement_type == 'ISS' and placement.get('issStartDate'):
+                # Use new simplified ISS model
+                iss_start_date = datetime.fromisoformat(placement['issStartDate']).date()
+                iss_remaining_days = placement.get('issRemainingDays', 0)
+                
+                # Check if placement has been overridden (check most recent daily log)
+                daily_log = self.get_or_create_daily_log(placement['_id'], target_date.isoformat())
+                override_used = daily_log.get('overrideUsed', False)
+                
+                # Show on dashboard if:
+                # 1. Today is on or after start date
+                # 2. Still has remaining days
+                # 3. No override has ended it early
+                if target_date >= iss_start_date and iss_remaining_days > 0 and not override_used:
+                    result.append(placement)
+            else:
+                # LEGACY LOGIC for non-ISS or old ISS placements
+                start_date = datetime.fromisoformat(placement['startDate']).date() if isinstance(placement['startDate'], str) else placement['startDate']
+                end_date = start_date + timedelta(days=placement['daysAssigned'])
+                
+                if start_date <= target_date <= end_date:
+                    result.append(placement)
         
         return result
     
@@ -1706,7 +1765,12 @@ class DatabaseManager:
             'alertFlag': log.alert_flag,
             'finalizedBy': log.finalized_by,
             'finalizedAt': log.finalized_at.isoformat() if log.finalized_at else None,
-            'notes': log.notes
+            'notes': log.notes,
+            # New fields for simplified ISS model
+            'dayType': log.day_type,
+            'periodsCovered': log.periods_covered or [],
+            'overrideUsed': log.override_used or False,
+            'overrideComment': log.override_comment
         }
     
     def _point_event_to_dict(self, event: PointEvent) -> Dict[str, Any]:

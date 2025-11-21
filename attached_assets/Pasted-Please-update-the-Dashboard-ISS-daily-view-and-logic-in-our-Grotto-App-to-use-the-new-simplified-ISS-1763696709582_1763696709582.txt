@@ -1,0 +1,198 @@
+Please update the Dashboard ISS daily view and logic in our Grotto App to use the new simplified ISS model. The Create Placement page now stores only:
+
+iss_start_date
+
+iss_total_days
+
+iss_remaining_days (initialized equal to iss_total_days)
+
+Now implement the new daily ISS workflow in the Dashboard exactly as follows:
+
+1. Dashboard should generate ISS days starting from the Start Date
+
+For each ISS placement:
+
+On the Dashboard, show the student as “ISS Today” if:
+
+Today is on or after iss_start_date
+
+The placement still has iss_remaining_days > 0
+
+There is no override ending the placement early
+
+When staff click the student’s ISS entry for today, open a Daily ISS Detail page for that date.
+
+The Daily Detail must show:
+
+Student name, grade, homeroom
+
+Reason for placement
+
+ISS start date
+
+Total ISS days
+
+Remaining ISS days
+
+UI to choose Day Type: Full Day, Partial Day, or Absent
+
+2. Add Day Type selector (Full / Partial / Absent)
+
+On the Daily ISS Detail view, add a Day Type selector:
+
+Full Day
+
+Partial Day
+
+Absent
+
+Each type reveals different UI:
+
+A) FULL DAY Logic
+
+When Day Type = Full Day:
+
+Auto-mark all periods 1–10 as covered
+
+Show the standard 10-point ISS assessment controls
+
+When the student reaches 10 points, show the green “met goal” indicator (same as current ISS)
+
+Include a Complete checkbox or button
+
+When staff click Complete:
+
+Mark this date as a served ISS day
+
+Reduce iss_remaining_days by 1
+
+Save the day record with:
+
+day_type = "full"
+
+periods = [1–10]
+
+points = <entered total>
+
+completed = True
+
+B) PARTIAL DAY Logic
+
+When Day Type = Partial Day:
+
+Show checkboxes for Periods 1–10
+(Staff can select ANY combination—e.g., 1 only, or 3–10, or scattered periods)
+
+Show a flexible point-entry system
+(do not require 10-point green rule)
+
+Include a Complete checkbox or button
+
+When staff click Complete for a Partial Day:
+
+Reduce iss_remaining_days by 1
+
+Save:
+
+day_type = "partial"
+
+periods = <list of selected periods>
+
+points = <entered total>
+
+completed = True
+
+C) ABSENT DAY Logic
+
+When Day Type = Absent:
+
+Do not show any period selectors
+
+Do not show point controls
+
+Show a simple “Student absent today” indicator
+
+Include a Save button (no Complete button needed)
+
+When Day Type = Absent is saved:
+
+Do NOT decrement iss_remaining_days
+
+The day is not counted as served
+
+Tomorrow should still expect an ISS day
+(the sentence automatically extends)
+
+Save the day record:
+
+day_type = "absent"
+
+completed = False
+
+periods = []
+
+points = 0
+
+3. Editing + Retroactive Updates
+
+The Daily ISS Detail view must allow editing with the same flexible rules we use elsewhere:
+
+Change Day Type (Full → Partial → Absent, etc.)
+
+Edit periods for Partial Day
+
+Adjust points
+
+Toggle Complete on/off
+
+Fix incorrect Absent markings
+
+When edits change the day’s served status:
+
+If a day becomes Completed → subtract 1 from iss_remaining_days
+
+If a day is undone/uncompleted → add 1 back to iss_remaining_days
+
+If a day is changed to Absent → increase iss_remaining_days accordingly
+
+Respect the existing midnight rule, but allow retro corrections as we do in other placement types.
+
+4. Override (“Call It Good”)
+
+Add an Override option available when Day Type is Full or Partial:
+
+Checkbox: Override this ISS placement and call it good
+
+If checked, show a required text area: Override Comment
+
+When override is used:
+
+Mark the day as completed
+
+Set iss_remaining_days = 0
+
+Close the entire ISS placement immediately
+
+Ensure this placement disappears from future Dashboards
+
+Save:
+
+override_used = True
+
+override_comment = <text>
+
+5. Final bookkeeping
+
+Ensure that the system always maintains:
+
+iss_total_days = original assigned days
+
+iss_remaining_days = dynamic countdown
+
+Absences never count as served
+
+Full or Partial days count as served only when “Complete” is selected
+
+Overrides end the placement completely
+
+Non-ISS placement types must not be affected by this update.

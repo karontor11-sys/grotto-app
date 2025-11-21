@@ -1525,6 +1525,179 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def update_iss_daily_log(self, placement_id: str, log_date: str, day_type: str, 
+                            periods_covered: list = None, completed_by: str = "Admin") -> bool:
+        """Update ISS daily log with day type and periods, and decrement iss_remaining_days if appropriate.
+        
+        This function is idempotent - it only adjusts iss_remaining_days when transitioning
+        from an unfulfilled state to a fulfilled state, preventing double-counting.
+        
+        Validation:
+        - Partial days must have at least one period
+        - Day type must be 'full', 'partial', or 'absent'
+        - Placement must exist and be active or completed
+        
+        Args:
+            placement_id: ID of the ISS placement
+            log_date: Date of the log (ISO format or date object)
+            day_type: 'full', 'partial', or 'absent'
+            periods_covered: List of period numbers (e.g., [1,2,5]) for partial days
+            completed_by: User completing the day
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            # Validate day_type
+            if day_type not in ['full', 'partial', 'absent']:
+                return False
+            
+            # Validate partial day has periods
+            if day_type == 'partial' and (not periods_covered or len(periods_covered) == 0):
+                return False
+            
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue'
+                )
+                session.add(log)
+            
+            # Capture previous state BEFORE any changes for idempotency check
+            old_day_type = log.day_type
+            old_fulfillment = log.daily_fulfillment
+            
+            # EARLY EXIT: If already fulfilled with same day type, this is a duplicate submission
+            # Return success without modifying iss_remaining_days to prevent double-counting
+            if old_fulfillment == 'yes' and old_day_type == day_type:
+                # Already completed with same type - no changes needed (idempotent)
+                return True
+            
+            # Update log fields - only mark as fulfilled for full/partial days
+            # Absent days are marked fulfilled but tracked separately
+            log.day_type = day_type
+            log.periods_covered = periods_covered or []
+            log.daily_fulfillment = 'yes'
+            log.finalized_by = completed_by
+            log.finalized_at = datetime.now()
+            
+            # Get placement to update iss_remaining_days
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Initialize iss_remaining_days if None
+            if placement.iss_remaining_days is None:
+                placement.iss_remaining_days = placement.iss_total_days or 0
+            
+            # IDEMPOTENCY CHECK: Only adjust iss_remaining_days when transitioning states
+            # This prevents double-counting on reruns or edits
+            
+            # Case 1: First-time completion (was not fulfilled before)
+            if old_fulfillment != 'yes':
+                # Full Day or Partial Day: Decrement remaining days
+                if day_type in ['full', 'partial'] and placement.iss_remaining_days > 0:
+                    placement.iss_remaining_days -= 1
+                # Absent Day: Do NOT decrement (student didn't serve time)
+            
+            # Case 2: Editing an already-fulfilled day (changing day type)
+            elif old_fulfillment == 'yes' and old_day_type != day_type:
+                # BUSINESS RULE: Full and Partial days count EQUALLY toward ISS completion
+                # Only transitions involving Absent days change iss_remaining_days
+                
+                # Changing FROM full/partial TO absent: Refund the day (student didn't serve)
+                if old_day_type in ['full', 'partial'] and day_type == 'absent':
+                    placement.iss_remaining_days += 1
+                
+                # Changing FROM absent TO full/partial: Charge the day (student now served)
+                elif old_day_type == 'absent' and day_type in ['full', 'partial']:
+                    if placement.iss_remaining_days > 0:
+                        placement.iss_remaining_days -= 1
+                
+                # Changing between Full and Partial: NO CHANGE (both count as served days)
+                # This is intentional - correcting periods doesn't affect days served
+            
+            # Safeguard: Prevent negative values
+            if placement.iss_remaining_days < 0:
+                placement.iss_remaining_days = 0
+            
+            # Auto-complete placement if no days remaining
+            if placement.iss_remaining_days == 0 and placement.status == PlacementStatus.active:
+                placement.status = PlacementStatus.completed
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
+    def apply_iss_override(self, placement_id: str, override_comment: str, completed_by: str = "Admin") -> bool:
+        """Apply 'Call It Good' override to close ISS placement immediately.
+        
+        Args:
+            placement_id: ID of the ISS placement
+            override_comment: Required comment explaining the override
+            completed_by: User applying the override
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            # Get placement
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Set iss_remaining_days to 0
+            placement.iss_remaining_days = 0
+            placement.status = PlacementStatus.completed
+            
+            # Create or update today's daily log with override flag
+            today = date.today()
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == today
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=today,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue'
+                )
+                session.add(log)
+            
+            log.override_used = True
+            log.override_comment = override_comment
+            log.daily_fulfillment = 'yes'
+            log.finalized_by = completed_by
+            log.finalized_at = datetime.now()
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     # Point Event operations
     def add_point_event(self, event_data: Dict[str, Any]) -> str:
         """Add a point event."""

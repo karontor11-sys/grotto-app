@@ -190,6 +190,10 @@ elif st.session_state.get('navigate_to_daily_logs'):
     st.session_state.current_page = "Daily Logs"
     st.session_state.page_selector = "Daily Logs"  # Sync selectbox state
     del st.session_state.navigate_to_daily_logs
+elif st.session_state.get('navigate_to_iss_detail'):
+    st.session_state.current_page = "ISS Detail"
+    # Don't sync page_selector - this is a hidden page
+    del st.session_state.navigate_to_iss_detail
 elif 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
@@ -410,8 +414,10 @@ if page == "Dashboard":
             
             with col1:
                 if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
-                    st.session_state.navigate_to_daily_logs = True
-                    st.session_state.selected_log_date = target_date
+                    # Navigate to ISS Detail page
+                    st.session_state.navigate_to_iss_detail = True
+                    st.session_state.iss_detail_placement_id = placement_id
+                    st.session_state.iss_detail_date = target_date
                     st.rerun()
             
             with col2:
@@ -1052,6 +1058,8 @@ elif page == "Placements":
                             placement_id = dm.add_placement(placement_data)
                             dm.generate_iss_full_day_sessions(placement_id, iss_start_date, iss_total_days)
                             
+                            st.session_state.placement_created = True
+                            st.session_state.navigate_to_dashboard = True
                             st.success(f"✅ ISS placement created for {first_name} {last_name}")
                             st.rerun()
                         except Exception as e:
@@ -2139,6 +2147,306 @@ elif page == "Daily Logs":
                                         st.rerun()
                     else:
                         st.info("No behaviors added yet")
+
+# ISS Detail Page - Hidden page for ISS daily workflow
+elif page == "ISS Detail":
+    placement_id = st.session_state.get('iss_detail_placement_id')
+    target_date = st.session_state.get('iss_detail_date')
+    
+    if not placement_id or not target_date:
+        st.error("Missing placement or date information")
+        st.button("← Back to Dashboard", on_click=lambda: setattr(st.session_state, 'navigate_to_dashboard', True))
+        st.stop()
+    
+    # Get placement and student details
+    placement = dm.get_placement(placement_id)
+    if not placement:
+        st.error("Placement not found")
+        st.button("← Back to Dashboard", on_click=lambda: setattr(st.session_state, 'navigate_to_dashboard', True))
+        st.stop()
+    
+    student = dm.get_student(placement['studentId'])
+    if not student:
+        st.error("Student not found")
+        st.button("← Back to Dashboard", on_click=lambda: setattr(st.session_state, 'navigate_to_dashboard', True))
+        st.stop()
+    
+    student_name = f"{student['firstName']} {student['lastName']}"
+    date_str = target_date.isoformat()
+    
+    # Get or create daily log
+    daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+    
+    # Header with back button
+    col_back, col_header = st.columns([1, 5])
+    with col_back:
+        if st.button("← Back", key="back_to_dashboard"):
+            st.session_state.navigate_to_dashboard = True
+            st.rerun()
+    with col_header:
+        st.header(f"ISS Daily Log - {student_name}")
+        st.caption(f"{format_date(date_str)} · Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
+    
+    # Calculate Day X of Y
+    from utils import calculate_school_day_number
+    iss_start_date = placement.get('issStartDate')
+    iss_total_days = placement.get('issTotalDays', 0)
+    iss_remaining_days = placement.get('issRemainingDays', 0)
+    
+    if iss_start_date:
+        day_number = calculate_school_day_number(iss_start_date, date_str)
+        if day_number > 0:
+            st.info(f"📅 Day {day_number} of {iss_total_days} · {iss_remaining_days} days remaining")
+    
+    st.divider()
+    
+    # Check if already completed
+    is_completed = daily_log.get('dailyFulfillment') == 'yes'
+    existing_day_type = daily_log.get('dayType')
+    existing_periods = daily_log.get('periodsCovered', [])
+    override_used = daily_log.get('overrideUsed', False)
+    
+    if override_used:
+        st.success("✅ Placement closed using 'Call It Good' override")
+        st.info(f"**Override Comment:** {daily_log.get('overrideComment', 'No comment provided')}")
+        st.caption(f"Completed by: {daily_log.get('finalizedBy', 'Unknown')} at {daily_log.get('finalizedAt', 'Unknown')}")
+        st.divider()
+        if st.button("← Return to Dashboard", type="primary"):
+            st.session_state.navigate_to_dashboard = True
+            st.rerun()
+        st.stop()
+    
+    # Day Type Selector
+    st.subheader("1. Select Day Type")
+    day_type_options = ["Full Day (All 10 Periods)", "Partial Day (Select Periods)", "Absent (Did Not Attend)"]
+    day_type_map = {"Full Day (All 10 Periods)": "full", "Partial Day (Select Periods)": "partial", "Absent (Did Not Attend)": "absent"}
+    
+    # Determine default index based on existing data
+    default_index = 0
+    if existing_day_type:
+        for i, option in enumerate(day_type_options):
+            if day_type_map[option] == existing_day_type:
+                default_index = i
+                break
+    
+    selected_day_type_label = st.radio(
+        "How did the student attend ISS today?",
+        day_type_options,
+        index=default_index,
+        key="day_type_selector",
+        disabled=is_completed
+    )
+    selected_day_type = day_type_map[selected_day_type_label]
+    
+    st.divider()
+    
+    # Periods Section (show for Full Day and Partial Day)
+    periods_covered = []
+    if selected_day_type == "full":
+        st.subheader("2. Periods Covered")
+        st.success("✓ All 10 periods automatically marked (Periods 1-10)")
+        periods_covered = list(range(1, 11))
+        
+    elif selected_day_type == "partial":
+        st.subheader("2. Select Periods Attended")
+        st.info("Check the periods the student was present for ISS")
+        
+        # Create 2 rows of 5 checkboxes
+        col1, col2, col3, col4, col5 = st.columns(5)
+        cols_row1 = [col1, col2, col3, col4, col5]
+        
+        for i in range(5):
+            period = i + 1
+            with cols_row1[i]:
+                checked = period in existing_periods if is_completed else False
+                if st.checkbox(f"Period {period}", key=f"period_{period}", value=checked, disabled=is_completed):
+                    periods_covered.append(period)
+        
+        col6, col7, col8, col9, col10 = st.columns(5)
+        cols_row2 = [col6, col7, col8, col9, col10]
+        
+        for i in range(5):
+            period = i + 6
+            with cols_row2[i]:
+                checked = period in existing_periods if is_completed else False
+                if st.checkbox(f"Period {period}", key=f"period_{period}", value=checked, disabled=is_completed):
+                    periods_covered.append(period)
+        
+        if not periods_covered and not is_completed:
+            st.warning("⚠️ Please select at least one period for a partial day")
+        
+        st.divider()
+    
+    elif selected_day_type == "absent":
+        st.subheader("2. Periods Covered")
+        st.info("Student was absent - no periods to track")
+        st.caption("Note: Absent days do NOT count toward ISS completion")
+        st.divider()
+    
+    # Points Section (only for Full Day and Partial Day)
+    if selected_day_type in ["full", "partial"]:
+        st.subheader("3. Behavior & Points")
+        
+        # Get point events
+        point_events = dm.get_point_events_for_date(placement_id, date_str)
+        positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
+        negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
+        total_points = positive_points + negative_points
+        
+        col_behaviors, col_total = st.columns([2, 1])
+        
+        with col_behaviors:
+            if not is_completed:
+                # Positive behaviors dropdown
+                positive_menu = ps.get_positive_point_menu()
+                positive_options = ["-- Add Positive Behavior --"] + [item['label'] for item in positive_menu]
+                selected_positive = st.selectbox(
+                    "Add Positive Behavior",
+                    positive_options,
+                    key=f"add_positive_{placement_id}_{date_str}"
+                )
+                
+                if selected_positive != "-- Add Positive Behavior --":
+                    item = next((i for i in positive_menu if i['label'] == selected_positive), None)
+                    if item:
+                        dm.add_point_event({
+                            'placementId': placement_id,
+                            'studentId': student['_id'],
+                            'code': item['code'],
+                            'type': 'positive',
+                            'value': item['value'],
+                            'date': date_str
+                        })
+                        st.rerun()
+                
+                # Negative behaviors dropdown
+                negative_menu = ps.get_negative_point_menu()
+                negative_options = ["-- Add Negative Behavior --"] + [item['label'] for item in negative_menu]
+                selected_negative = st.selectbox(
+                    "Add Negative Behavior",
+                    negative_options,
+                    key=f"add_negative_{placement_id}_{date_str}"
+                )
+                
+                if selected_negative != "-- Add Negative Behavior --":
+                    item = next((i for i in negative_menu if i['label'] == selected_negative), None)
+                    if item:
+                        dm.add_point_event({
+                            'placementId': placement_id,
+                            'studentId': student['_id'],
+                            'code': item['code'],
+                            'type': 'negative',
+                            'value': item['value'],
+                            'date': date_str
+                        })
+                        st.rerun()
+            
+            # Display current behaviors
+            if point_events:
+                st.caption("**Today's Behaviors:**")
+                for event in point_events:
+                    item = ps.get_point_item_by_code(event['code'])
+                    icon = "✅" if event['type'] == 'positive' else "❌"
+                    col_label, col_remove = st.columns([4, 1])
+                    with col_label:
+                        st.caption(f"{icon} {item['label']} ({event['value']:+d} pts)")
+                    with col_remove:
+                        if not is_completed:
+                            if st.button("✕", key=f"remove_{event['_id']}", help="Remove"):
+                                dm.delete_point_event(event['_id'])
+                                st.rerun()
+            else:
+                st.caption("No behaviors recorded yet")
+        
+        with col_total:
+            st.metric("Total Points", total_points)
+            if selected_day_type == "full":
+                if total_points >= 10:
+                    st.success("✓ Eligible for completion")
+                else:
+                    st.warning(f"Need {10 - total_points} more")
+            else:
+                st.caption("No minimum for partial days")
+        
+        st.divider()
+    
+    # Notes Section
+    st.subheader("4. Notes (Optional)")
+    existing_notes = daily_log.get('notes', '') or ''
+    notes = st.text_area(
+        "Add any notes about today's ISS session:",
+        value=existing_notes,
+        height=100,
+        key="iss_notes",
+        disabled=is_completed
+    )
+    
+    st.divider()
+    
+    # Action Buttons
+    if is_completed:
+        st.success(f"✅ Day Completed as '{existing_day_type.title()}' Day")
+        st.caption(f"Completed by: {daily_log.get('finalizedBy', 'Unknown')} at {daily_log.get('finalizedAt', 'Unknown')}")
+        if existing_day_type in ['full', 'partial']:
+            st.caption(f"Periods covered: {', '.join([str(p) for p in existing_periods])}")
+    else:
+        st.subheader("5. Complete Day")
+        
+        col_complete, col_override = st.columns(2)
+        
+        with col_complete:
+            # Validation
+            can_complete = True
+            reasons = []
+            
+            if selected_day_type == "partial" and not periods_covered:
+                can_complete = False
+                reasons.append("Select at least one period")
+            
+            if selected_day_type == "full" and total_points < 10:
+                can_complete = False
+                reasons.append(f"Need {10 - total_points} more points")
+            
+            if st.button("✓ Complete Day", type="primary", disabled=not can_complete, use_container_width=True):
+                # Save notes first if any
+                if notes and notes != existing_notes:
+                    dm.update_daily_log_notes(placement_id, date_str, notes)
+                
+                # Update ISS daily log
+                if dm.update_iss_daily_log(placement_id, date_str, selected_day_type, periods_covered, "Admin"):
+                    st.success(f"✅ Day completed as '{selected_day_type.title()}' day!")
+                    if selected_day_type in ['full', 'partial']:
+                        new_remaining = iss_remaining_days - 1
+                        st.info(f"ISS remaining days updated: {iss_remaining_days} → {new_remaining}")
+                    st.rerun()
+                else:
+                    st.error("Failed to complete day. Please try again.")
+            
+            if not can_complete:
+                for reason in reasons:
+                    st.caption(f"⚠️ {reason}")
+        
+        with col_override:
+            with st.expander("🚨 Call It Good (Override)"):
+                st.warning("This will close the ISS placement immediately, regardless of remaining days.")
+                st.caption("Use this for early releases approved by administration.")
+                
+                override_comment = st.text_area(
+                    "Required: Explain why this placement is being closed early",
+                    key="override_comment",
+                    height=80
+                )
+                
+                if st.button("🚨 Close Placement Now", type="secondary", use_container_width=True):
+                    if not override_comment or len(override_comment.strip()) < 10:
+                        st.error("Please provide a detailed comment (at least 10 characters)")
+                    else:
+                        if dm.apply_iss_override(placement_id, override_comment, "Admin"):
+                            st.success("✅ Placement closed with override!")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.error("Failed to apply override. Please try again.")
 
 # Assignments Page
 elif page == "Assignments":

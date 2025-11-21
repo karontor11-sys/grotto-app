@@ -88,7 +88,10 @@ class Placement(Base):
     min_sessions_required = Column(Integer, nullable=True)  # For min_sessions_n rule
     days_assigned = Column(Integer, nullable=False)
     days_completed = Column(Integer, default=0)  # Days earned through Daily Fulfillment = Yes
-    total_iss_periods = Column(Integer, nullable=True)  # For ISS: Total periods assigned (days_assigned × 10)
+    total_iss_periods = Column(Integer, nullable=True)  # DEPRECATED: For ISS: Total periods assigned (days_assigned × 10)
+    iss_start_date = Column(Date, nullable=True)  # For ISS: Start date of ISS placement
+    iss_total_days = Column(Integer, nullable=True)  # For ISS: Total ISS days assigned
+    iss_remaining_days = Column(Integer, nullable=True)  # For ISS: Remaining ISS days (updated by Dashboard)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # Set when placement is completed
     start_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: starting period (e.g., 1 for P1)
@@ -227,7 +230,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -259,6 +262,19 @@ class DatabaseManager:
             # Add scheduled_iss_sessions column if it doesn't exist
             if 'scheduled_iss_sessions' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN scheduled_iss_sessions JSON DEFAULT '[]'::json")
+                session.commit()
+            
+            # Add new ISS columns
+            if 'iss_start_date' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN iss_start_date DATE")
+                session.commit()
+            
+            if 'iss_total_days' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN iss_total_days INTEGER")
+                session.commit()
+            
+            if 'iss_remaining_days' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN iss_remaining_days INTEGER")
                 session.commit()
                 
         except Exception as e:
@@ -367,6 +383,11 @@ class DatabaseManager:
                 if scheduled_iss_dates:
                     end_date = datetime.fromisoformat(scheduled_iss_dates[-1]).date()
             
+            # Parse new ISS fields if provided
+            iss_start_date = None
+            if 'issStartDate' in placement_data and placement_data['issStartDate']:
+                iss_start_date = datetime.fromisoformat(placement_data['issStartDate']).date()
+            
             placement = Placement(
                 id=placement_id,
                 student_id=placement_data['studentId'],
@@ -378,6 +399,9 @@ class DatabaseManager:
                 min_sessions_required=placement_data.get('minSessionsRequired'),
                 days_assigned=placement_data['daysAssigned'],
                 total_iss_periods=placement_data.get('totalIssPeriods'),
+                iss_start_date=iss_start_date,
+                iss_total_days=placement_data.get('issTotalDays'),
+                iss_remaining_days=placement_data.get('issRemainingDays'),
                 start_date=datetime.fromisoformat(placement_data['startDate']).date(),
                 end_date=end_date,
                 start_period=placement_data.get('startPeriod'),
@@ -1652,7 +1676,10 @@ class DatabaseManager:
             'minSessionsRequired': placement.min_sessions_required,
             'daysAssigned': placement.days_assigned,
             'daysCompleted': placement.days_completed or 0,
-            'totalIssPeriods': placement.total_iss_periods,
+            'totalIssPeriods': placement.total_iss_periods,  # DEPRECATED but kept for backward compatibility
+            'issStartDate': placement.iss_start_date.isoformat() if placement.iss_start_date else None,
+            'issTotalDays': placement.iss_total_days,
+            'issRemainingDays': placement.iss_remaining_days,
             'startDate': placement.start_date.isoformat(),
             'endDate': placement.end_date.isoformat() if placement.end_date else None,
             'startPeriod': placement.start_period,

@@ -40,7 +40,7 @@ The UI features a **Dashboard** with:
   
   Completed placements appear only in the "Completed Placements" tab.
 - **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation. Features a streamlined single-selector interface with 5 placement type options:
-  - **In-School Suspension (ISS)**: Unified ISS placement type with sub-selector for Full-Day (multi-day with "ISS Days" field) or Partial-Day (single-day with period selection)
+  - **In-School Suspension (ISS)**: Simplified ISS placement using start date + number of days model. Stores `iss_start_date`, `iss_total_days`, and `iss_remaining_days` (initialized equal to total days). No period/day conversion at placement creation.
   - **Lunch Detention**: Multi-day lunch detention placement
   - **Class Period Referral**: Single-period or multi-period classroom referral with period selection
   - **Cool-Down Referral**: Short-term cool-down placement with date and period selection
@@ -61,8 +61,12 @@ The UI features a **Dashboard** with:
 - **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons, following a validated state machine.
 - **Flexible Placement Completion Rules**: Configurable completion criteria for different placement types with role-based "Complete Placement" button.
 - **Five Placement Types**: Single radio selector for choosing between In-School Suspension (ISS), Lunch Detention, Class Period Referral, Cool-Down Referral, and Pre-Planned Referral with conditional fields based on selection.
-- **Unified ISS Form**: The ISS placement form includes a sub-selector for Full-Day or Partial-Day, with dynamic fields that appear based on the selection - ISS Days field for Full-Day, period selection for Partial-Day.
-- **ISS Assignment (Days → Periods)**: For Full-Day ISS placements, the system includes an "ISS Assignment" section that calculates Total ISS Periods based on Total ISS Days using the formula: Total ISS Periods = Total ISS Days × 10. The calculated value is displayed in the form and stored in the database for future use in progress tracking. This section only appears for Full-Day ISS placements.
+- **Simplified ISS Form**: The ISS placement form collects:
+  - Student Information (name, grade, homeroom teacher)
+  - Placement Details (reason)
+  - Scheduling (start date and number of ISS days)
+  - Created By selector
+  The system initializes `iss_remaining_days` equal to `iss_total_days` for Dashboard tracking. No period/day conversion occurs at placement creation.
 - **Conditional Form Fields**: Dynamic form fields that appear based on placement type selection - period selection for Class Referral, date and period selection for Cool-Down, no additional fields for Lunch Detention, and multi-date schedule builder for Pre-Planned Referral.
 - **End-of-Day Processing**: Automated system that runs on app startup to process any pending dates, marking incomplete daily logs (where daily_fulfillment is not 'yes') as 'no' with alert_flag=True. Processing is tracked via EndOfDayProcessing table to ensure each date is processed exactly once.
 - **Retroactive Completion**: Staff can mark incomplete records from past dates as complete using the "✓ Complete" button. The alert_flag is preserved for audit accountability - if alerts were sent for an incomplete record, that history is maintained even after the record is marked complete.

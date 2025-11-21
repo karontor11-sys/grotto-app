@@ -1008,10 +1008,6 @@ elif page == "Placements":
                 with col2:
                     iss_total_days = st.number_input("Number of ISS Days*", min_value=1, value=1, step=1, help="Total ISS days assigned")
                 
-                # Calculate and display Total ISS Periods
-                total_iss_periods = int(iss_total_days) * 10
-                st.info(f"**Total ISS Periods:** {total_iss_periods} (calculated as {int(iss_total_days)} days × 10 periods/day)")
-                
                 created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                 
                 # Handle form submission
@@ -1044,7 +1040,6 @@ elif page == "Placements":
                                 "completionRule": "iss_days",
                                 "minSessionsRequired": None,
                                 "daysAssigned": iss_total_days,
-                                "totalIssPeriods": total_iss_periods,
                                 "issStartDate": iss_start_date.isoformat(),
                                 "issTotalDays": iss_total_days,
                                 "issRemainingDays": iss_total_days,  # Initialize remaining = total

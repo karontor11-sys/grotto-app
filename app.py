@@ -1055,7 +1055,7 @@ elif page == "Placements":
                             st.success(f"✅ ISS placement created for {first_name} {last_name}")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Error: {str(e)}")
+                            st.error(f"❌ Error creating placement: {str(e)}")
                             import traceback
                             st.error(traceback.format_exc())
         

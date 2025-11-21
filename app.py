@@ -1020,10 +1020,13 @@ elif page == "Placements":
                 submit_clicked = st.form_submit_button("Create ISS Placement", type="primary", use_container_width=True)
                 
                 if submit_clicked:
+                    print(f"[DEBUG] ISS Form submitted - First Name: {first_name}, Last Name: {last_name}")
                     # Validation
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                        print(f"[DEBUG] Validation failed - Missing fields")
                         st.error("❌ Please fill in all required fields marked with *")
                     else:
+                        print(f"[DEBUG] Validation passed, creating placement...")
                         try:
                             # Create student record
                             new_student_data = {
@@ -1055,16 +1058,22 @@ elif page == "Placements":
                                 "createdAt": datetime.now().isoformat()
                             }
                             
+                            print(f"[DEBUG] Student created with ID: {student_id}")
                             placement_id = dm.add_placement(placement_data)
+                            print(f"[DEBUG] Placement created with ID: {placement_id}")
                             dm.generate_iss_full_day_sessions(placement_id, iss_start_date, iss_total_days)
+                            print(f"[DEBUG] Sessions generated, setting navigation flags")
                             
                             st.session_state.placement_created = True
                             st.session_state.navigate_to_dashboard = True
                             st.success(f"✅ ISS placement created for {first_name} {last_name}")
+                            print(f"[DEBUG] About to rerun...")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Error creating placement: {str(e)}")
+                            print(f"[DEBUG] Exception occurred: {str(e)}")
                             import traceback
+                            print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+                            st.error(f"❌ Error creating placement: {str(e)}")
                             st.error(traceback.format_exc())
         
         # Lunch Detention - Multi-day placement with automatic scheduling

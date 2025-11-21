@@ -8,6 +8,50 @@ The Grotto is a student placement and behavior tracking system for educational i
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Development Status (Nov 21, 2025)
+
+### ISS Daily Workflow Implementation - IN PROGRESS
+
+**Current Status:** Backend infrastructure complete; Daily ISS Detail page UI pending
+
+**Completed:**
+1. **Database Schema Updates** - Added 4 new columns to `daily_logs` table:
+   - `day_type` (VARCHAR) - Stores 'full', 'partial', or 'absent'
+   - `periods_covered` (JSON) - Array of period numbers for partial days (e.g., [1,2,5])
+   - `override_used` (BOOLEAN) - Tracks "Call It Good" override usage
+   - `override_comment` (TEXT) - Required comment when override is used
+   - Manual migration applied via execute_sql_tool (migrations don't auto-run)
+
+2. **Dashboard Logic Updated** - Modified `get_active_placements_for_date()` in db_manager.py:
+   - ISS placements now display based on `iss_start_date` and `iss_remaining_days`
+   - Checks: target_date >= iss_start_date AND iss_remaining_days > 0
+   - Override check prevents showing closed placements
+   - Legacy logic preserved for non-ISS placement types
+
+3. **Data Serialization** - Updated `_daily_log_to_dict()`:
+   - All 4 new fields included in API responses
+   - JSON handling for periods_covered array
+
+**Next Steps (for next session):**
+1. Build Daily ISS Detail page (~300-500 lines of UI code)
+2. Implement Day Type selector with 3 modes:
+   - **Full Day**: Auto-mark periods 1-10, 10-point assessment, Complete decrements iss_remaining_days
+   - **Partial Day**: Period checkboxes, flexible points, Complete decrements iss_remaining_days
+   - **Absent Day**: No periods/points, does NOT decrement iss_remaining_days
+3. Implement Override ("Call It Good") feature:
+   - Sets iss_remaining_days = 0
+   - Closes placement immediately
+   - Requires override_comment
+4. Add editing and retroactive update support
+5. Handle iss_remaining_days adjustments when editing past days
+6. End-to-end testing with run_test tool
+
+**Key Architecture Decisions:**
+- `day_type` stored directly in daily_logs (not separate table)
+- `iss_remaining_days` updates happen on Complete/Save action
+- Dashboard navigation routes to legacy Daily Log page (temporary - will route to new page)
+- New fields nullable to support backward compatibility with existing records
+
 ## System Architecture
 
 ### Application Framework

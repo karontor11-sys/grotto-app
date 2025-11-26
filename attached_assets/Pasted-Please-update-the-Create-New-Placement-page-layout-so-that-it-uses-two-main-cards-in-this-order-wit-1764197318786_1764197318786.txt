@@ -1,0 +1,69 @@
+Please update the Create New Placement page layout so that it uses two main cards in this order, without changing any existing scheduling or tracking logic.
+
+1. Reorder the cards: Student Information first, Placement Details second
+
+The first card on the page should be “Student Information” and should include only:
+
+First Name*
+
+Last Name*
+
+Grade* (6, 7, 8 only)
+
+Homeroom Teacher*
+
+The second card should be “Placement Details” and should contain everything related to the placement itself.
+
+2. Move Placement Type into the Placement Details card
+
+Inside the Placement Details card:
+
+Place the existing Placement Type radio button group at the top of this card.
+
+The radio button group should include all five placement types that are already supported:
+
+In-School Suspension (ISS)
+
+Lunch Detention
+
+Class Period Referral
+
+Cool-Down Referral
+
+Pre-planned Referral
+
+3. Keep Reason and scheduling logic exactly as is, just grouped under Placement Details
+
+Still inside the Placement Details card, under the Placement Type radios:
+
+Keep the Reason input (the grey text box) and keep its label as “Reason”.
+
+Below Reason, keep all existing type-specific scheduling fields and logic exactly as they are now:
+
+Do not change which fields appear for each placement type.
+
+Do not change how the scheduling logic is calculated or stored.
+
+Only visually group these fields under the Placement Details card beneath the Placement Type radios and Reason.
+
+4. No backend or logic changes
+
+Do not rename any variables, functions, or database fields.
+
+Do not alter any Daily Log logic.
+
+Do not modify how ISS, Lunch Detention, Class Period Referral, Cool-Down Referral, or Pre-planned Referral are processed.
+
+This should be a layout-only refactor that preserves all existing behavior and data handling.
+
+The final structure of the Create New Placement page should be:
+
+Student Information card (student fields only)
+
+Placement Details card
+
+Placement Type radios (5 types)
+
+Reason
+
+Existing dynamic scheduling fields based on selected type

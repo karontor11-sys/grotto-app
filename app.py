@@ -957,24 +957,9 @@ elif page == "Placements":
         
         st.subheader("Create New Placement")
         
-        # Single Placement Type selector (outside form for dynamic updates)
-        # Initialize session state if not set
+        # Initialize session state for student info persistence
         if 'placement_category' not in st.session_state:
             st.session_state.placement_category = "In-School Suspension (ISS)"
-        
-        placement_category = st.radio(
-            "Placement Type*",
-            options=[
-                "In-School Suspension (ISS)", 
-                "Lunch Detention", 
-                "Class Period Referral", 
-                "Cool-Down Referral",
-                "Pre-Planned Referral"
-            ],
-            horizontal=False,
-            help="Select the type of placement",
-            key="placement_category"
-        )
         
         # Map display names to internal values
         placement_type_map = {
@@ -984,399 +969,347 @@ elif page == "Placements":
             "Cool-Down Referral": "COOL_DOWN",
             "Pre-Planned Referral": "PRE_PLANNED_REFERRAL"
         }
-        placement_type_value = placement_type_map[placement_category]
+        
+        # ===== CARD 1: STUDENT INFORMATION =====
+        with st.container():
+            st.markdown("### Student Information")
+            col1, col2 = st.columns(2)
+            with col1:
+                student_first_name = st.text_input("First Name*", key="student_first_name")
+                student_grade = st.selectbox("Grade*", ["6", "7", "8"], key="student_grade")
+            with col2:
+                student_last_name = st.text_input("Last Name*", key="student_last_name")
+                student_homeroom = st.text_input("Homeroom Teacher*", key="student_homeroom")
         
         st.divider()
         
-        # Create SEPARATE forms for each placement type
-        # ISS - Simplified start date + number of days model
-        if placement_category == "In-School Suspension (ISS)":
-            with st.form("iss_form"):
-                st.markdown("## In-School Suspension")
-                
-                # Student Information
-                st.markdown("### Student Information")
-                col1, col2 = st.columns(2)
-                with col1:
-                    first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["6", "7", "8"])
-                with col2:
-                    last_name = st.text_input("Last Name*")
-                    homeroom_teacher = st.text_input("Homeroom Teacher*")
-                
-                st.markdown("### Placement Details")
-                reason = st.text_area("Reason*")
-                
-                # ISS Scheduling - Simple start date + number of days
-                st.markdown("### Scheduling")
-                col1, col2 = st.columns(2)
-                with col1:
-                    iss_start_date = st.date_input("Start Date*", value=date.today(), help="First day of ISS placement")
-                with col2:
-                    iss_total_days = st.number_input("Number of ISS Days*", min_value=1, value=1, step=1, help="Total ISS days assigned")
-                
-                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
-                
-                # Handle form submission
-                submit_clicked = st.form_submit_button("Create ISS Placement", type="primary", use_container_width=True)
-                
-                if submit_clicked:
-                    print(f"[DEBUG] ISS Form submitted - First Name: {first_name}, Last Name: {last_name}")
-                    # Validation
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                        print(f"[DEBUG] Validation failed - Missing fields")
-                        st.error("❌ Please fill in all required fields marked with *")
-                    else:
-                        print(f"[DEBUG] Validation passed, creating placement...")
-                        try:
-                            # Create student record
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Create ISS placement with new simplified structure
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "iss_full_day",
-                                "placementType": "ISS",
-                                "completionRule": "iss_days",
-                                "minSessionsRequired": None,
-                                "daysAssigned": iss_total_days,
-                                "issStartDate": iss_start_date.isoformat(),
-                                "issTotalDays": iss_total_days,
-                                "issRemainingDays": iss_total_days,  # Initialize remaining = total
-                                "startDate": iss_start_date.isoformat(),
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            
-                            print(f"[DEBUG] Student created with ID: {student_id}")
-                            placement_id = dm.add_placement(placement_data)
-                            print(f"[DEBUG] Placement created with ID: {placement_id}")
-                            dm.generate_iss_full_day_sessions(placement_id, iss_start_date, iss_total_days)
-                            print(f"[DEBUG] Sessions generated, setting navigation flags")
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.success(f"✅ ISS placement created for {first_name} {last_name}")
-                            print(f"[DEBUG] About to rerun...")
-                            st.rerun()
-                        except Exception as e:
-                            print(f"[DEBUG] Exception occurred: {str(e)}")
-                            import traceback
-                            print(f"[DEBUG] Traceback: {traceback.format_exc()}")
-                            st.error(f"❌ Error creating placement: {str(e)}")
-                            st.error(traceback.format_exc())
-        
-        # Lunch Detention - Multi-day placement with automatic scheduling
-        elif placement_category == "Lunch Detention":
-            with st.form("lunch_detention_form"):
-                st.markdown("## Lunch Detention")
-                st.markdown("### Student Information")
-                col1, col2 = st.columns(2)
-                with col1:
-                    first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["6", "7", "8"])
-                with col2:
-                    last_name = st.text_input("Last Name*")
-                    homeroom_teacher = st.text_input("Homeroom Teacher*")
-                
-                st.markdown("### Placement Details")
-                reason = st.text_area("Reason*")
-                
-                st.markdown("### Scheduling")
-                lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
-                start_date = st.date_input("Start Date*", value=date.today())
-                
-                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
-                
-                if st.form_submit_button("Create Lunch Detention", type="primary", use_container_width=True):
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                        st.error("❌ Please fill in all required fields marked with *")
-                    else:
-                        try:
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Generate scheduled lunch dates (skip weekends, skip no-lunch days)
-                            scheduled_lunch_dates = dm.calculate_scheduled_lunch_dates(start_date, int(lunch_days))
-                            end_date = scheduled_lunch_dates[-1] if scheduled_lunch_dates else start_date
-                            
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "iss_full_day",
-                                "placementType": "LUNCH_DETENTION",
-                                "completionRule": "all_sessions_fulfilled",
-                                "minSessionsRequired": None,
-                                "daysAssigned": int(lunch_days),
-                                "startDate": start_date.isoformat(),
-                                "endDate": end_date.isoformat(),
-                                "scheduledLunchDates": [d.isoformat() for d in scheduled_lunch_dates],
-                                "servedDates": [],
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            
-                            placement_id = dm.add_placement(placement_data)
-                            dm.generate_lunch_detention_sessions_from_scheduled(placement_id, scheduled_lunch_dates)
-                            
-                            st.success(f"✅ Lunch Detention created for {first_name} {last_name} - {lunch_days} day(s) scheduled through {end_date.strftime('%b %d, %Y')}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error: {str(e)}")
-                            import traceback
-                            st.error(traceback.format_exc())
-        
-        # Class Period Referral - Single-day with period selection
-        elif placement_category == "Class Period Referral":
-            with st.form("class_referral_form"):
-                st.markdown("## Class Period Referral")
-                st.markdown("### Student Information")
-                col1, col2 = st.columns(2)
-                with col1:
-                    first_name = st.text_input("First Name*")
-                    grade = st.selectbox("Grade*", ["6", "7", "8"])
-                with col2:
-                    last_name = st.text_input("Last Name*")
-                    homeroom_teacher = st.text_input("Homeroom Teacher*")
-                
-                st.markdown("### Placement Details")
-                reason = st.text_area("Reason*")
-                
-                st.markdown("### Scheduling")
-                col1, col2 = st.columns(2)
-                with col1:
-                    selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
-                with col2:
-                    selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
-                st.info("For a single period, select the same period for both Start and End.")
-                start_date = st.date_input("Date*", value=date.today())
-                
-                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
-                
-                if st.form_submit_button("Create Class Period Referral", type="primary", use_container_width=True):
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                        st.error("❌ Please fill in all required fields marked with *")
-                    elif selected_end_period < selected_start_period:
-                        st.error("❌ End period must be equal to or after start period")
-                    else:
-                        try:
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "partial",
-                                "placementType": "CLASS_REFERRAL",
-                                "completionRule": "all_sessions_fulfilled",
-                                "minSessionsRequired": None,
-                                "daysAssigned": 1,
-                                "startDate": start_date.isoformat(),
-                                "endDate": start_date.isoformat(),
-                                "startPeriod": selected_start_period,
-                                "endPeriod": selected_end_period,
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            
-                            placement_id = dm.add_placement(placement_data)
-                            dm.generate_class_referral_session(placement_id, start_date, selected_start_period, selected_end_period)
-                            
-                            st.success(f"✅ Class Period Referral created for {first_name} {last_name}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error: {str(e)}")
-                            import traceback
-                            st.error(traceback.format_exc())
+        # ===== CARD 2: PLACEMENT DETAILS =====
+        with st.container():
+            st.markdown("### Placement Details")
+            
+            # Placement Type radio at top of Placement Details card
+            placement_category = st.radio(
+                "Placement Type*",
+                options=[
+                    "In-School Suspension (ISS)", 
+                    "Lunch Detention", 
+                    "Class Period Referral", 
+                    "Cool-Down Referral",
+                    "Pre-Planned Referral"
+                ],
+                horizontal=False,
+                help="Select the type of placement",
+                key="placement_category"
+            )
+            placement_type_value = placement_type_map[placement_category]
+            
+            st.divider()
+            
+            # Reason field (common to all placement types)
+            placement_reason = st.text_area("Reason*", key="placement_reason")
+            
+            st.divider()
+            
+            # ===== TYPE-SPECIFIC SCHEDULING FIELDS =====
+            
+            # ISS - Simplified start date + number of days model
+            if placement_category == "In-School Suspension (ISS)":
+                with st.form("iss_form"):
+                    st.markdown("#### Scheduling")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        iss_start_date = st.date_input("Start Date*", value=date.today(), help="First day of ISS placement")
+                    with col2:
+                        iss_total_days = st.number_input("Number of ISS Days*", min_value=1, value=1, step=1, help="Total ISS days assigned")
+                    
+                    created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
+                    
+                    submit_clicked = st.form_submit_button("Create ISS Placement", type="primary", use_container_width=True)
+                    
+                    if submit_clicked:
+                        first_name = student_first_name
+                        last_name = student_last_name
+                        grade = student_grade
+                        homeroom_teacher = student_homeroom
+                        reason = placement_reason
+                        
+                        print(f"[DEBUG] ISS Form submitted - First Name: {first_name}, Last Name: {last_name}")
+                        if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                            print(f"[DEBUG] Validation failed - Missing fields")
+                            st.error("❌ Please fill in all required fields marked with *")
+                        else:
+                            print(f"[DEBUG] Validation passed, creating placement...")
+                            try:
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "iss_full_day",
+                                    "placementType": "ISS",
+                                    "completionRule": "iss_days",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": iss_total_days,
+                                    "issStartDate": iss_start_date.isoformat(),
+                                    "issTotalDays": iss_total_days,
+                                    "issRemainingDays": iss_total_days,
+                                    "startDate": iss_start_date.isoformat(),
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                
+                                print(f"[DEBUG] Student created with ID: {student_id}")
+                                placement_id = dm.add_placement(placement_data)
+                                print(f"[DEBUG] Placement created with ID: {placement_id}")
+                                dm.generate_iss_full_day_sessions(placement_id, iss_start_date, iss_total_days)
+                                print(f"[DEBUG] Sessions generated, setting navigation flags")
+                                
+                                st.session_state.placement_created = True
+                                st.session_state.navigate_to_dashboard = True
+                                st.success(f"✅ ISS placement created for {first_name} {last_name}")
+                                print(f"[DEBUG] About to rerun...")
+                                st.rerun()
+                            except Exception as e:
+                                print(f"[DEBUG] Exception occurred: {str(e)}")
+                                import traceback
+                                print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+                                st.error(f"❌ Error creating placement: {str(e)}")
+                                st.error(traceback.format_exc())
+            
+            # Lunch Detention - Multi-day placement with automatic scheduling
+            elif placement_category == "Lunch Detention":
+                with st.form("lunch_detention_form"):
+                    st.markdown("#### Scheduling")
+                    lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
+                    start_date = st.date_input("Start Date*", value=date.today())
+                    
+                    created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
+                    
+                    if st.form_submit_button("Create Lunch Detention", type="primary", use_container_width=True):
+                        first_name = student_first_name
+                        last_name = student_last_name
+                        grade = student_grade
+                        homeroom_teacher = student_homeroom
+                        reason = placement_reason
+                        
+                        if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                            st.error("❌ Please fill in all required fields marked with *")
+                        else:
+                            try:
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                scheduled_lunch_dates = dm.calculate_scheduled_lunch_dates(start_date, int(lunch_days))
+                                end_date = scheduled_lunch_dates[-1] if scheduled_lunch_dates else start_date
+                                
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "iss_full_day",
+                                    "placementType": "LUNCH_DETENTION",
+                                    "completionRule": "all_sessions_fulfilled",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": int(lunch_days),
+                                    "startDate": start_date.isoformat(),
+                                    "endDate": end_date.isoformat(),
+                                    "scheduledLunchDates": [d.isoformat() for d in scheduled_lunch_dates],
+                                    "servedDates": [],
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                
+                                placement_id = dm.add_placement(placement_data)
+                                dm.generate_lunch_detention_sessions_from_scheduled(placement_id, scheduled_lunch_dates)
+                                
+                                st.success(f"✅ Lunch Detention created for {first_name} {last_name} - {lunch_days} day(s) scheduled through {end_date.strftime('%b %d, %Y')}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
+            
+            # Class Period Referral - Single-day with period selection
+            elif placement_category == "Class Period Referral":
+                with st.form("class_referral_form"):
+                    st.markdown("#### Scheduling")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
+                    with col2:
+                        selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
+                    st.info("For a single period, select the same period for both Start and End.")
+                    start_date = st.date_input("Date*", value=date.today())
+                    
+                    created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
+                    
+                    if st.form_submit_button("Create Class Period Referral", type="primary", use_container_width=True):
+                        first_name = student_first_name
+                        last_name = student_last_name
+                        grade = student_grade
+                        homeroom_teacher = student_homeroom
+                        reason = placement_reason
+                        
+                        if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                            st.error("❌ Please fill in all required fields marked with *")
+                        elif selected_end_period < selected_start_period:
+                            st.error("❌ End period must be equal to or after start period")
+                        else:
+                            try:
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "partial",
+                                    "placementType": "CLASS_REFERRAL",
+                                    "completionRule": "all_sessions_fulfilled",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": 1,
+                                    "startDate": start_date.isoformat(),
+                                    "endDate": start_date.isoformat(),
+                                    "startPeriod": selected_start_period,
+                                    "endPeriod": selected_end_period,
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                
+                                placement_id = dm.add_placement(placement_data)
+                                dm.generate_class_referral_session(placement_id, start_date, selected_start_period, selected_end_period)
+                                
+                                st.success(f"✅ Class Period Referral created for {first_name} {last_name}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
 
-        # Cool-Down Referral - show cool-down form with date and period fields
-        elif placement_category == "Cool-Down Referral":
-            with st.form("create_cooldown_form"):
-                st.markdown("## Cool-Down Referral")
-                st.markdown("### Student Information")
-                col1, col2 = st.columns(2)
-                with col1:
-                    first_name = st.text_input("First Name*", key="cd_first_name")
-                    grade = st.selectbox("Grade*", ["6", "7", "8"], key="cd_grade")
-                with col2:
-                    last_name = st.text_input("Last Name*", key="cd_last_name")
-                    homeroom_teacher = st.text_input("Homeroom Teacher*", key="cd_homeroom")
-                
-                st.markdown("### Placement Details")
-                reason = st.text_area("Reason*", key="cd_reason")
-                
-                st.markdown("### Scheduling")
-                col3, col4, col5 = st.columns(3)
-                with col3:
-                    cooldown_date = st.date_input("Date*", value=date.today(), key="cd_date")
-                with col4:
-                    start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_start_period")
-                with col5:
-                    end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_end_period")
-                st.info("For a short cool-down, select the same period for both Start and End. For a longer cool-down, select a later period for End.")
-                
-                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="cd_created_by")
-                
-                if st.form_submit_button("Create Cool-Down", type="primary", use_container_width=True):
-                    # Validation
-                    validation_error = False
+            # Cool-Down Referral - show cool-down form with date and period fields
+            elif placement_category == "Cool-Down Referral":
+                with st.form("create_cooldown_form"):
+                    st.markdown("#### Scheduling")
+                    col3, col4, col5 = st.columns(3)
+                    with col3:
+                        cooldown_date = st.date_input("Date*", value=date.today(), key="cd_date")
+                    with col4:
+                        start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_start_period")
+                    with col5:
+                        end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_end_period")
+                    st.info("For a short cool-down, select the same period for both Start and End. For a longer cool-down, select a later period for End.")
                     
-                    # Validate period range
-                    if end_period < start_period:
-                        st.error("❌ End period must be equal to or after start period")
-                        validation_error = True
+                    created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="cd_created_by")
                     
-                    # Validate required fields
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                        st.error("❌ Please fill in all required fields marked with *")
-                        validation_error = True
-                    
-                    if not validation_error:
-                        try:
-                            # Create new student
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Calculate days_assigned (always 1 for single-day cool-down)
-                            days_assigned = 1
-                            
-                            # Create placement with new student
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "partial",
-                                "placementType": "COOL_DOWN",
-                                "completionRule": "all_sessions_fulfilled",
-                                "minSessionsRequired": None,
-                                "daysAssigned": days_assigned,
-                                "startDate": cooldown_date.isoformat(),
-                                "endDate": cooldown_date.isoformat(),
-                                "startPeriod": start_period,
-                                "endPeriod": end_period,
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            placement_id = dm.add_placement(placement_data)
-                            
-                            # Generate cool-down session
-                            dm.generate_cooldown_session(placement_id, cooldown_date, start_period, end_period)
-                            
-                            st.session_state.placement_created = True
-                            st.session_state.navigate_to_dashboard = True
-                            st.success(f"✅ Cool-Down created for {first_name} {last_name}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error creating cool-down: {str(e)}")
-                            import traceback
-                            st.error(traceback.format_exc())
-        
-        # Pre-Planned Referral - schedule-based referral with multiple date+period combinations
-        elif placement_category == "Pre-Planned Referral":
-            st.markdown("## Pre-Planned Referral")
-            st.info("📅 This placement type allows you to schedule a student for specific periods on specific dates (e.g., when they will have a substitute teacher)")
+                    if st.form_submit_button("Create Cool-Down", type="primary", use_container_width=True):
+                        first_name = student_first_name
+                        last_name = student_last_name
+                        grade = student_grade
+                        homeroom_teacher = student_homeroom
+                        reason = placement_reason
+                        
+                        validation_error = False
+                        
+                        if end_period < start_period:
+                            st.error("❌ End period must be equal to or after start period")
+                            validation_error = True
+                        
+                        if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                            st.error("❌ Please fill in all required fields marked with *")
+                            validation_error = True
+                        
+                        if not validation_error:
+                            try:
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                days_assigned = 1
+                                
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "partial",
+                                    "placementType": "COOL_DOWN",
+                                    "completionRule": "all_sessions_fulfilled",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": days_assigned,
+                                    "startDate": cooldown_date.isoformat(),
+                                    "endDate": cooldown_date.isoformat(),
+                                    "startPeriod": start_period,
+                                    "endPeriod": end_period,
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                placement_id = dm.add_placement(placement_data)
+                                
+                                dm.generate_cooldown_session(placement_id, cooldown_date, start_period, end_period)
+                                
+                                st.session_state.placement_created = True
+                                st.session_state.navigate_to_dashboard = True
+                                st.success(f"✅ Cool-Down created for {first_name} {last_name}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error creating cool-down: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
             
-            # Initialize session state for schedule rows
-            if 'preplanned_schedule' not in st.session_state:
-                st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
-            
-            with st.form("preplanned_referral_form"):
-                st.markdown("### Student Information")
-                col1, col2 = st.columns(2)
-                with col1:
-                    first_name = st.text_input("First Name*", key="pp_first_name")
-                    grade = st.selectbox("Grade*", ["6", "7", "8"], key="pp_grade")
-                with col2:
-                    last_name = st.text_input("Last Name*", key="pp_last_name")
-                    homeroom_teacher = st.text_input("Homeroom Teacher*", key="pp_homeroom")
+            # Pre-Planned Referral - schedule-based referral with multiple date+period combinations
+            elif placement_category == "Pre-Planned Referral":
+                st.info("📅 This placement type allows you to schedule a student for specific periods on specific dates (e.g., when they will have a substitute teacher)")
                 
-                st.markdown("### Placement Details")
-                reason = st.text_area("Reason*", key="pp_reason")
+                if 'preplanned_schedule' not in st.session_state:
+                    st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
                 
-                st.markdown("### Scheduling")
-                st.caption("Add one or more date+period combinations for this referral")
-                
-                # Display schedule rows
-                schedule_data = []
-                
-                # Display Day 1
-                row_data = st.session_state.preplanned_schedule[0]
-                st.markdown("**Day 1**")
-                col_date, col_periods = st.columns([2, 3])
-                
-                with col_date:
-                    row_date = st.date_input(
-                        f"Date",
-                        value=row_data.get("date", date.today()),
-                        key=f"pp_date_0",
-                        label_visibility="collapsed"
-                    )
-                
-                with col_periods:
-                    row_periods = st.multiselect(
-                        f"Periods",
-                        options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                        default=row_data.get("periods", [1]),
-                        format_func=lambda x: f"Period {x}",
-                        key=f"pp_periods_0",
-                        label_visibility="collapsed"
-                    )
-                
-                schedule_data.append({"date": row_date, "periods": row_periods})
-                
-                # Add Day button immediately after Day 1
-                add_row_button = st.form_submit_button("+ Add Day", use_container_width=False)
-                st.divider()
-                
-                # Display remaining schedule rows (Day 2, Day 3, etc.)
-                for idx in range(1, len(st.session_state.preplanned_schedule)):
-                    row_data = st.session_state.preplanned_schedule[idx]
+                with st.form("preplanned_referral_form"):
+                    st.markdown("#### Scheduling")
+                    st.caption("Add one or more date+period combinations for this referral")
                     
-                    st.markdown(f"**Day {idx + 1}**")
+                    schedule_data = []
+                    
+                    row_data = st.session_state.preplanned_schedule[0]
+                    st.markdown("**Day 1**")
                     col_date, col_periods = st.columns([2, 3])
                     
                     with col_date:
                         row_date = st.date_input(
                             f"Date",
                             value=row_data.get("date", date.today()),
-                            key=f"pp_date_{idx}",
+                            key=f"pp_date_0",
                             label_visibility="collapsed"
                         )
                     
@@ -1386,100 +1319,125 @@ elif page == "Placements":
                             options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                             default=row_data.get("periods", [1]),
                             format_func=lambda x: f"Period {x}",
-                            key=f"pp_periods_{idx}",
+                            key=f"pp_periods_0",
                             label_visibility="collapsed"
                         )
                     
                     schedule_data.append({"date": row_date, "periods": row_periods})
+                    
+                    add_row_button = st.form_submit_button("+ Add Day", use_container_width=False)
                     st.divider()
-                
-                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="pp_created_by")
-                
-                # Form submit button
-                submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)
-                
-                if add_row_button:
-                    # Add a new schedule row
-                    st.session_state.preplanned_schedule.append({"date": date.today(), "periods": [1]})
-                    st.rerun()
-                
-                if submit_button:
-                    # Validation
-                    validation_error = False
                     
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
-                        st.error("❌ Please fill in all required fields marked with *")
-                        validation_error = True
+                    for idx in range(1, len(st.session_state.preplanned_schedule)):
+                        row_data = st.session_state.preplanned_schedule[idx]
+                        
+                        st.markdown(f"**Day {idx + 1}**")
+                        col_date, col_periods = st.columns([2, 3])
+                        
+                        with col_date:
+                            row_date = st.date_input(
+                                f"Date",
+                                value=row_data.get("date", date.today()),
+                                key=f"pp_date_{idx}",
+                                label_visibility="collapsed"
+                            )
+                        
+                        with col_periods:
+                            row_periods = st.multiselect(
+                                f"Periods",
+                                options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                                default=row_data.get("periods", [1]),
+                                format_func=lambda x: f"Period {x}",
+                                key=f"pp_periods_{idx}",
+                                label_visibility="collapsed"
+                            )
+                        
+                        schedule_data.append({"date": row_date, "periods": row_periods})
+                        st.divider()
                     
-                    # Validate that at least one schedule entry exists with periods
-                    valid_schedule = [s for s in schedule_data if s.get("periods")]
-                    if not valid_schedule:
-                        st.error("❌ Please add at least one day with selected periods")
-                        validation_error = True
+                    created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="pp_created_by")
                     
-                    if not validation_error:
-                        try:
-                            # Create new student
-                            new_student_data = {
-                                "firstName": first_name,
-                                "lastName": last_name,
-                                "grade": grade,
-                                "homeroomTeacher": homeroom_teacher,
-                                "guardianContacts": [],
-                                "status": "active"
-                            }
-                            student_id = dm.add_student(new_student_data)
-                            
-                            # Process schedule data into scheduled_slots
-                            scheduled_slots = []
-                            for slot in valid_schedule:
-                                for period in slot["periods"]:
-                                    scheduled_slots.append({
-                                        "date": slot["date"].isoformat(),
-                                        "period": period
-                                    })
-                            
-                            # Determine start and end dates from schedule
-                            all_dates = [slot["date"] for slot in valid_schedule]
-                            start_date = min(all_dates)
-                            end_date = max(all_dates)
-                            
-                            # Create placement
-                            placement_data = {
-                                "studentId": student_id,
-                                "homeroomTeacherId": homeroom_teacher,
-                                "reason": reason,
-                                "type": "partial",
-                                "placementType": "PRE_PLANNED_REFERRAL",
-                                "completionRule": "all_sessions_fulfilled",
-                                "minSessionsRequired": None,
-                                "daysAssigned": len(valid_schedule),
-                                "startDate": start_date.isoformat(),
-                                "endDate": end_date.isoformat(),
-                                "scheduledSlots": scheduled_slots,
-                                "status": "active",
-                                "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
-                            }
-                            
-                            placement_id = dm.add_placement(placement_data)
-                            dm.generate_preplanned_sessions(placement_id, scheduled_slots)
-                            
-                            # Clear the schedule state for next use
-                            st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
-                            
-                            st.success(f"✅ Pre-Planned Referral created for {first_name} {last_name} - {len(scheduled_slots)} session(s) scheduled")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error creating pre-planned referral: {str(e)}")
-                            import traceback
-                            st.error(traceback.format_exc())
-            
-            # Remove row button (outside form)
-            if len(st.session_state.preplanned_schedule) > 1:
-                if st.button("🗑️ Remove Last Day"):
-                    st.session_state.preplanned_schedule.pop()
-                    st.rerun()
+                    submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)
+                    
+                    if add_row_button:
+                        st.session_state.preplanned_schedule.append({"date": date.today(), "periods": [1]})
+                        st.rerun()
+                    
+                    if submit_button:
+                        first_name = student_first_name
+                        last_name = student_last_name
+                        grade = student_grade
+                        homeroom_teacher = student_homeroom
+                        reason = placement_reason
+                        
+                        validation_error = False
+                        
+                        if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                            st.error("❌ Please fill in all required fields marked with *")
+                            validation_error = True
+                        
+                        valid_schedule = [s for s in schedule_data if s.get("periods")]
+                        if not valid_schedule:
+                            st.error("❌ Please add at least one day with selected periods")
+                            validation_error = True
+                        
+                        if not validation_error:
+                            try:
+                                new_student_data = {
+                                    "firstName": first_name,
+                                    "lastName": last_name,
+                                    "grade": grade,
+                                    "homeroomTeacher": homeroom_teacher,
+                                    "guardianContacts": [],
+                                    "status": "active"
+                                }
+                                student_id = dm.add_student(new_student_data)
+                                
+                                scheduled_slots = []
+                                for slot in valid_schedule:
+                                    for period in slot["periods"]:
+                                        scheduled_slots.append({
+                                            "date": slot["date"].isoformat(),
+                                            "period": period
+                                        })
+                                
+                                all_dates = [slot["date"] for slot in valid_schedule]
+                                start_date = min(all_dates)
+                                end_date = max(all_dates)
+                                
+                                placement_data = {
+                                    "studentId": student_id,
+                                    "homeroomTeacherId": homeroom_teacher,
+                                    "reason": reason,
+                                    "type": "partial",
+                                    "placementType": "PRE_PLANNED_REFERRAL",
+                                    "completionRule": "all_sessions_fulfilled",
+                                    "minSessionsRequired": None,
+                                    "daysAssigned": len(valid_schedule),
+                                    "startDate": start_date.isoformat(),
+                                    "endDate": end_date.isoformat(),
+                                    "scheduledSlots": scheduled_slots,
+                                    "status": "active",
+                                    "createdBy": created_by,
+                                    "createdAt": datetime.now().isoformat()
+                                }
+                                
+                                placement_id = dm.add_placement(placement_data)
+                                dm.generate_preplanned_sessions(placement_id, scheduled_slots)
+                                
+                                st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
+                                
+                                st.success(f"✅ Pre-Planned Referral created for {first_name} {last_name} - {len(scheduled_slots)} session(s) scheduled")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error creating pre-planned referral: {str(e)}")
+                                import traceback
+                                st.error(traceback.format_exc())
+                
+                if len(st.session_state.preplanned_schedule) > 1:
+                    if st.button("🗑️ Remove Last Day"):
+                        st.session_state.preplanned_schedule.pop()
+                        st.rerun()
             
     # Tab 2: Completed Placements
     with tab2:

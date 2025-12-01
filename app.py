@@ -788,17 +788,17 @@ if page == "Dashboard":
         iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
         is_multi_day_iss = iss_total_days > 1
         
-        progress = dm.calculate_iss_days_progress(placement_id, target_date)
-        completed_days = progress['completed_days']
-        total_days = progress['total_days']
-        
-        # Build the "Day X of Y Days" progress label
-        completed_int = int(completed_days) if completed_days == int(completed_days) else int(completed_days)
-        day_word = "Day" if total_days == 1 else "Days"
-        day_progress_label = f"Day {completed_int} of {total_days} {day_word}"
-        
-        # Check if student is checked in
+        # Check if student is checked in for today
         is_checked_in = daily_log.get('checkedIn', False)
+        
+        # Calculate check-in based progress (Day X advances when Check In is pressed)
+        checkin_progress = dm.calculate_iss_checkin_progress(placement_id, target_date)
+        checked_in_days = checkin_progress['checked_in_days']
+        total_days = checkin_progress['total_days']
+        
+        # Build the "Day X of Y Days" progress label based on check-ins
+        day_word = "Day" if total_days == 1 else "Days"
+        day_progress_label = f"Day {checked_in_days} of {total_days} {day_word}"
         
         with st.container():
             header_col1, header_col2, header_col3 = st.columns([3, 2, 1])

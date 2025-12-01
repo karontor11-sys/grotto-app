@@ -1,0 +1,53 @@
+On the Dashboard page, inside the In-School Suspension (ISS) section, please update the logic for the “Day X of Y Days” counter on the expanded ISS student card so that it advances when the Check In button is pressed.
+
+1. Current Behavior (for reference)
+
+The ISS card shows a progress line like “Day X of Y Days”, where Y = total ISS days assigned.
+
+Right now, X is tied to completion logic (or static display) rather than the actual start of each ISS day.
+
+2. New Behavior — Advance on Check In
+
+For each ISS placement, X should represent the current active ISS day number.
+
+When the user presses “Check In” for a new ISS day on the Dashboard:
+
+Increment the Day X counter for that placement and display it as:
+
+“Day X of Y Days”
+
+Example:
+
+Before checking in for the first ISS day → display “Day 0 of 3 Days” or hide the day line until the first check-in (use whichever is easier given the current implementation).
+
+When Check In is pressed on the first ISS day → display “Day 1 of 3 Days”.
+
+On the next date, when Check In is pressed again for that same ISS placement → display “Day 2 of 3 Days”, and so on.
+
+3. Only increment once per date/day
+
+Ensure that pressing Check In multiple times for the same ISS date (if that’s even possible) does not increment the day counter more than once for that day.
+
+Each calendar day with a Check In for that ISS placement should count as one ISS day in the sequence.
+
+4. Do not move the day counter on Complete/Override
+
+Complete and Override & Count Full should still mark the day as finished and affect completion status, but they should not increment the “Day X of Y Days” number.
+
+The day number should only advance when a new ISS day actually starts, which is defined by pressing Check In for that day.
+
+5. Keep all other ISS logic as-is
+
+Do not change:
+
+Check In enabling behaviors/points/completion
+
+The 10-point requirement for full-day completion
+
+Override behavior
+
+Midnight rule and alerts
+
+Status color changes (yellow/green/red)
+
+Only adjust how and when the “Day X of Y Days” counter is updated, tying it to the first Check In for each ISS day.

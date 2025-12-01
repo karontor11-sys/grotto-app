@@ -1593,6 +1593,44 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def calculate_iss_checkin_progress(self, placement_id: str, up_to_date: date = None) -> Dict[str, Any]:
+        """Calculate ISS days progress based on check-ins for a placement.
+        
+        The 'Day X of Y Days' counter advances when Check In is pressed,
+        not when the day is completed.
+        
+        Returns dict with:
+        - total_days: Total ISS days assigned (Y)
+        - checked_in_days: Number of days where student was checked in (X)
+        - remaining_days: total_days - checked_in_days
+        """
+        db_session = self.get_session()
+        try:
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'total_days': 0, 'checked_in_days': 0, 'remaining_days': 0}
+            
+            total_days = placement.iss_total_days or 0
+            
+            if up_to_date is None:
+                up_to_date = datetime.now().date()
+            
+            checked_in_count = db_session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date <= up_to_date,
+                DailyLog.checked_in == True
+            ).count()
+            
+            remaining_days = max(0, total_days - checked_in_count)
+            
+            return {
+                'total_days': total_days,
+                'checked_in_days': checked_in_count,
+                'remaining_days': remaining_days
+            }
+        finally:
+            db_session.close()
+    
     # Daily Log operations
     def get_or_create_daily_log(self, placement_id: str, log_date: str) -> Dict[str, Any]:
         """Get or create a daily log for a placement on a specific date."""

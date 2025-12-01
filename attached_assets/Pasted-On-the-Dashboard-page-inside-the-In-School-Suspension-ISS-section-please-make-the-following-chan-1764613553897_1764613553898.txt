@@ -1,0 +1,45 @@
+On the Dashboard page, inside the In-School Suspension (ISS) section, please make the following changes to clearly distinguish between full-day and partial-day ISS, and to control when partial-day options are available.
+
+1. Show Full vs Partial on ISS Session Cards
+For each ISS session card under the ISS heading:
+
+Under the student’s name, display one of the following labels based on the session’s period range:
+
+“Full ISS Day (Periods 1–10)” if the session covers periods 1–10.
+
+“Partial ISS Session (Periods X–Y)” if the session uses a custom period range (for example, periods 5–10).
+
+This information should come directly from the ISS session data created in the Placement Manager (Full Day vs Custom Period Range).
+
+Place this label directly below the student’s name and above the existing controls/fields on the ISS card.
+
+2. Control When Partial ISS Is Allowed Based on ISS Days
+Use the “Total ISS Days” value from the Placement Manager for each ISS placement to control whether partial-day ISS is allowed on the Dashboard:
+
+If Total ISS Days = 1 for that placement:
+
+On the Dashboard, allow ISS sessions for that student to be either:
+
+a Full ISS Day (Periods 1–10), or
+
+a Partial ISS Session (custom period range, e.g., Periods X–Y).
+
+In other words, both full-day and partial-day ISS options should be available and supported for single-day ISS placements, since that one day might be served as either a full day or a partial day.
+
+If Total ISS Days > 1 for that placement (multi-day ISS):
+
+Treat the placement as multi-day full ISS.
+
+Do not offer UI options for creating or selecting new Partial ISS Sessions on the Dashboard for that placement.
+
+ISS sessions for these multi-day placements should be handled as full ISS days (Periods 1–10) on the Dashboard.
+
+3. Do Not Change Existing Tracking Logic
+
+Do not change any existing logic for ISS completion, points, override, or progress tracking.
+
+This change is about:
+
+a) clearly labeling ISS sessions as full vs partial under the student’s name, and
+
+b) limiting partial-day ISS options on the Dashboard to placements where Total ISS Days = 1 in the Placement Manager.

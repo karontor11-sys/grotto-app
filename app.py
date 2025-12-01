@@ -814,9 +814,28 @@ if page == "Dashboard":
             served_dates = placement_data.get('servedDates', [])
         is_present = date_str in served_dates
         
+        # Get ISS total days from placement for partial day control
+        iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
+        is_multi_day_iss = iss_total_days > 1
+        
         progress = dm.calculate_iss_days_progress(placement_id, target_date)
         completed_days = progress['completed_days']
         total_days = progress['total_days']
+        
+        # Build the ISS type label with period range
+        if is_full_day:
+            iss_type_label = "Full ISS Day (Periods 1–10)"
+        else:
+            # Show actual period range for partial sessions
+            if periods and len(periods) > 0:
+                start_period = min(periods)
+                end_period = max(periods)
+                if start_period == end_period:
+                    iss_type_label = f"Partial ISS Session (Period {start_period})"
+                else:
+                    iss_type_label = f"Partial ISS Session (Periods {start_period}–{end_period})"
+            else:
+                iss_type_label = "Partial ISS Session"
         
         with st.container():
             header_col1, header_col2, header_col3 = st.columns([3, 2, 1])
@@ -827,15 +846,12 @@ if page == "Dashboard":
                     st.session_state.iss_detail_placement_id = placement_id
                     st.session_state.iss_detail_date = target_date
                     st.rerun()
+                # ISS type label directly below student name
+                st.markdown(f"**{iss_type_label}**")
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
             
             with header_col2:
-                if is_full_day:
-                    st.markdown("**Full Day**")
-                else:
-                    num_periods = len(periods)
-                    st.markdown(f"**Partial Day ({num_periods} periods)**")
-                
+                # Progress tracking
                 if total_days > 0:
                     if completed_days == int(completed_days):
                         completed_display = int(completed_days)

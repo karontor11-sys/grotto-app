@@ -124,6 +124,9 @@ class DailyLog(Base):
     periods_covered = Column(JSON, default=list)  # Array of period numbers covered for partial days
     override_used = Column(Boolean, default=False)  # True if "Call It Good" override was used
     override_comment = Column(Text, nullable=True)  # Required comment when override is used
+    # Check-in workflow fields
+    checked_in = Column(Boolean, default=False)  # True when student is checked in for the day
+    checked_in_at = Column(DateTime, nullable=True)  # Timestamp when check-in occurred
     
     __table_args__ = (UniqueConstraint('placement_id', 'date', name='uix_placement_date'),)
 
@@ -694,6 +697,78 @@ class DatabaseManager:
             
             session.commit()
             return True
+        finally:
+            session.close()
+    
+    def check_in_student(self, placement_id: str, check_in_date: str) -> bool:
+        """Check in a student for an ISS day.
+        
+        Args:
+            placement_id: ID of the placement
+            check_in_date: ISO format date string
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            date_obj = datetime.fromisoformat(check_in_date).date()
+            date_str = date_obj.isoformat()
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log = DailyLog(
+                    id=str(uuid.uuid4()),
+                    placement_id=placement_id,
+                    date=date_obj,
+                    checked_in=True,
+                    checked_in_at=datetime.now()
+                )
+                session.add(log)
+            else:
+                log.checked_in = True
+                log.checked_in_at = datetime.now()
+            
+            # Also add to served_dates for ISS placements
+            if placement.placement_type == PlacementCategory.ISS:
+                served_dates = placement.served_dates if placement.served_dates else []
+                if date_str not in served_dates:
+                    served_dates.append(date_str)
+                    placement.served_dates = served_dates
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
+    def is_student_checked_in(self, placement_id: str, check_date: str) -> bool:
+        """Check if a student is checked in for a specific date.
+        
+        Args:
+            placement_id: ID of the placement
+            check_date: ISO format date string
+            
+        Returns:
+            True if checked in, False otherwise
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(check_date).date()
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            return log.checked_in if log else False
         finally:
             session.close()
     
@@ -1644,11 +1719,17 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def complete_placement_day(self, placement_id: str, log_date: str, completed_by: str) -> bool:
+    def complete_placement_day(self, placement_id: str, log_date: str, completed_by: str, is_override: bool = False) -> bool:
         """Mark a placement day as complete by setting daily_fulfillment to 'yes'.
         
         This method supports retroactive completion - staff can mark incomplete
         records from past dates as complete while preserving alert history.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            completed_by: Name/ID of person completing
+            is_override: True if using Override & Count Full (early release with full credit)
         """
         session = self.get_session()
         try:
@@ -1671,7 +1752,8 @@ class DatabaseManager:
                     readiness='continue',
                     daily_fulfillment='yes',
                     finalized_by=completed_by,
-                    finalized_at=datetime.now()
+                    finalized_at=datetime.now(),
+                    override_used=is_override
                 )
                 session.add(log)
             else:
@@ -1679,8 +1761,8 @@ class DatabaseManager:
                 log.daily_fulfillment = 'yes'
                 log.finalized_by = completed_by
                 log.finalized_at = datetime.now()
-                # Note: We preserve alert_flag for audit history (if alerts were sent for incomplete records)
-                # The record is now completed, but the alert history is maintained for accountability
+                if is_override:
+                    log.override_used = True
                 
                 placement = session.query(Placement).filter(Placement.id == placement_id).first()
                 if placement and old_fulfillment != 'yes':
@@ -2151,7 +2233,10 @@ class DatabaseManager:
             'dayType': log.day_type,
             'periodsCovered': log.periods_covered or [],
             'overrideUsed': log.override_used or False,
-            'overrideComment': log.override_comment
+            'overrideComment': log.override_comment,
+            # Check-in workflow fields
+            'checkedIn': log.checked_in or False,
+            'checkedInAt': log.checked_in_at.isoformat() if log.checked_in_at else None
         }
     
     def _point_event_to_dict(self, event: PointEvent) -> Dict[str, Any]:

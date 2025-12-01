@@ -20,6 +20,8 @@ Preferred communication style: Simple, everyday language.
    - `periods_covered` (JSON) - Array of period numbers for partial days
    - `override_used` (BOOLEAN) - Tracks "Call It Good" override usage
    - `override_comment` (TEXT) - Required comment when override is used
+   - `checked_in` (BOOLEAN) - True when student is checked in for the day
+   - `checked_in_at` (DATETIME) - Timestamp when check-in occurred
 
 2. **Session-Based Dashboard** - Refactored ISS display from placement-based to session-based:
    - Uses `get_iss_sessions_for_date()` to fetch from `PartialDaySession` table
@@ -30,11 +32,14 @@ Preferred communication style: Simple, everyday language.
    - Clickable student name with status indicator
    - Period display (Full Day or Partial Day with period count)
    - Days-based progress ("Completed X of Y ISS days")
-   - Attendance toggle (Present/Absent)
+   - **Check In button workflow** (replaces Present/Absent radio):
+     - Check In button is clickable when student hasn't checked in
+     - Button becomes disabled/greyed after check-in
+     - Behavior controls and Complete/Override only enabled after check-in
    - Points Total with completion eligibility (10+ for full day)
-   - Positive/Negative behavior dropdowns
-   - Complete button (disabled until 10+ points for full day)
-   - Override & Count Full button with confirmation
+   - Positive/Negative behavior dropdowns (enabled after check-in)
+   - Complete button (requires check-in and 10+ points for full day)
+   - Override & Count Full button with confirmation (requires check-in)
    - Collapsible Notes section with save functionality
 
 4. **Days-Based Progress Tracking**:

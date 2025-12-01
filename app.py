@@ -278,7 +278,7 @@ if page == "Dashboard":
     
     # Helper function to render ISS Full Day student card
     def render_iss_full_card(placement: dict, target_date: date):
-        """Render ISS Full Day card with attendance, Day X of Y, points, and behaviors."""
+        """Render ISS Full Day card with Check In workflow, Day X of Y, points, and behaviors."""
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
@@ -294,7 +294,6 @@ if page == "Dashboard":
         status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
         
         # Calculate Day X of Y
-        served_dates = placement.get('servedDates', [])
         total_days = placement.get('daysAssigned', 0)
         day_number = calculate_school_day_number(placement['startDate'], date_str)
         
@@ -304,16 +303,16 @@ if page == "Dashboard":
         negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
         total_points = positive_points + negative_points
         
-        # Check if student is marked present for this date
-        is_present = date_str in served_dates
+        # Check if student is checked in
+        is_checked_in = daily_log.get('checkedIn', False)
+        is_completed = daily_log.get('dailyFulfillment') == 'yes'
         
         with st.container():
-            # Header row: Name, Grade, Attendance
+            # Header row: Name, Grade, Check In
             col1, col2, col3 = st.columns([3, 1, 2])
             
             with col1:
                 if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
-                    # Navigate to ISS Detail page
                     st.session_state.navigate_to_iss_detail = True
                     st.session_state.iss_detail_placement_id = placement_id
                     st.session_state.iss_detail_date = target_date
@@ -323,104 +322,109 @@ if page == "Dashboard":
                 st.caption(f"Grade {student.get('grade', 'N/A')}")
             
             with col3:
-                # Attendance toggle
-                attendance_key = f"attendance_{placement_id}_{date_str}"
-                if attendance_key not in st.session_state:
-                    st.session_state[attendance_key] = "Present" if is_present else "Absent"
-                
-                attendance = st.radio(
-                    "Attendance",
-                    ["Present", "Absent"],
-                    index=0 if st.session_state[attendance_key] == "Present" else 1,
-                    horizontal=True,
-                    key=f"radio_{attendance_key}",
-                    label_visibility="collapsed"
-                )
-                
-                if attendance != st.session_state[attendance_key]:
-                    st.session_state[attendance_key] = attendance
-                    dm.update_iss_attendance(placement_id, date_str, attendance == "Present")
-                    st.rerun()
+                # Check In button (replaces Present/Absent)
+                if is_completed:
+                    st.success("Checked Out")
+                elif is_checked_in:
+                    st.button("Check In", key=f"checkin_{placement_id}_{date_str}", disabled=True)
+                else:
+                    if st.button("Check In", key=f"checkin_{placement_id}_{date_str}", type="primary"):
+                        dm.check_in_student(placement_id, date_str)
+                        st.rerun()
             
             # Day X of Y
             if day_number > 0 and day_number <= total_days:
                 st.caption(f"📅 Day {day_number} of {total_days}")
             
-            # Points section with behaviors
+            # Points section with behaviors (only enabled after check-in)
             col_left, col_right = st.columns([1, 1])
             
             with col_left:
                 st.markdown("**Behaviors**")
                 
-                # Positive behaviors dropdown
-                positive_menu = ps.get_positive_point_menu()
-                positive_options = ["-- Add Positive --"] + [item['label'] for item in positive_menu]
-                selected_positive = st.selectbox(
-                    "Positive",
-                    positive_options,
-                    key=f"pos_{placement_id}_{date_str}",
-                    label_visibility="collapsed"
-                )
-                
-                if selected_positive != "-- Add Positive --":
-                    item = next((i for i in positive_menu if i['label'] == selected_positive), None)
-                    if item:
-                        dm.add_point_event({
-                            'placementId': placement_id,
-                            'studentId': student['_id'],
-                            'code': item['code'],
-                            'type': 'positive',
-                            'value': item['value'],
-                            'date': date_str
-                        })
-                        st.rerun()
-                
-                # Negative behaviors dropdown
-                negative_menu = ps.get_negative_point_menu()
-                negative_options = ["-- Add Negative --"] + [item['label'] for item in negative_menu]
-                selected_negative = st.selectbox(
-                    "Negative",
-                    negative_options,
-                    key=f"neg_{placement_id}_{date_str}",
-                    label_visibility="collapsed"
-                )
-                
-                if selected_negative != "-- Add Negative --":
-                    item = next((i for i in negative_menu if i['label'] == selected_negative), None)
-                    if item:
-                        dm.add_point_event({
-                            'placementId': placement_id,
-                            'studentId': student['_id'],
-                            'code': item['code'],
-                            'type': 'negative',
-                            'value': item['value'],
-                            'date': date_str
-                        })
-                        st.rerun()
+                if is_checked_in or is_completed:
+                    # Positive behaviors dropdown
+                    positive_menu = ps.get_positive_point_menu()
+                    positive_options = ["-- Add Positive --"] + [item['label'] for item in positive_menu]
+                    selected_positive = st.selectbox(
+                        "Positive",
+                        positive_options,
+                        key=f"pos_{placement_id}_{date_str}",
+                        label_visibility="collapsed",
+                        disabled=is_completed
+                    )
+                    
+                    if selected_positive != "-- Add Positive --" and not is_completed:
+                        item = next((i for i in positive_menu if i['label'] == selected_positive), None)
+                        if item:
+                            dm.add_point_event({
+                                'placementId': placement_id,
+                                'studentId': student['_id'],
+                                'code': item['code'],
+                                'type': 'positive',
+                                'value': item['value'],
+                                'date': date_str
+                            })
+                            st.rerun()
+                    
+                    # Negative behaviors dropdown
+                    negative_menu = ps.get_negative_point_menu()
+                    negative_options = ["-- Add Negative --"] + [item['label'] for item in negative_menu]
+                    selected_negative = st.selectbox(
+                        "Negative",
+                        negative_options,
+                        key=f"neg_{placement_id}_{date_str}",
+                        label_visibility="collapsed",
+                        disabled=is_completed
+                    )
+                    
+                    if selected_negative != "-- Add Negative --" and not is_completed:
+                        item = next((i for i in negative_menu if i['label'] == selected_negative), None)
+                        if item:
+                            dm.add_point_event({
+                                'placementId': placement_id,
+                                'studentId': student['_id'],
+                                'code': item['code'],
+                                'type': 'negative',
+                                'value': item['value'],
+                                'date': date_str
+                            })
+                            st.rerun()
+                else:
+                    st.caption("Check in student to add behaviors")
             
             with col_right:
                 st.markdown("**Points Total**")
                 if total_points >= 10:
                     st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
-                    st.caption("✓ Eligible for completion")
+                    st.caption("Eligible for completion")
                 else:
                     st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
                     st.caption(f"Need {10 - total_points} more points")
                 
-                # Complete button
-                if daily_log.get('dailyFulfillment') != 'yes':
-                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                # Complete and Override buttons (only show after check-in)
+                if is_completed:
+                    st.success("Completed")
+                elif is_checked_in:
+                    # Complete button (requires 10 points for full-day ISS)
+                    can_complete = total_points >= 10
+                    if st.button("Complete", key=f"complete_{placement_id}_{date_str}", type="primary", disabled=not can_complete):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         st.rerun()
+                    
+                    # Override & Count Full button
+                    if st.button("Override & Count Full", key=f"override_{placement_id}_{date_str}"):
+                        dm.complete_placement_day(placement_id, date_str, "Admin", is_override=True)
+                        st.rerun()
                 else:
-                    st.success("Completed")
+                    st.caption("Check in to enable completion")
             
             # Notes (collapsed)
             show_notes_key = f"show_notes_{placement_id}_{date_str}"
             if show_notes_key not in st.session_state:
                 st.session_state[show_notes_key] = False
             
-            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
+            if st.button("Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
                 st.session_state[show_notes_key] = not st.session_state[show_notes_key]
                 st.rerun()
             
@@ -431,7 +435,7 @@ if page == "Dashboard":
                     key=f"notes_{placement_id}_{date_str}",
                     height=100
                 )
-                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
+                if st.button("Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
                     dm.update_daily_log_notes(placement_id, date_str, new_notes)
                     st.success("Notes saved!")
                     st.rerun()
@@ -828,11 +832,13 @@ if page == "Dashboard":
         day_word = "Day" if total_days == 1 else "Days"
         day_progress_label = f"Day {completed_int} of {total_days} {day_word}"
         
+        # Check if student is checked in
+        is_checked_in = daily_log.get('checkedIn', False)
+        
         with st.container():
             header_col1, header_col2, header_col3 = st.columns([3, 2, 1])
             
             with header_col1:
-                # Day progress label and student info
                 st.markdown(f"**{day_progress_label}**")
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
             
@@ -840,22 +846,17 @@ if page == "Dashboard":
                 pass
             
             with header_col3:
-                attendance_key = f"iss_attendance_{session_id}"
-                current_attendance = "Present" if is_present else "Absent"
-                new_attendance = st.radio(
-                    "Attendance",
-                    ["Present", "Absent"],
-                    index=0 if current_attendance == "Present" else 1,
-                    horizontal=True,
-                    key=attendance_key,
-                    label_visibility="collapsed",
-                    disabled=is_completed
-                )
-                if new_attendance != current_attendance and not is_completed:
-                    dm.update_iss_attendance(placement_id, date_str, new_attendance == "Present")
-                    st.rerun()
+                # Check In button (replaces Present/Absent)
+                if is_completed:
+                    st.success("Checked Out")
+                elif is_checked_in:
+                    st.button("Check In", key=f"iss_checkin_{session_id}", disabled=True)
+                else:
+                    if st.button("Check In", key=f"iss_checkin_{session_id}", type="primary"):
+                        dm.check_in_student(placement_id, date_str)
+                        st.rerun()
             
-            if not is_completed:
+            if is_checked_in and not is_completed:
                 points_col, behaviors_col = st.columns([1, 1])
                 
                 with behaviors_col:
@@ -958,25 +959,27 @@ if page == "Dashboard":
                         st.success("✅ Override applied retroactively!" if is_past_session else "✅ Override applied!")
                         st.session_state[f"iss_override_expand_{session_id}"] = False
                         st.rerun()
+            elif not is_checked_in and not is_completed and not is_no_show:
+                st.caption("Check in student to add behaviors and track points")
             elif is_no_show:
-                st.error("⚠️ Not Completed")
+                st.error("Not Completed")
                 st.markdown(f"**Points Total: {total_points}**")
                 st.caption("Session was not completed by end of day")
                 
                 retro_col1, retro_col2 = st.columns(2)
                 with retro_col1:
-                    if st.button("✓ Mark Complete (Retroactive)", key=f"iss_retro_complete_{session_id}"):
+                    if st.button("Mark Complete (Retroactive)", key=f"iss_retro_complete_{session_id}"):
                         dm.mark_session_completed(session_id, "Admin")
                         st.success("Session marked complete!")
                         st.rerun()
                 with retro_col2:
-                    if st.button("🔓 Apply Override", key=f"iss_retro_override_{session_id}"):
+                    if st.button("Apply Override", key=f"iss_retro_override_{session_id}"):
                         override_note = "Retroactive override: session marked complete after end-of-day processing."
                         dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
                         st.success("Override applied!")
                         st.rerun()
             else:
-                st.success("✓ Session Completed" + (" (Override)" if override_used else ""))
+                st.success("Session Completed" + (" (Override)" if override_used else ""))
                 st.markdown(f"**Points Total: {total_points}**")
             
             notes_key = f"iss_notes_expand_{session_id}"

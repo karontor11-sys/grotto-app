@@ -24,7 +24,7 @@ Preferred communication style: Simple, everyday language.
 2. **Session-Based Dashboard** - Refactored ISS display from placement-based to session-based:
    - Uses `get_iss_sessions_for_date()` to fetch from `PartialDaySession` table
    - Each session card shows: student name, periods, day progress, attendance, points, behaviors
-   - Status indicators: 🟡 (In Progress), 🟢 (Completed)
+   - Status indicators: 🟡 (In Progress), 🟢 (Completed), 🔴 (Not Completed/No-Show)
 
 3. **Enhanced ISS Session Card** - `render_iss_session_card()` function includes:
    - Clickable student name with status indicator

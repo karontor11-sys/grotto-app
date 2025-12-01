@@ -841,12 +841,7 @@ if page == "Dashboard":
             header_col1, header_col2, header_col3 = st.columns([3, 2, 1])
             
             with header_col1:
-                if st.button(f"{status_icon} {student_name}", key=f"iss_name_{session_id}", use_container_width=True):
-                    st.session_state.navigate_to_iss_detail = True
-                    st.session_state.iss_detail_placement_id = placement_id
-                    st.session_state.iss_detail_date = target_date
-                    st.rerun()
-                # ISS type label directly below student name
+                # ISS type label and student info (no redundant name/status button)
                 st.markdown(f"**{iss_type_label}**")
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
             

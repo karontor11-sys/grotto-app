@@ -822,37 +822,21 @@ if page == "Dashboard":
         completed_days = progress['completed_days']
         total_days = progress['total_days']
         
-        # Build the ISS type label with period range
-        if is_full_day:
-            iss_type_label = "Full ISS Day (Periods 1–10)"
-        else:
-            # Show actual period range for partial sessions
-            if periods and len(periods) > 0:
-                start_period = min(periods)
-                end_period = max(periods)
-                if start_period == end_period:
-                    iss_type_label = f"Partial ISS Session (Period {start_period})"
-                else:
-                    iss_type_label = f"Partial ISS Session (Periods {start_period}–{end_period})"
-            else:
-                iss_type_label = "Partial ISS Session"
+        # Build the "Day X of Y Days" progress label
+        completed_int = int(completed_days) if completed_days == int(completed_days) else int(completed_days)
+        day_word = "Day" if total_days == 1 else "Days"
+        day_progress_label = f"Day {completed_int} of {total_days} {day_word}"
         
         with st.container():
             header_col1, header_col2, header_col3 = st.columns([3, 2, 1])
             
             with header_col1:
-                # ISS type label and student info (no redundant name/status button)
-                st.markdown(f"**{iss_type_label}**")
+                # Day progress label and student info
+                st.markdown(f"**{day_progress_label}**")
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
             
             with header_col2:
-                # Progress tracking
-                if total_days > 0:
-                    if completed_days == int(completed_days):
-                        completed_display = int(completed_days)
-                    else:
-                        completed_display = completed_days
-                    st.caption(f"Completed {completed_display} of {total_days} ISS days")
+                pass
             
             with header_col3:
                 attendance_key = f"iss_attendance_{session_id}"

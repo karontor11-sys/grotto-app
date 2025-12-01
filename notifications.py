@@ -238,15 +238,12 @@ class NotificationManager:
         notifications = []
         today = date.today()
         
-        # Check the last N days for incomplete records
         for i in range(1, days_back + 1):
             check_date = today - timedelta(days=i)
             
-            # Get incomplete records for this date
             incomplete_records = self.db.get_eod_incomplete_records(check_date)
             
             if incomplete_records:
-                # Create a summary notification for this date
                 student_names = [rec['student_name'] for rec in incomplete_records]
                 
                 notifications.append({
@@ -262,11 +259,61 @@ class NotificationManager:
         
         return notifications
     
+    def get_iss_no_show_notifications(self, days_back: int = 7) -> List[Dict[str, Any]]:
+        """Get notifications for ISS sessions marked as no-show during end-of-day processing.
+        
+        Args:
+            days_back: Number of days to look back for no-show sessions
+            
+        Returns:
+            List of notifications for ISS no-show sessions
+        """
+        session = self.db.get_session()
+        notifications = []
+        
+        try:
+            from db_manager import PartialDaySession, Placement, Student, SessionType, SessionStatus
+            
+            today = date.today()
+            cutoff_date = today - timedelta(days=days_back)
+            
+            no_show_sessions = session.query(PartialDaySession).filter(
+                PartialDaySession.date >= cutoff_date,
+                PartialDaySession.date < today,
+                PartialDaySession.type == SessionType.iss_full_day,
+                PartialDaySession.status == SessionStatus.no_show,
+                PartialDaySession.alert_sent == True
+            ).all()
+            
+            for sess in no_show_sessions:
+                placement = session.query(Placement).filter(Placement.id == sess.placement_id).first()
+                if placement:
+                    student = session.query(Student).filter(Student.id == placement.student_id).first()
+                    if student:
+                        notifications.append({
+                            'type': 'iss_no_show',
+                            'severity': 'warning',
+                            'timestamp': sess.alert_timestamp or datetime.combine(sess.date, datetime.min.time()),
+                            'title': f'ISS Session Not Completed - {sess.date.strftime("%m/%d/%Y")}',
+                            'message': f"{student.first_name} {student.last_name}'s ISS session was not completed on {sess.date.strftime('%m/%d/%Y')}. Session marked as Not Completed.",
+                            'student_id': student.id,
+                            'student_name': f"{student.first_name} {student.last_name}",
+                            'session_id': sess.id,
+                            'date': sess.date.isoformat(),
+                            'recipients': ['Aaron Toronto', 'Matthew Christie']
+                        })
+            
+            return notifications
+        except Exception as e:
+            print(f"Error fetching ISS no-show notifications: {e}")
+            return []
+        finally:
+            session.close()
+    
     def get_all_notifications(self) -> List[Dict[str, Any]]:
         """Get all notifications sorted by timestamp."""
         all_notifications = []
         
-        # Gather all notification types
         all_notifications.extend(self.get_recent_placement_notifications(days=7))
         all_notifications.extend(self.get_placement_completion_notifications(days=7))
         all_notifications.extend(self.get_daily_log_finalization_notifications())
@@ -274,6 +321,7 @@ class NotificationManager:
         all_notifications.extend(self.get_overdue_assignments())
         all_notifications.extend(self.get_placement_ending_soon(days_threshold=2))
         all_notifications.extend(self.get_end_of_day_incomplete_notifications(days_back=7))
+        all_notifications.extend(self.get_iss_no_show_notifications(days_back=7))
         
         # Sort by timestamp (most recent first)
         all_notifications.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)

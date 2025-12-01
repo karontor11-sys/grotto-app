@@ -178,6 +178,8 @@ class PartialDaySession(Base):
     location = Column(String)
     status = Column(SQLEnum(SessionStatus), default=SessionStatus.scheduled)
     alert_flag = Column(Boolean, default=False)  # Supervisor alert for no-show
+    alert_sent = Column(Boolean, default=False)  # Whether midnight alert notification was sent
+    alert_timestamp = Column(DateTime, nullable=True)  # When midnight alert was triggered
     notes = Column(Text)
 
 class EndOfDayProcessing(Base):
@@ -1408,6 +1410,51 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def mark_session_no_show(self, session_id: str) -> bool:
+        """Mark a session as no_show (not completed by end of day) and update daily log."""
+        db_session = self.get_session()
+        try:
+            sess = db_session.query(PartialDaySession).filter(PartialDaySession.id == session_id).first()
+            if not sess:
+                return False
+            
+            sess.status = SessionStatus.no_show
+            sess.alert_flag = True
+            sess.alert_sent = True
+            sess.alert_timestamp = datetime.now()
+            
+            date_obj = sess.date
+            placement_id = sess.placement_id
+            
+            log = db_session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue'
+                )
+                db_session.add(log)
+            
+            log.daily_fulfillment = 'no'
+            log.alert_flag = True
+            
+            db_session.commit()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            return False
+        finally:
+            db_session.close()
+    
     def calculate_iss_days_progress(self, placement_id: str, up_to_date: date = None) -> Dict[str, Any]:
         """Calculate ISS days progress for a placement up to a given date.
         
@@ -2147,95 +2194,130 @@ class DatabaseManager:
             'createdAt': note.created_at.isoformat() if note.created_at else None
         }
     
-    def process_end_of_day(self, target_date: date) -> int:
+    def process_end_of_day(self, target_date: date) -> Dict[str, int]:
         """Process end-of-day for a specific date.
         
-        Finds all DailyLog records for the date where daily_fulfillment is not 'yes',
-        marks them as 'no', sets alert_flag to True, and records the processing.
+        Finds all DailyLog records and ISS sessions for the date where not completed,
+        marks them as incomplete/no_show, sets alert_flag to True, and records the processing.
         
         Args:
             target_date: The date to process (typically yesterday)
             
         Returns:
-            Number of incomplete records found and marked
+            Dict with incomplete_logs and incomplete_sessions counts
         """
         session = self.get_session()
         try:
-            # Check if this date has already been processed
             existing = session.query(EndOfDayProcessing).filter(
                 EndOfDayProcessing.processing_date == target_date
             ).first()
             
             if existing:
-                return 0  # Already processed
+                return {'incomplete_logs': 0, 'incomplete_sessions': 0}
             
-            # Find all DailyLog records for this date where daily_fulfillment is not 'yes'
-            # This includes NULL values and 'no' values
             incomplete_logs = session.query(DailyLog).filter(
                 DailyLog.date == target_date,
                 or_(DailyLog.daily_fulfillment != 'yes', DailyLog.daily_fulfillment.is_(None))
             ).all()
             
-            # Mark each as 'no' and set alert_flag
             for log in incomplete_logs:
                 log.daily_fulfillment = 'no'
                 log.alert_flag = True
             
-            # Record the processing
+            incomplete_sessions = session.query(PartialDaySession).filter(
+                PartialDaySession.date == target_date,
+                PartialDaySession.type == SessionType.iss_full_day,
+                PartialDaySession.status.in_([SessionStatus.scheduled, SessionStatus.in_progress])
+            ).all()
+            
+            iss_session_ids = []
+            for sess in incomplete_sessions:
+                sess.status = SessionStatus.no_show
+                sess.alert_flag = True
+                sess.alert_sent = True
+                sess.alert_timestamp = datetime.now()
+                iss_session_ids.append(sess.id)
+                
+                log = session.query(DailyLog).filter(
+                    DailyLog.placement_id == sess.placement_id,
+                    DailyLog.date == sess.date
+                ).first()
+                
+                if not log:
+                    log_id = self.generate_id()
+                    log = DailyLog(
+                        id=log_id,
+                        placement_id=sess.placement_id,
+                        date=sess.date,
+                        positive_total=0,
+                        negative_total=0,
+                        daily_total=0,
+                        readiness='continue',
+                        daily_fulfillment='no',
+                        alert_flag=True
+                    )
+                    session.add(log)
+                else:
+                    if log.daily_fulfillment != 'yes':
+                        log.daily_fulfillment = 'no'
+                        log.alert_flag = True
+            
             processing_id = self.generate_id()
             processing_record = EndOfDayProcessing(
                 id=processing_id,
                 processing_date=target_date,
                 processed_at=datetime.now(),
-                incomplete_count=len(incomplete_logs),
+                incomplete_count=len(incomplete_logs) + len(incomplete_sessions),
                 notification_sent=True
             )
             session.add(processing_record)
             session.commit()
             
-            return len(incomplete_logs)
+            return {
+                'incomplete_logs': len(incomplete_logs),
+                'incomplete_sessions': len(incomplete_sessions),
+                'iss_session_ids': iss_session_ids
+            }
         except Exception as e:
             session.rollback()
             print(f"Error processing end-of-day for {target_date}: {e}")
-            return 0
+            return {'incomplete_logs': 0, 'incomplete_sessions': 0, 'iss_session_ids': []}
         finally:
             session.close()
     
     def check_and_process_pending_dates(self) -> List[Dict[str, Any]]:
         """Check for dates that need end-of-day processing and process them.
         
-        Returns list of processing results with date and incomplete count.
+        Returns list of processing results with date and incomplete counts.
         """
         session = self.get_session()
         results = []
         
         try:
-            # Get the most recent processing date
             latest_processing = session.query(EndOfDayProcessing).order_by(
                 EndOfDayProcessing.processing_date.desc()
             ).first()
             
-            # Determine start date for checking
             today = date.today()
             yesterday = today - timedelta(days=1)
             
             if latest_processing:
                 last_processed_date = latest_processing.processing_date
-                # Start checking from the day after the last processed date
                 check_date = last_processed_date + timedelta(days=1)
             else:
-                # No previous processing - start from 7 days ago to avoid processing too far back
                 check_date = yesterday - timedelta(days=6)
             
-            # Process each date from check_date up to (but not including) today
             current_date = check_date
             while current_date < today:
-                if current_date.weekday() < 5:  # Only process weekdays (Monday=0, Friday=4)
-                    incomplete_count = self.process_end_of_day(current_date)
-                    if incomplete_count > 0:
+                if current_date.weekday() < 5:
+                    result = self.process_end_of_day(current_date)
+                    total_incomplete = result.get('incomplete_logs', 0) + result.get('incomplete_sessions', 0)
+                    if total_incomplete > 0:
                         results.append({
                             'date': current_date.isoformat(),
-                            'incomplete_count': incomplete_count
+                            'incomplete_logs': result.get('incomplete_logs', 0),
+                            'incomplete_sessions': result.get('incomplete_sessions', 0),
+                            'iss_session_ids': result.get('iss_session_ids', [])
                         })
                 current_date += timedelta(days=1)
             

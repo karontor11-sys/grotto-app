@@ -913,10 +913,14 @@ if page == "Dashboard":
         fulfillment = daily_log.get('dailyFulfillment') or ''
         override_used = daily_log.get('overrideUsed', False)
         is_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
+        is_no_show = session_status == 'no_show'
         
         if is_completed:
             status_icon = '🟢'
             status_color = 'green'
+        elif is_no_show:
+            status_icon = '🔴'
+            status_color = 'red'
         else:
             status_icon = '🟡'
             status_color = 'yellow'
@@ -1070,6 +1074,23 @@ if page == "Dashboard":
                             dm.update_iss_attendance(placement_id, date_str, True)
                         st.success("✅ Override applied!")
                         st.session_state[f"iss_override_expand_{session_id}"] = False
+                        st.rerun()
+            elif is_no_show:
+                st.error("⚠️ Not Completed")
+                st.markdown(f"**Points Total: {total_points}**")
+                st.caption("Session was not completed by end of day")
+                
+                retro_col1, retro_col2 = st.columns(2)
+                with retro_col1:
+                    if st.button("✓ Mark Complete (Retroactive)", key=f"iss_retro_complete_{session_id}"):
+                        dm.mark_session_completed(session_id, "Admin")
+                        st.success("Session marked complete!")
+                        st.rerun()
+                with retro_col2:
+                    if st.button("🔓 Apply Override", key=f"iss_retro_override_{session_id}"):
+                        override_note = "Retroactive override: session marked complete after end-of-day processing."
+                        dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
+                        st.success("Override applied!")
                         st.rerun()
             else:
                 st.success("✓ Session Completed" + (" (Override)" if override_used else ""))

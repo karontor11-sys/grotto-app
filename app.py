@@ -222,6 +222,11 @@ if warning_count > 0:
 
 # Dashboard Page
 if page == "Dashboard":
+    # Create New Placement button at the very top
+    if st.button("Create New Placement", type="primary"):
+        st.session_state.navigate_to_create_placement = True
+        st.rerun()
+    
     st.header("Dashboard")
     
     # Show success message if placement was just created
@@ -247,11 +252,6 @@ if page == "Dashboard":
     
     # Get all active placements for selected date (used by placement sections below)
     placements_for_date = dm.get_active_placements_for_date(selected_date)
-    
-    # Create New Placement button
-    if st.button("Create New Placement", type="primary"):
-        st.session_state.navigate_to_create_placement = True
-        st.rerun()
     
     # Today's Sessions strip (using selected date)
     st.subheader(f"Sessions for {selected_date.strftime('%B %d, %Y')}")

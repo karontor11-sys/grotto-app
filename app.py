@@ -1090,8 +1090,11 @@ elif page == "Placements":
             elif placement_category == "Lunch Detention":
                 with st.form("lunch_detention_form"):
                     st.markdown("#### Scheduling")
-                    lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
-                    start_date = st.date_input("Start Date*", value=date.today())
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        start_date = st.date_input("Start Date*", value=date.today())
+                    with col2:
+                        lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days")
                     
                     created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                     
@@ -1151,13 +1154,13 @@ elif page == "Placements":
             elif placement_category == "Class Period Referral":
                 with st.form("class_referral_form"):
                     st.markdown("#### Scheduling")
+                    start_date = st.date_input("Date*", value=date.today())
                     col1, col2 = st.columns(2)
                     with col1:
                         selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                     with col2:
                         selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
                     st.info("For a single period, select the same period for both Start and End.")
-                    start_date = st.date_input("Date*", value=date.today())
                     
                     created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                     

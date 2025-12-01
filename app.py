@@ -892,6 +892,202 @@ if page == "Dashboard":
             
             st.divider()
     
+    # Helper function to render enhanced ISS session card
+    def render_iss_session_card(iss_session: dict, target_date: date):
+        """Render enhanced ISS session card with full functionality."""
+        session_id = iss_session['session_id']
+        placement_id = iss_session['placement_id']
+        student_id = iss_session['student_id']
+        student_name = iss_session['student_name']
+        date_str = iss_session['date']
+        periods = iss_session.get('periods', list(range(1, 11)))
+        is_full_day = len(periods) == 10 and periods == list(range(1, 11))
+        
+        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        point_events = dm.get_point_events_for_date(placement_id, date_str)
+        positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
+        negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
+        total_points = positive_points + negative_points
+        
+        fulfillment = daily_log.get('dailyFulfillment') or ''
+        override_used = daily_log.get('overrideUsed', False)
+        is_completed = fulfillment == 'yes' or override_used
+        
+        if is_completed:
+            status_icon = '🟢'
+            status_color = 'green'
+        else:
+            status_icon = '🟡'
+            status_color = 'yellow'
+        
+        served_dates = []
+        placement_data = dm.get_placement(placement_id)
+        if placement_data:
+            served_dates = placement_data.get('servedDates', [])
+        is_present = date_str in served_dates
+        
+        with st.container():
+            header_col1, header_col2, header_col3 = st.columns([3, 2, 1])
+            
+            with header_col1:
+                if st.button(f"{status_icon} {student_name}", key=f"iss_name_{session_id}", use_container_width=True):
+                    st.session_state.navigate_to_iss_detail = True
+                    st.session_state.iss_detail_placement_id = placement_id
+                    st.session_state.iss_detail_date = target_date
+                    st.rerun()
+                st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
+            
+            with header_col2:
+                st.markdown(f"**{iss_session['period_display']}**")
+                if iss_session.get('iss_total_days') and iss_session.get('iss_remaining_days') is not None:
+                    days_served = iss_session['iss_total_days'] - iss_session['iss_remaining_days']
+                    st.caption(f"Day {days_served + 1} of {iss_session['iss_total_days']}")
+            
+            with header_col3:
+                attendance_key = f"iss_attendance_{session_id}"
+                current_attendance = "Present" if is_present else "Absent"
+                new_attendance = st.radio(
+                    "Attendance",
+                    ["Present", "Absent"],
+                    index=0 if current_attendance == "Present" else 1,
+                    horizontal=True,
+                    key=attendance_key,
+                    label_visibility="collapsed",
+                    disabled=is_completed
+                )
+                if new_attendance != current_attendance and not is_completed:
+                    dm.update_iss_attendance(placement_id, date_str, new_attendance == "Present")
+                    st.rerun()
+            
+            if not is_completed:
+                points_col, behaviors_col = st.columns([1, 1])
+                
+                with behaviors_col:
+                    st.markdown("**Add Behaviors**")
+                    pos_col, neg_col = st.columns(2)
+                    
+                    with pos_col:
+                        positive_menu = ps.get_positive_point_menu()
+                        positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
+                        selected_positive = st.selectbox(
+                            "Positive",
+                            positive_options,
+                            key=f"iss_pos_{session_id}",
+                            label_visibility="collapsed"
+                        )
+                        if selected_positive != "+ Positive":
+                            item = next((i for i in positive_menu if i['label'] == selected_positive), None)
+                            if item:
+                                dm.add_point_event({
+                                    'placementId': placement_id,
+                                    'studentId': student_id,
+                                    'sessionId': session_id,
+                                    'code': item['code'],
+                                    'type': 'positive',
+                                    'value': item['value'],
+                                    'date': date_str
+                                })
+                                st.rerun()
+                    
+                    with neg_col:
+                        negative_menu = ps.get_negative_point_menu()
+                        negative_options = ["- Negative"] + [item['label'] for item in negative_menu]
+                        selected_negative = st.selectbox(
+                            "Negative",
+                            negative_options,
+                            key=f"iss_neg_{session_id}",
+                            label_visibility="collapsed"
+                        )
+                        if selected_negative != "- Negative":
+                            item = next((i for i in negative_menu if i['label'] == selected_negative), None)
+                            if item:
+                                dm.add_point_event({
+                                    'placementId': placement_id,
+                                    'studentId': student_id,
+                                    'sessionId': session_id,
+                                    'code': item['code'],
+                                    'type': 'negative',
+                                    'value': item['value'],
+                                    'date': date_str
+                                })
+                                st.rerun()
+                
+                with points_col:
+                    st.markdown("**Points Total**")
+                    if is_full_day:
+                        if total_points >= 10:
+                            st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption("✓ Eligible for completion")
+                        else:
+                            st.markdown(f"<h2 style='margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Need {10 - total_points} more points")
+                    else:
+                        st.markdown(f"<h2 style='margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
+                        st.caption("Custom session")
+                
+                action_col1, action_col2 = st.columns(2)
+                
+                with action_col1:
+                    can_complete = (not is_full_day) or (is_full_day and total_points >= 10)
+                    complete_help = "" if can_complete else "Full day requires 10+ points"
+                    if st.button("✓ Complete", key=f"iss_complete_{session_id}", type="primary", 
+                                 use_container_width=True, disabled=not can_complete, help=complete_help):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        if not is_present:
+                            dm.update_iss_attendance(placement_id, date_str, True)
+                        st.success("Session completed!")
+                        st.rerun()
+                
+                with action_col2:
+                    override_key = f"iss_override_expand_{session_id}"
+                    if override_key not in st.session_state:
+                        st.session_state[override_key] = False
+                    
+                    if st.button("🔓 Override & Count Full", key=f"iss_override_btn_{session_id}", 
+                                 use_container_width=True):
+                        st.session_state[override_key] = not st.session_state[override_key]
+                        st.rerun()
+                
+                if st.session_state.get(f"iss_override_expand_{session_id}", False):
+                    st.warning("⚠️ This will mark the session complete and credit all scheduled periods.")
+                    if st.button("Confirm Override", key=f"iss_override_confirm_{session_id}", type="primary"):
+                        override_note = "Supervisor override: student released early due to positive behavior; remaining periods waived."
+                        existing_notes = daily_log.get('notes', '') or ''
+                        new_notes = f"{existing_notes}\n\n{override_note}" if existing_notes else override_note
+                        dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                        dm.apply_iss_override(placement_id, override_note, "Admin")
+                        if not is_present:
+                            dm.update_iss_attendance(placement_id, date_str, True)
+                        st.success("✅ Override applied!")
+                        st.session_state[f"iss_override_expand_{session_id}"] = False
+                        st.rerun()
+            else:
+                st.success("✓ Session Completed" + (" (Override)" if override_used else ""))
+                st.markdown(f"**Points Total: {total_points}**")
+            
+            notes_key = f"iss_notes_expand_{session_id}"
+            if notes_key not in st.session_state:
+                st.session_state[notes_key] = False
+            
+            if st.button("📝 Notes", key=f"iss_notes_btn_{session_id}"):
+                st.session_state[notes_key] = not st.session_state[notes_key]
+                st.rerun()
+            
+            if st.session_state.get(notes_key, False):
+                current_notes = daily_log.get('notes', '') or ''
+                new_notes = st.text_area(
+                    "Session Notes:",
+                    value=current_notes,
+                    key=f"iss_notes_text_{session_id}",
+                    height=100
+                )
+                if st.button("💾 Save Notes", key=f"iss_notes_save_{session_id}"):
+                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
+                    st.success("Notes saved!")
+                    st.rerun()
+            
+            st.divider()
+    
     # Five Collapsible Sections
     # 1. In-School Suspension (ISS) - Session-based
     iss_sessions = dm.get_iss_sessions_for_date(selected_date)
@@ -900,29 +1096,7 @@ if page == "Dashboard":
             st.info("No students in ISS for this date.")
         else:
             for iss_session in iss_sessions:
-                with st.container():
-                    col1, col2 = st.columns([3, 2])
-                    
-                    with col1:
-                        student_name = iss_session['student_name']
-                        placement_id = iss_session['placement_id']
-                        date_str = iss_session['date']
-                        
-                        if st.button(f"📋 {student_name}", key=f"iss_session_{iss_session['session_id']}", use_container_width=True):
-                            st.session_state.navigate_to_iss_detail = True
-                            st.session_state.iss_detail_placement_id = placement_id
-                            st.session_state.iss_detail_date = selected_date
-                            st.rerun()
-                        
-                        st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
-                    
-                    with col2:
-                        st.markdown(f"**{iss_session['period_display']}**")
-                        if iss_session.get('iss_total_days') and iss_session.get('iss_remaining_days') is not None:
-                            days_served = iss_session['iss_total_days'] - iss_session['iss_remaining_days']
-                            st.caption(f"Day {days_served + 1} of {iss_session['iss_total_days']}")
-                    
-                    st.divider()
+                render_iss_session_card(iss_session, selected_date)
     
     # 2. Lunch Detention
     with st.expander(f"Lunch Detention ({len(lunch_detention_placements)})", expanded=len(lunch_detention_placements) > 0):

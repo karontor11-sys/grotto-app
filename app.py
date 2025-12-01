@@ -229,15 +229,17 @@ if page == "Dashboard":
         st.success("✅ Placement created successfully! The new placement appears below.")
         del st.session_state.placement_created
     
-    # Date Selector
+    # Date Selector (compact width)
     if 'dashboard_selected_date' not in st.session_state:
         st.session_state.dashboard_selected_date = date.today()
     
-    selected_date = st.date_input(
-        "Select Date",
-        value=st.session_state.dashboard_selected_date,
-        key="dashboard_date_selector"
-    )
+    date_col, _ = st.columns([1, 3])
+    with date_col:
+        selected_date = st.date_input(
+            "Select Date",
+            value=st.session_state.dashboard_selected_date,
+            key="dashboard_date_selector"
+        )
     st.session_state.dashboard_selected_date = selected_date
     
     # Show past date indicator

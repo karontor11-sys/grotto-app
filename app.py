@@ -245,47 +245,8 @@ if page == "Dashboard":
     if is_past_date:
         st.info(f"📅 Viewing historical data for {selected_date.strftime('%B %d, %Y')}. You can still complete sessions retroactively.")
     
-    # Summary Bar - Placement counts for selected date
-    st.markdown("### At-a-Glance Summary")
-    
-    # Get all active placements for selected date
+    # Get all active placements for selected date (used by placement sections below)
     placements_for_date = dm.get_active_placements_for_date(selected_date)
-    
-    # Count placements by category
-    iss_count = 0
-    lunch_detention_count = 0
-    class_referral_count = 0
-    cooldown_count = 0
-    preplanned_count = 0
-    
-    for placement in placements_for_date:
-        placement_type = placement.get('placementType', '').upper()
-        
-        if placement_type == 'ISS':
-            iss_count += 1
-        elif placement_type == 'LUNCH_DETENTION':
-            lunch_detention_count += 1
-        elif placement_type == 'CLASS_REFERRAL':
-            class_referral_count += 1
-        elif placement_type == 'COOL_DOWN':
-            cooldown_count += 1
-        elif placement_type == 'PRE_PLANNED_REFERRAL':
-            preplanned_count += 1
-    
-    # Display summary in columns
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.metric("ISS", iss_count)
-    with col2:
-        st.metric("Lunch Detention", lunch_detention_count)
-    with col3:
-        st.metric("Class Period Referral", class_referral_count)
-    with col4:
-        st.metric("Cool-Down Referral", cooldown_count)
-    with col5:
-        st.metric("Pre-Planned Referral", preplanned_count)
-    
-    st.divider()
     
     # Create New Placement button
     if st.button("Create New Placement", type="primary"):

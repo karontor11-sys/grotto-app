@@ -240,6 +240,11 @@ if page == "Dashboard":
     )
     st.session_state.dashboard_selected_date = selected_date
     
+    # Show past date indicator
+    is_past_date = selected_date < date.today()
+    if is_past_date:
+        st.info(f"📅 Viewing historical data for {selected_date.strftime('%B %d, %Y')}. You can still complete sessions retroactively.")
+    
     # Summary Bar - Placement counts for selected date
     st.markdown("### At-a-Glance Summary")
     
@@ -902,6 +907,7 @@ if page == "Dashboard":
         date_str = iss_session['date']
         periods = iss_session.get('periods', list(range(1, 11)))
         is_full_day = len(periods) == 10 and periods == list(range(1, 11))
+        is_past_session = target_date < date.today()
         
         daily_log = dm.get_or_create_daily_log(placement_id, date_str)
         point_events = dm.get_point_events_for_date(placement_id, date_str)
@@ -1047,12 +1053,14 @@ if page == "Dashboard":
                 with action_col1:
                     can_complete = (not is_full_day) or (is_full_day and total_points >= 10)
                     complete_help = "" if can_complete else "Full day requires 10+ points"
-                    if st.button("✓ Complete", key=f"iss_complete_{session_id}", type="primary", 
+                    complete_label = "✓ Complete (Retroactive)" if is_past_session else "✓ Complete"
+                    if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary", 
                                  use_container_width=True, disabled=not can_complete, help=complete_help):
                         dm.mark_session_completed(session_id, "Admin")
                         if not is_present:
                             dm.update_iss_attendance(placement_id, date_str, True)
-                        st.success("Session completed!")
+                        success_msg = "Session completed retroactively!" if is_past_session else "Session completed!"
+                        st.success(success_msg)
                         st.rerun()
                 
                 with action_col2:
@@ -1060,19 +1068,21 @@ if page == "Dashboard":
                     if override_key not in st.session_state:
                         st.session_state[override_key] = False
                     
-                    if st.button("🔓 Override & Count Full", key=f"iss_override_btn_{session_id}", 
+                    override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
+                    if st.button(override_label, key=f"iss_override_btn_{session_id}", 
                                  use_container_width=True):
                         st.session_state[override_key] = not st.session_state[override_key]
                         st.rerun()
                 
                 if st.session_state.get(f"iss_override_expand_{session_id}", False):
-                    st.warning("⚠️ This will mark the session complete and credit all scheduled periods.")
+                    warning_msg = "⚠️ This will retroactively mark the session complete and credit all scheduled periods." if is_past_session else "⚠️ This will mark the session complete and credit all scheduled periods."
+                    st.warning(warning_msg)
                     if st.button("Confirm Override", key=f"iss_override_confirm_{session_id}", type="primary"):
-                        override_note = "Supervisor override: student released early due to positive behavior; remaining periods waived."
+                        override_note = "Retroactive override: session marked complete after the fact." if is_past_session else "Supervisor override: student released early due to positive behavior; remaining periods waived."
                         dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
                         if not is_present:
                             dm.update_iss_attendance(placement_id, date_str, True)
-                        st.success("✅ Override applied!")
+                        st.success("✅ Override applied retroactively!" if is_past_session else "✅ Override applied!")
                         st.session_state[f"iss_override_expand_{session_id}"] = False
                         st.rerun()
             elif is_no_show:

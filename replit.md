@@ -40,7 +40,15 @@ Preferred communication style: Simple, everyday language.
    - Positive/Negative behavior dropdowns (enabled after check-in)
    - Complete button (requires check-in and 10+ points for full day)
    - Override & Count Full button with confirmation (requires check-in)
-   - Collapsible Notes section with save functionality
+   - **Always-visible Notes with auto-save** (see below)
+
+5. **Auto-Save Notes Section** - Updated all placement type cards:
+   - Notes text area is always visible (no expand/collapse toggle)
+   - Compact 60px height text box with placeholder text
+   - Auto-saves when user finishes editing (on blur/tab away)
+   - Shows "✓ Saved" indicator for 2 seconds after successful save
+   - Applied to all 5 placement types: ISS, Lunch Detention, Class Period Referral, Cool-Down Referral, Pre-Planned Referral
+   - Helper function `render_auto_save_notes()` handles all Notes UI and save logic
 
 4. **Days-Based Progress Tracking**:
    - `calculate_iss_days_progress()` calculates completed days per placement

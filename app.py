@@ -1154,12 +1154,13 @@ elif page == "Placements":
             elif placement_category == "Class Period Referral":
                 with st.form("class_referral_form"):
                     st.markdown("#### Scheduling")
-                    start_date = st.date_input("Date*", value=date.today())
-                    col1, col2 = st.columns(2)
+                    col1, col2, col3 = st.columns(3)
                     with col1:
-                        selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
+                        start_date = st.date_input("Date*", value=date.today())
                     with col2:
-                        selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"Period {x}")
+                        selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}")
+                    with col3:
+                        selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}")
                     st.info("For a single period, select the same period for both Start and End.")
                     
                     created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])

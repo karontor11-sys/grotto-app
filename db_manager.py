@@ -1355,6 +1355,122 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def mark_session_completed(self, session_id: str, completed_by: str, is_override: bool = False, override_comment: str = None) -> bool:
+        """Mark a session as completed (fulfilled) and update daily log."""
+        db_session = self.get_session()
+        try:
+            sess = db_session.query(PartialDaySession).filter(PartialDaySession.id == session_id).first()
+            if not sess:
+                return False
+            
+            sess.status = SessionStatus.fulfilled
+            
+            date_obj = sess.date
+            placement_id = sess.placement_id
+            
+            log = db_session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue'
+                )
+                db_session.add(log)
+            
+            log.daily_fulfillment = 'yes'
+            log.finalized_by = completed_by
+            log.finalized_at = datetime.now()
+            
+            if is_override:
+                log.override_used = True
+                if override_comment:
+                    log.override_comment = override_comment
+                    existing_notes = log.notes or ''
+                    if existing_notes:
+                        log.notes = f"{existing_notes}\n\n{override_comment}"
+                    else:
+                        log.notes = override_comment
+            
+            db_session.commit()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            return False
+        finally:
+            db_session.close()
+    
+    def calculate_iss_days_progress(self, placement_id: str, up_to_date: date = None) -> Dict[str, Any]:
+        """Calculate ISS days progress for a placement up to a given date.
+        
+        Returns dict with:
+        - total_days: Total ISS days assigned (Y)
+        - completed_days: Sum of completed days (X) - full days = 1.0, partial = periods/10
+        - remaining_days: total_days - completed_days
+        - sessions_completed: Number of sessions completed
+        - sessions_overridden: Number of sessions with override
+        """
+        db_session = self.get_session()
+        try:
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'total_days': 0, 'completed_days': 0, 'remaining_days': 0, 'sessions_completed': 0, 'sessions_overridden': 0}
+            
+            total_days = placement.iss_total_days or 0
+            
+            if up_to_date is None:
+                up_to_date = datetime.now().date()
+            
+            sessions = db_session.query(PartialDaySession).filter(
+                PartialDaySession.placement_id == placement_id,
+                PartialDaySession.type == SessionType.iss_full_day,
+                PartialDaySession.date <= up_to_date,
+                PartialDaySession.status == SessionStatus.fulfilled
+            ).all()
+            
+            completed_days = 0.0
+            sessions_completed = 0
+            sessions_overridden = 0
+            
+            for sess in sessions:
+                periods = sess.periods if sess.periods else list(range(1, 11))
+                num_periods = len(periods)
+                
+                if num_periods == 10 and periods == list(range(1, 11)):
+                    day_value = 1.0
+                else:
+                    day_value = num_periods / 10.0
+                
+                completed_days += day_value
+                sessions_completed += 1
+                
+                log = db_session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == sess.date
+                ).first()
+                if log and log.override_used:
+                    sessions_overridden += 1
+            
+            remaining_days = max(0, total_days - completed_days)
+            
+            return {
+                'total_days': total_days,
+                'completed_days': round(completed_days, 1),
+                'remaining_days': round(remaining_days, 1),
+                'sessions_completed': sessions_completed,
+                'sessions_overridden': sessions_overridden
+            }
+        finally:
+            db_session.close()
+    
     # Daily Log operations
     def get_or_create_daily_log(self, placement_id: str, log_date: str) -> Dict[str, Any]:
         """Get or create a daily log for a placement on a specific date."""

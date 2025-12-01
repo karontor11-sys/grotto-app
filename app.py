@@ -909,9 +909,10 @@ if page == "Dashboard":
         negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
         total_points = positive_points + negative_points
         
+        session_status = iss_session.get('status', 'scheduled')
         fulfillment = daily_log.get('dailyFulfillment') or ''
         override_used = daily_log.get('overrideUsed', False)
-        is_completed = fulfillment == 'yes' or override_used
+        is_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
         
         if is_completed:
             status_icon = '🟢'
@@ -926,6 +927,10 @@ if page == "Dashboard":
             served_dates = placement_data.get('servedDates', [])
         is_present = date_str in served_dates
         
+        progress = dm.calculate_iss_days_progress(placement_id, target_date)
+        completed_days = progress['completed_days']
+        total_days = progress['total_days']
+        
         with st.container():
             header_col1, header_col2, header_col3 = st.columns([3, 2, 1])
             
@@ -938,10 +943,18 @@ if page == "Dashboard":
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
             
             with header_col2:
-                st.markdown(f"**{iss_session['period_display']}**")
-                if iss_session.get('iss_total_days') and iss_session.get('iss_remaining_days') is not None:
-                    days_served = iss_session['iss_total_days'] - iss_session['iss_remaining_days']
-                    st.caption(f"Day {days_served + 1} of {iss_session['iss_total_days']}")
+                if is_full_day:
+                    st.markdown("**Full Day**")
+                else:
+                    num_periods = len(periods)
+                    st.markdown(f"**Partial Day ({num_periods} periods)**")
+                
+                if total_days > 0:
+                    if completed_days == int(completed_days):
+                        completed_display = int(completed_days)
+                    else:
+                        completed_display = completed_days
+                    st.caption(f"Completed {completed_display} of {total_days} ISS days")
             
             with header_col3:
                 attendance_key = f"iss_attendance_{session_id}"
@@ -1032,7 +1045,7 @@ if page == "Dashboard":
                     complete_help = "" if can_complete else "Full day requires 10+ points"
                     if st.button("✓ Complete", key=f"iss_complete_{session_id}", type="primary", 
                                  use_container_width=True, disabled=not can_complete, help=complete_help):
-                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        dm.mark_session_completed(session_id, "Admin")
                         if not is_present:
                             dm.update_iss_attendance(placement_id, date_str, True)
                         st.success("Session completed!")
@@ -1052,10 +1065,7 @@ if page == "Dashboard":
                     st.warning("⚠️ This will mark the session complete and credit all scheduled periods.")
                     if st.button("Confirm Override", key=f"iss_override_confirm_{session_id}", type="primary"):
                         override_note = "Supervisor override: student released early due to positive behavior; remaining periods waived."
-                        existing_notes = daily_log.get('notes', '') or ''
-                        new_notes = f"{existing_notes}\n\n{override_note}" if existing_notes else override_note
-                        dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                        dm.apply_iss_override(placement_id, override_note, "Admin")
+                        dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
                         if not is_present:
                             dm.update_iss_attendance(placement_id, date_str, True)
                         st.success("✅ Override applied!")

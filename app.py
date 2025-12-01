@@ -249,69 +249,8 @@ if page == "Dashboard":
     # Get all active placements for selected date (used by placement sections below)
     placements_for_date = dm.get_active_placements_for_date(selected_date)
     
-    # Today's Sessions strip (using selected date)
+    # Date display
     st.subheader(f"{selected_date.strftime('%B %d, %Y')}")
-    
-    # Get sessions for selected date (need to query database)
-    from db_manager import PartialDaySession, SessionStatus
-    db_session = dm.get_session()
-    try:
-        sessions_query = db_session.query(PartialDaySession).filter(
-            PartialDaySession.date == selected_date,
-            PartialDaySession.status.in_([SessionStatus.scheduled, SessionStatus.in_progress])
-        ).all()
-        
-        todays_sessions = []
-        for sess in sessions_query:
-            from db_manager import Placement, Student
-            placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
-            if placement:
-                student = db_session.query(Student).filter(Student.id == placement.student_id).first()
-                if student:
-                    from db_manager import SessionType
-                    # Format scope based on session type
-                    scope = ""
-                    if sess.type == SessionType.periods:
-                        if sess.periods:
-                            period_list = ", ".join([f"P{p}" for p in sess.periods])
-                            scope = period_list
-                    elif sess.type == SessionType.lunch:
-                        scope = "Lunch"
-                    elif sess.type == SessionType.cool_down:
-                        if sess.time_start and sess.time_end:
-                            scope = f"{sess.time_start}–{sess.time_end}"
-                        else:
-                            scope = "Cool-down"
-                    elif sess.type == SessionType.referral:
-                        if sess.periods and len(sess.periods) > 0:
-                            scope = f"P{sess.periods[0]}"
-                        else:
-                            scope = "Referral"
-                    elif sess.type == SessionType.iss_full_day:
-                        scope = "Full Day"
-                    
-                    todays_sessions.append({
-                        'session_id': sess.id,
-                        'placement_id': sess.placement_id,
-                        'student_name': f"{student.first_name} {student.last_name[0]}",
-                        'student_full_name': f"{student.first_name} {student.last_name}",
-                        'scope': scope,
-                        'type': sess.type.value,
-                        'location': sess.location or ''
-                    })
-    finally:
-        db_session.close()
-    
-    if not todays_sessions:
-        st.info(f"No sessions scheduled for {selected_date.strftime('%B %d, %Y')}.")
-    else:
-        # Display sessions as horizontal chips
-        cols = st.columns(min(len(todays_sessions), 4))
-        for idx, session in enumerate(todays_sessions):
-            col_idx = idx % 4
-            with cols[col_idx]:
-                chip_label = f"{session['student_name']} · {session['scope']}"
-                st.button(chip_label, key=f"session_chip_{session['session_id']}", use_container_width=True)
     
     st.divider()
     

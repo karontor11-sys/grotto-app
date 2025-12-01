@@ -462,26 +462,13 @@ if page == "Dashboard":
                 else:
                     st.caption("Check in to enable completion")
             
-            # Notes (collapsed)
-            show_notes_key = f"show_notes_{placement_id}_{date_str}"
-            if show_notes_key not in st.session_state:
-                st.session_state[show_notes_key] = False
-            
-            if st.button("Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
-                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
-                st.rerun()
-            
-            if st.session_state[show_notes_key]:
-                new_notes = st.text_area(
-                    "Notes:",
-                    value=daily_log.get('notes', '') or '',
-                    key=f"notes_{placement_id}_{date_str}",
-                    height=100
-                )
-                if st.button("Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
-                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                    st.success("Notes saved!")
-                    st.rerun()
+            # Notes (always visible with auto-save)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"fullday_{placement_id}_{date_str}",
+                daily_log.get('notes', '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
             
             st.divider()
     
@@ -531,26 +518,13 @@ if page == "Dashboard":
             st.caption(f"📚 {period_label}")
             st.caption(f"Points: {total_points}")
             
-            # Notes
-            show_notes_key = f"show_notes_{placement_id}_{date_str}"
-            if show_notes_key not in st.session_state:
-                st.session_state[show_notes_key] = False
-            
-            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
-                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
-                st.rerun()
-            
-            if st.session_state[show_notes_key]:
-                new_notes = st.text_area(
-                    "Notes:",
-                    value=daily_log.get('notes', '') or '',
-                    key=f"notes_{placement_id}_{date_str}",
-                    height=100
-                )
-                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
-                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                    st.success("Notes saved!")
-                    st.rerun()
+            # Notes (always visible with auto-save)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"partial_{placement_id}_{date_str}",
+                daily_log.get('notes', '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
             
             st.divider()
     
@@ -617,26 +591,13 @@ if page == "Dashboard":
             else:
                 st.success("Completed")
             
-            # Notes
-            show_notes_key = f"show_notes_{placement_id}_{date_str}"
-            if show_notes_key not in st.session_state:
-                st.session_state[show_notes_key] = False
-            
-            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
-                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
-                st.rerun()
-            
-            if st.session_state[show_notes_key]:
-                new_notes = st.text_area(
-                    "Notes:",
-                    value=daily_log.get('notes', '') or '',
-                    key=f"notes_{placement_id}_{date_str}",
-                    height=100
-                )
-                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
-                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                    st.success("Notes saved!")
-                    st.rerun()
+            # Notes (always visible with auto-save)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"lunch_{placement_id}_{date_str}",
+                daily_log.get('notes', '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
             
             st.divider()
     
@@ -681,26 +642,13 @@ if page == "Dashboard":
             
             st.caption(f"📚 {period_label}")
             
-            # Notes
-            show_notes_key = f"show_notes_{placement_id}_{date_str}"
-            if show_notes_key not in st.session_state:
-                st.session_state[show_notes_key] = False
-            
-            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
-                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
-                st.rerun()
-            
-            if st.session_state[show_notes_key]:
-                new_notes = st.text_area(
-                    "Notes:",
-                    value=daily_log.get('notes', '') or '',
-                    key=f"notes_{placement_id}_{date_str}",
-                    height=100
-                )
-                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
-                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                    st.success("Notes saved!")
-                    st.rerun()
+            # Notes (always visible with auto-save)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"classref_{placement_id}_{date_str}",
+                daily_log.get('notes', '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
             
             st.divider()
     
@@ -745,26 +693,13 @@ if page == "Dashboard":
             
             st.caption(f"🧘 {period_label}")
             
-            # Notes
-            show_notes_key = f"show_notes_{placement_id}_{date_str}"
-            if show_notes_key not in st.session_state:
-                st.session_state[show_notes_key] = False
-            
-            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
-                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
-                st.rerun()
-            
-            if st.session_state[show_notes_key]:
-                new_notes = st.text_area(
-                    "Notes:",
-                    value=daily_log.get('notes', '') or '',
-                    key=f"notes_{placement_id}_{date_str}",
-                    height=100
-                )
-                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
-                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                    st.success("Notes saved!")
-                    st.rerun()
+            # Notes (always visible with auto-save)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"cooldown_{placement_id}_{date_str}",
+                daily_log.get('notes', '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
             
             st.divider()
     
@@ -799,26 +734,13 @@ if page == "Dashboard":
                 else:
                     st.success("Completed")
             
-            # Notes
-            show_notes_key = f"show_notes_{placement_id}_{date_str}"
-            if show_notes_key not in st.session_state:
-                st.session_state[show_notes_key] = False
-            
-            if st.button("📝 Notes", key=f"toggle_notes_{placement_id}_{date_str}"):
-                st.session_state[show_notes_key] = not st.session_state[show_notes_key]
-                st.rerun()
-            
-            if st.session_state[show_notes_key]:
-                new_notes = st.text_area(
-                    "Notes:",
-                    value=daily_log.get('notes', '') or '',
-                    key=f"notes_{placement_id}_{date_str}",
-                    height=100
-                )
-                if st.button("💾 Save Notes", key=f"save_notes_{placement_id}_{date_str}"):
-                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                    st.success("Notes saved!")
-                    st.rerun()
+            # Notes (always visible with auto-save)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"preplanned_{placement_id}_{date_str}",
+                daily_log.get('notes', '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
             
             st.divider()
     
@@ -1025,26 +947,13 @@ if page == "Dashboard":
                 st.success("Session Completed" + (" (Override)" if override_used else ""))
                 st.markdown(f"**Points Total: {total_points}**")
             
-            notes_key = f"iss_notes_expand_{session_id}"
-            if notes_key not in st.session_state:
-                st.session_state[notes_key] = False
-            
-            if st.button("📝 Notes", key=f"iss_notes_btn_{session_id}"):
-                st.session_state[notes_key] = not st.session_state[notes_key]
-                st.rerun()
-            
-            if st.session_state.get(notes_key, False):
-                current_notes = daily_log.get('notes', '') or ''
-                new_notes = st.text_area(
-                    "Session Notes:",
-                    value=current_notes,
-                    key=f"iss_notes_text_{session_id}",
-                    height=100
-                )
-                if st.button("💾 Save Notes", key=f"iss_notes_save_{session_id}"):
-                    dm.update_daily_log_notes(placement_id, date_str, new_notes)
-                    st.success("Notes saved!")
-                    st.rerun()
+            # Notes (always visible with auto-save)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"isssession_{session_id}_{date_str}",
+                daily_log.get('notes', '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
             
             st.divider()
     

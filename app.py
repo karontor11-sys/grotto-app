@@ -2527,6 +2527,6 @@ if hasattr(st.session_state, 'editing_student'):
             del st.session_state.editing_student
             st.rerun()
 
-# Footer branding - displayed on every page
+# Footer branding - displayed on every page (centered)
 st.divider()
-st.caption("George S. Mickelson Middle School – Brookings, South Dakota")
+st.markdown("<p style='text-align: center; color: rgba(49, 51, 63, 0.6); font-size: 0.875rem;'>George S. Mickelson Middle School – Brookings, South Dakota</p>", unsafe_allow_html=True)

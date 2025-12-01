@@ -1090,46 +1090,113 @@ if page == "Dashboard":
             
             st.divider()
     
-    # Five Collapsible Sections
+    # Five Placement Type Sections with Clickable Student Names
     # 1. In-School Suspension (ISS) - Session-based
     iss_sessions = dm.get_iss_sessions_for_date(selected_date)
-    with st.expander(f"In-School Suspension (ISS) ({len(iss_sessions)})", expanded=len(iss_sessions) > 0):
-        if len(iss_sessions) == 0:
-            st.info("No students in ISS for this date.")
-        else:
-            for iss_session in iss_sessions:
+    st.markdown("#### In-School Suspension (ISS)")
+    if len(iss_sessions) == 0:
+        st.caption("No students")
+    else:
+        for iss_session in iss_sessions:
+            session_id = iss_session['session_id']
+            student_name = iss_session['student_name']
+            expand_key = f"expand_iss_{session_id}"
+            if expand_key not in st.session_state:
+                st.session_state[expand_key] = False
+            
+            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_iss_{session_id}", use_container_width=True):
+                st.session_state[expand_key] = not st.session_state[expand_key]
+                st.rerun()
+            
+            if st.session_state[expand_key]:
                 render_iss_session_card(iss_session, selected_date)
     
+    st.divider()
+    
     # 2. Lunch Detention
-    with st.expander(f"Lunch Detention ({len(lunch_detention_placements)})", expanded=len(lunch_detention_placements) > 0):
-        if len(lunch_detention_placements) == 0:
-            st.info("No students in Lunch Detention for this date.")
-        else:
-            for placement in lunch_detention_placements:
+    st.markdown("#### Lunch Detention")
+    if len(lunch_detention_placements) == 0:
+        st.caption("No students")
+    else:
+        for placement in lunch_detention_placements:
+            placement_id = placement['_id']
+            student = placement['student']
+            student_name = f"{student['firstName']} {student['lastName']}"
+            expand_key = f"expand_lunch_{placement_id}"
+            if expand_key not in st.session_state:
+                st.session_state[expand_key] = False
+            
+            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_lunch_{placement_id}", use_container_width=True):
+                st.session_state[expand_key] = not st.session_state[expand_key]
+                st.rerun()
+            
+            if st.session_state[expand_key]:
                 render_lunch_detention_card(placement, selected_date)
     
-    # 4. Class Period Referral
-    with st.expander(f"Class Period Referral ({len(class_referral_placements)})", expanded=len(class_referral_placements) > 0):
-        if len(class_referral_placements) == 0:
-            st.info("No students in Class Period Referral for this date.")
-        else:
-            for placement in class_referral_placements:
+    st.divider()
+    
+    # 3. Class Period Referral
+    st.markdown("#### Class Period Referral")
+    if len(class_referral_placements) == 0:
+        st.caption("No students")
+    else:
+        for placement in class_referral_placements:
+            placement_id = placement['_id']
+            student = placement['student']
+            student_name = f"{student['firstName']} {student['lastName']}"
+            expand_key = f"expand_class_{placement_id}"
+            if expand_key not in st.session_state:
+                st.session_state[expand_key] = False
+            
+            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_class_{placement_id}", use_container_width=True):
+                st.session_state[expand_key] = not st.session_state[expand_key]
+                st.rerun()
+            
+            if st.session_state[expand_key]:
                 render_class_referral_card(placement, selected_date)
     
-    # 5. Cool-Down Referral
-    with st.expander(f"Cool-Down Referral ({len(cooldown_placements)})", expanded=len(cooldown_placements) > 0):
-        if len(cooldown_placements) == 0:
-            st.info("No students in Cool-Down Referral for this date.")
-        else:
-            for placement in cooldown_placements:
+    st.divider()
+    
+    # 4. Cool-Down Referral
+    st.markdown("#### Cool-Down Referral")
+    if len(cooldown_placements) == 0:
+        st.caption("No students")
+    else:
+        for placement in cooldown_placements:
+            placement_id = placement['_id']
+            student = placement['student']
+            student_name = f"{student['firstName']} {student['lastName']}"
+            expand_key = f"expand_cooldown_{placement_id}"
+            if expand_key not in st.session_state:
+                st.session_state[expand_key] = False
+            
+            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_cooldown_{placement_id}", use_container_width=True):
+                st.session_state[expand_key] = not st.session_state[expand_key]
+                st.rerun()
+            
+            if st.session_state[expand_key]:
                 render_cooldown_card(placement, selected_date)
     
-    # 6. Pre-Planned Referral
-    with st.expander(f"Pre-Planned Referral ({len(preplanned_placements)})", expanded=len(preplanned_placements) > 0):
-        if len(preplanned_placements) == 0:
-            st.info("No students in Pre-Planned Referral for this date.")
-        else:
-            for placement in preplanned_placements:
+    st.divider()
+    
+    # 5. Pre-Planned Referral
+    st.markdown("#### Pre-Planned Referral")
+    if len(preplanned_placements) == 0:
+        st.caption("No students")
+    else:
+        for placement in preplanned_placements:
+            placement_id = placement['_id']
+            student = placement['student']
+            student_name = f"{student['firstName']} {student['lastName']}"
+            expand_key = f"expand_preplanned_{placement_id}"
+            if expand_key not in st.session_state:
+                st.session_state[expand_key] = False
+            
+            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_preplanned_{placement_id}", use_container_width=True):
+                st.session_state[expand_key] = not st.session_state[expand_key]
+                st.rerun()
+            
+            if st.session_state[expand_key]:
                 render_preplanned_card(placement, selected_date)
 
 # Placements Page

@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 from datetime import datetime, date, timedelta
 from db_manager import DatabaseManager
 from point_system import PointSystem
@@ -148,6 +149,48 @@ def detect_session_conflicts(sessions):
             })
     
     return conflicts
+
+def render_auto_save_notes(unique_key: str, current_notes: str, save_callback):
+    """
+    Render an always-visible Notes text area with auto-save functionality.
+    
+    Args:
+        unique_key: Unique identifier for session state keys (e.g., placement_id + date)
+        current_notes: Current notes value from database
+        save_callback: Function to call to save notes, takes (notes_text) as argument
+    """
+    notes_key = f"notes_{unique_key}"
+    prev_notes_key = f"prev_notes_{unique_key}"
+    saved_time_key = f"notes_saved_time_{unique_key}"
+    
+    if prev_notes_key not in st.session_state:
+        st.session_state[prev_notes_key] = current_notes or ''
+    
+    def on_notes_change():
+        new_notes = st.session_state.get(notes_key, '')
+        prev_notes = st.session_state.get(prev_notes_key, '')
+        if new_notes != prev_notes:
+            save_callback(new_notes)
+            st.session_state[prev_notes_key] = new_notes
+            st.session_state[saved_time_key] = time.time()
+    
+    notes_col, saved_col = st.columns([4, 1])
+    
+    with notes_col:
+        st.text_area(
+            "Notes",
+            value=st.session_state.get(prev_notes_key, current_notes or ''),
+            key=notes_key,
+            height=60,
+            placeholder="Add notes here...",
+            on_change=on_notes_change,
+            label_visibility="collapsed"
+        )
+    
+    with saved_col:
+        saved_time = st.session_state.get(saved_time_key, 0)
+        if saved_time > 0 and (time.time() - saved_time) < 2:
+            st.markdown("<span style='color: #28a745; font-size: 0.85em;'>✓ Saved</span>", unsafe_allow_html=True)
 
 # Page configuration
 st.set_page_config(

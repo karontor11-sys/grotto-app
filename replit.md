@@ -28,8 +28,8 @@ Preferred communication style: Simple, everyday language.
 
 3. **Enhanced ISS Session Card** - `render_iss_session_card()` function includes:
    - Clickable student name with status indicator
-   - Period display (Full Day or custom range)
-   - Day X of Y progress
+   - Period display (Full Day or Partial Day with period count)
+   - Days-based progress ("Completed X of Y ISS days")
    - Attendance toggle (Present/Absent)
    - Points Total with completion eligibility (10+ for full day)
    - Positive/Negative behavior dropdowns
@@ -37,11 +37,19 @@ Preferred communication style: Simple, everyday language.
    - Override & Count Full button with confirmation
    - Collapsible Notes section with save functionality
 
+4. **Days-Based Progress Tracking**:
+   - `calculate_iss_days_progress()` calculates completed days per placement
+   - Full day sessions (Periods 1-10) count as 1.0 day
+   - Partial sessions count as periods/10 (fractional days)
+   - Progress updates immediately when Complete or Override is clicked
+   - Past date views show progress up to and including selected date
+
 **Key Architecture Decisions:**
 - Daily logs keyed by placement_id + date (one session per day for full-day ISS)
-- Completion triggers `complete_placement_day()` and attendance update
-- Override uses `apply_iss_override()` to set iss_remaining_days = 0
+- Completion uses `mark_session_completed()` to set session status to fulfilled and update daily log
+- Override uses `mark_session_completed()` with is_override=True flag
 - Notes stored in daily_logs.notes field
+- Progress calculated from sessions with status=fulfilled
 
 ## System Architecture
 

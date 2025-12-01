@@ -1788,7 +1788,7 @@ elif page == "Daily Logs":
         if not active_placements:
             st.info("No active placements for selected date.")
         else:
-            st.subheader(f"Daily Logs for {format_date(selected_date)}")
+            st.subheader(f"{format_date(selected_date)}")
     
     # Process either session-scoped or placement-wide view
     if session_context:

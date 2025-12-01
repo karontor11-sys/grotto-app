@@ -50,11 +50,12 @@ Preferred communication style: Simple, everyday language.
    - Applied to all 5 placement types: ISS, Lunch Detention, Class Period Referral, Cool-Down Referral, Pre-Planned Referral
    - Helper function `render_auto_save_notes()` handles all Notes UI and save logic
 
-4. **Days-Based Progress Tracking**:
-   - `calculate_iss_days_progress()` calculates completed days per placement
-   - Full day sessions (Periods 1-10) count as 1.0 day
-   - Partial sessions count as periods/10 (fractional days)
-   - Progress updates immediately when Complete or Override is clicked
+4. **Days-Based Progress Tracking (Check-In Based)**:
+   - "Day X of Y Days" counter now advances when Check In is pressed (not on completion)
+   - `calculate_iss_checkin_progress()` counts days where `checked_in = True`
+   - X = number of days checked in, Y = total ISS days assigned
+   - Counter increments once per date (multiple check-ins same day don't double-count)
+   - Complete/Override do NOT increment the day counter
    - Past date views show progress up to and including selected date
 
 **Key Architecture Decisions:**
@@ -62,7 +63,7 @@ Preferred communication style: Simple, everyday language.
 - Completion uses `mark_session_completed()` to set session status to fulfilled and update daily log
 - Override uses `mark_session_completed()` with is_override=True flag
 - Notes stored in daily_logs.notes field
-- Progress calculated from sessions with status=fulfilled
+- Progress (Day X of Y) calculated from daily_logs with checked_in=True
 
 ## System Architecture
 

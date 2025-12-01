@@ -254,7 +254,7 @@ if page == "Dashboard":
     placements_for_date = dm.get_active_placements_for_date(selected_date)
     
     # Today's Sessions strip (using selected date)
-    st.subheader(f"Sessions for {selected_date.strftime('%B %d, %Y')}")
+    st.subheader(f"{selected_date.strftime('%B %d, %Y')}")
     
     # Get sessions for selected date (need to query database)
     from db_manager import PartialDaySession, SessionStatus

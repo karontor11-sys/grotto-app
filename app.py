@@ -163,7 +163,6 @@ with col_logo:
     st.image("attached_assets/Bobcats_1761658497832.png", width=150)
 with col_title:
     st.title("The Grotto")
-    st.caption("George S. Mickelson Middle School – Brookings, South Dakota")
     st.caption("Student Support Placement Platform")
 
 # Sidebar navigation
@@ -2527,3 +2526,7 @@ if hasattr(st.session_state, 'editing_student'):
         if st.form_submit_button("Cancel"):
             del st.session_state.editing_student
             st.rerun()
+
+# Footer branding - displayed on every page
+st.divider()
+st.caption("George S. Mickelson Middle School – Brookings, South Dakota")

@@ -1219,6 +1219,51 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def get_iss_sessions_for_date(self, target_date: date) -> List[Dict[str, Any]]:
+        """Get all ISS sessions scheduled for a specific date with student and placement info."""
+        db_session = self.get_session()
+        try:
+            sessions = db_session.query(PartialDaySession).filter(
+                PartialDaySession.date == target_date,
+                PartialDaySession.type == SessionType.iss_full_day
+            ).all()
+            
+            result = []
+            for sess in sessions:
+                placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
+                if placement and placement.status == PlacementStatus.active:
+                    student = db_session.query(Student).filter(Student.id == placement.student_id).first()
+                    if student:
+                        periods = sess.periods if sess.periods else list(range(1, 11))
+                        if len(periods) == 10 and periods == list(range(1, 11)):
+                            period_display = "Full Day (Periods 1–10)"
+                        elif len(periods) == 1:
+                            period_display = f"Period {periods[0]}"
+                        else:
+                            period_display = f"Periods {min(periods)}–{max(periods)}"
+                        
+                        result.append({
+                            'session_id': sess.id,
+                            'placement_id': sess.placement_id,
+                            'student_id': student.id,
+                            'student_name': f"{student.first_name} {student.last_name}",
+                            'student_first_name': student.first_name,
+                            'student_last_name': student.last_name,
+                            'grade': student.grade,
+                            'homeroom_teacher': student.homeroom_teacher,
+                            'period_display': period_display,
+                            'periods': periods,
+                            'date': sess.date.isoformat(),
+                            'status': sess.status.value,
+                            'iss_total_days': placement.iss_total_days,
+                            'iss_remaining_days': placement.iss_remaining_days,
+                            'reason': placement.reason
+                        })
+            
+            return result
+        finally:
+            db_session.close()
+    
     def get_session_details(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a specific session."""
         db_session = self.get_session()

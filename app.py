@@ -893,18 +893,36 @@ if page == "Dashboard":
             st.divider()
     
     # Five Collapsible Sections
-    # 1. ISS (Unified - includes both full-day and partial-day)
-    with st.expander(f"ISS ({len(iss_placements)})", expanded=len(iss_placements) > 0):
-        if len(iss_placements) == 0:
+    # 1. In-School Suspension (ISS) - Session-based
+    iss_sessions = dm.get_iss_sessions_for_date(selected_date)
+    with st.expander(f"In-School Suspension (ISS) ({len(iss_sessions)})", expanded=len(iss_sessions) > 0):
+        if len(iss_sessions) == 0:
             st.info("No students in ISS for this date.")
         else:
-            for placement in iss_placements:
-                # Render appropriate card based on internal type
-                internal_type = placement.get('type', '')
-                if internal_type == 'iss_full_day':
-                    render_iss_full_card(placement, selected_date)
-                elif internal_type == 'partial':
-                    render_iss_partial_card(placement, selected_date)
+            for iss_session in iss_sessions:
+                with st.container():
+                    col1, col2 = st.columns([3, 2])
+                    
+                    with col1:
+                        student_name = iss_session['student_name']
+                        placement_id = iss_session['placement_id']
+                        date_str = iss_session['date']
+                        
+                        if st.button(f"📋 {student_name}", key=f"iss_session_{iss_session['session_id']}", use_container_width=True):
+                            st.session_state.navigate_to_iss_detail = True
+                            st.session_state.iss_detail_placement_id = placement_id
+                            st.session_state.iss_detail_date = selected_date
+                            st.rerun()
+                        
+                        st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
+                    
+                    with col2:
+                        st.markdown(f"**{iss_session['period_display']}**")
+                        if iss_session.get('iss_total_days') and iss_session.get('iss_remaining_days') is not None:
+                            days_served = iss_session['iss_total_days'] - iss_session['iss_remaining_days']
+                            st.caption(f"Day {days_served + 1} of {iss_session['iss_total_days']}")
+                    
+                    st.divider()
     
     # 2. Lunch Detention
     with st.expander(f"Lunch Detention ({len(lunch_detention_placements)})", expanded=len(lunch_detention_placements) > 0):

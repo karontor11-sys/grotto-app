@@ -97,7 +97,7 @@ The UI features a **Dashboard** with:
   
   Completed placements appear only in the "Completed Placements" tab.
 - **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation. Features a streamlined single-selector interface with 3 main placement types:
-  - **In-School Suspension (ISS)**: Simplified ISS placement using start date + number of days model. Stores `iss_start_date`, `iss_total_days`, and `iss_remaining_days` (initialized equal to total days). No period/day conversion at placement creation.
+  - **In-School Suspension (ISS)**: Simplified ISS placement using start date + number of days model. Stores `iss_start_date`, `iss_total_days`, and `iss_remaining_days` (initialized equal to total days). Also includes period-based tracking fields: `iss_days_assigned` (days from form), `iss_total_required_periods` (calculated as days × 10), and `iss_periods_served` (running counter, default 0). The period-based fields are for internal calculations only and not exposed on the Create Placement page.
   - **Lunch Detention**: Multi-day lunch detention placement
   - **Class Period Referral**: Umbrella category with 3 sub-types (selected via dropdown):
     - **Behavior Referral**: Single-day with period selection (stores `referral_subtype='behavior'`)

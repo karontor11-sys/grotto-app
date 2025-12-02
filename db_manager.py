@@ -92,6 +92,10 @@ class Placement(Base):
     iss_start_date = Column(Date, nullable=True)  # For ISS: Start date of ISS placement
     iss_total_days = Column(Integer, nullable=True)  # For ISS: Total ISS days assigned
     iss_remaining_days = Column(Integer, nullable=True)  # For ISS: Remaining ISS days (updated by Dashboard)
+    # Period-based ISS tracking fields
+    iss_days_assigned = Column(Integer, nullable=True)  # For ISS: Number of ISS days entered on form
+    iss_total_required_periods = Column(Integer, nullable=True)  # For ISS: Calculated as iss_days_assigned * 10
+    iss_periods_served = Column(Integer, default=0)  # For ISS: Running counter of periods served
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # Set when placement is completed
     start_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: starting period (e.g., 1 for P1)
@@ -244,7 +248,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -299,6 +303,30 @@ class DatabaseManager:
             if 'iss_remaining_days' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN iss_remaining_days INTEGER")
                 session.commit()
+            
+            # Add new period-based ISS tracking columns
+            if 'iss_days_assigned' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN iss_days_assigned INTEGER")
+                session.commit()
+            
+            if 'iss_total_required_periods' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN iss_total_required_periods INTEGER")
+                session.commit()
+            
+            if 'iss_periods_served' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN iss_periods_served INTEGER DEFAULT 0")
+                session.commit()
+            
+            # Migrate existing ISS placements to populate new period-based fields
+            session.execute("""
+                UPDATE placements 
+                SET iss_days_assigned = COALESCE(iss_total_days, days_assigned),
+                    iss_total_required_periods = COALESCE(iss_total_days, days_assigned) * 10,
+                    iss_periods_served = COALESCE(iss_periods_served, 0)
+                WHERE placement_type = 'ISS' 
+                AND iss_days_assigned IS NULL
+            """)
+            session.commit()
             
             # Add new daily_logs columns for simplified ISS model
             if 'day_type' not in existing_daily_log_columns:
@@ -428,6 +456,11 @@ class DatabaseManager:
             if 'issStartDate' in placement_data and placement_data['issStartDate']:
                 iss_start_date = datetime.fromisoformat(placement_data['issStartDate']).date()
             
+            # Calculate period-based ISS tracking fields
+            iss_days_assigned = placement_data.get('issTotalDays') or placement_data.get('daysAssigned', 1)
+            iss_total_required_periods = iss_days_assigned * 10 if placement_category == PlacementCategory.ISS else None
+            iss_periods_served = 0
+            
             placement = Placement(
                 id=placement_id,
                 student_id=placement_data['studentId'],
@@ -442,6 +475,9 @@ class DatabaseManager:
                 iss_start_date=iss_start_date,
                 iss_total_days=placement_data.get('issTotalDays'),
                 iss_remaining_days=placement_data.get('issRemainingDays'),
+                iss_days_assigned=iss_days_assigned if placement_category == PlacementCategory.ISS else None,
+                iss_total_required_periods=iss_total_required_periods,
+                iss_periods_served=iss_periods_served if placement_category == PlacementCategory.ISS else None,
                 start_date=datetime.fromisoformat(placement_data['startDate']).date(),
                 end_date=end_date,
                 start_period=placement_data.get('startPeriod'),
@@ -2359,6 +2395,9 @@ class DatabaseManager:
             'issStartDate': placement.iss_start_date.isoformat() if placement.iss_start_date else None,
             'issTotalDays': placement.iss_total_days,
             'issRemainingDays': placement.iss_remaining_days,
+            'issDaysAssigned': placement.iss_days_assigned,
+            'issTotalRequiredPeriods': placement.iss_total_required_periods,
+            'issPeriodsServed': placement.iss_periods_served or 0,
             'startDate': placement.start_date.isoformat(),
             'endDate': placement.end_date.isoformat() if placement.end_date else None,
             'startPeriod': placement.start_period,

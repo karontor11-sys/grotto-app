@@ -1,0 +1,78 @@
+Yes, please go ahead and create a test ISS placement record directly in the database so we can test the Dashboard ISS check-in flow without changing any app logic.
+
+Important:
+
+Do NOT refactor or change the existing app logic or UI.
+
+You MAY insert/delete test records directly in the database or via any existing backend helpers.
+
+Part 1 – Seed a test placement for Jane Doe
+
+Please insert a single test placement for:
+
+First Name: Jane
+
+Last Name: Doe
+
+Grade: 7
+
+Homeroom Teacher: TestTeacher
+
+Placement Type: In-School Suspension (ISS)
+
+Start Date: 2025-12-02
+
+Number of ISS Days: 3
+
+Reason: "QA Test 3-day ISS"
+
+Created By: Matthew Christie
+
+Use whatever fields/columns already exist in the current schema so that this placement appears on the Dashboard / Daily Log in the same way a normal ISS placement would.
+
+After inserting this test record, please:
+
+Go to the Dashboard / Daily Log Manager.
+
+Confirm whether you can see Jane Doe as having an active ISS placement.
+
+Using ONLY the existing UI and features, try to:
+
+Log Day 1 ISS for Jane (as a full day).
+
+Log Day 2 ISS for Jane (full day).
+
+Log Day 3 ISS for Jane (full day).
+
+Tell me:
+
+How you marked each day (buttons/fields used).
+
+Whether the app appears to treat those as separate ISS days.
+
+Whether there is any indication that her “3-day ISS” is finished after the third day (or if she just remains active forever).
+
+Part 2 – Diagnose the form submission issue (NO CODE CHANGES)
+
+Also, please diagnose why the Create Placement ISS form is not creating records:
+
+Run the app, submit the ISS form again with the Jane Doe test data.
+
+Observe any console/server logs, including the [DEBUG] ISS Form submitted... line you mentioned.
+
+WITHOUT changing any code, tell me:
+
+Does the submit handler actually run?
+
+What values are captured (if any) for the ISS fields?
+
+Does any validation fail (for example, required fields that are empty due to Streamlit reruns/session state)?
+
+At what point does the logic stop before inserting into the database?
+
+Again, please do NOT fix or refactor the code yet.
+I only want:
+
+A seeded test ISS placement for Jane Doe so I can see how the Dashboard behaves, and
+
+A clear written explanation for why the ISS Create Placement form is not currently saving records.

@@ -269,7 +269,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -336,6 +336,10 @@ class DatabaseManager:
             
             if 'iss_periods_served' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN iss_periods_served INTEGER DEFAULT 0")
+                session.commit()
+            
+            if 'iss_label' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN iss_label VARCHAR")
                 session.commit()
             
             # Migrate existing ISS placements to populate new period-based fields

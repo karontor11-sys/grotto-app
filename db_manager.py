@@ -107,6 +107,7 @@ class Placement(Base):
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now)
+    iss_label = Column(String, nullable=True)  # Official label: "{issDaysAssigned}-day ISS for {Student Name}"
 
 class DailyLog(Base):
     __tablename__ = 'daily_logs'
@@ -201,6 +202,25 @@ class EndOfDayProcessing(Base):
     processed_at = Column(DateTime, default=datetime.now)  # When the processing occurred
     incomplete_count = Column(Integer, default=0)  # Number of incomplete records found
     notification_sent = Column(Boolean, default=False)  # Whether notifications were sent
+
+class ISSSessionLog(Base):
+    """Log of each completed ISS session within a placement."""
+    __tablename__ = 'iss_session_logs'
+    
+    id = Column(String, primary_key=True)
+    placement_id = Column(String, nullable=False)  # Reference to the ISS placement
+    session_date = Column(Date, nullable=False)  # Date of the session
+    session_type = Column(String, nullable=False)  # 'Full Day' or 'Partial Day'
+    start_period = Column(Integer, nullable=True)  # For partial days: starting period (1-10)
+    end_period = Column(Integer, nullable=True)  # For partial days: ending period (1-10)
+    periods_credited = Column(Integer, nullable=False)  # Number of periods credited (10 for full, calculated for partial)
+    points_target = Column(Integer, nullable=True)  # Points required for this session
+    points_earned = Column(Integer, nullable=True)  # Actual points earned
+    completion_method = Column(String, nullable=False)  # 'Complete' or 'Override'
+    notes = Column(Text, nullable=True)  # General notes
+    override_reason = Column(Text, nullable=True)  # Required when completion_method is 'Override'
+    completed_by = Column(String, nullable=True)  # Who completed the session
+    created_at = Column(DateTime, default=datetime.now)
 
 class DatabaseManager:
     def __init__(self):
@@ -1970,7 +1990,8 @@ class DatabaseManager:
             session.close()
     
     def complete_iss_full_day_session(self, placement_id: str, log_date: str, completed_by: str, 
-                                       is_override: bool = False, override_note: str = None) -> bool:
+                                       is_override: bool = False, override_note: str = None,
+                                       points_earned: int = None) -> bool:
         """Complete a Full Day ISS session, adding 10 periods to issPeriodsServed.
         
         Args:
@@ -1979,6 +2000,7 @@ class DatabaseManager:
             completed_by: Name/ID of person completing
             is_override: True if using Override (early release with full credit)
             override_note: Required note when using override
+            points_earned: Points earned for this session
             
         Returns:
             True if successful, False otherwise
@@ -1992,11 +2014,17 @@ class DatabaseManager:
             if not placement:
                 return False
             
+            # Get student for the label
+            student = session.query(Student).filter(Student.id == placement.student_id).first()
+            student_name = f"{student.first_name} {student.last_name}" if student else "Unknown"
+            
             # Get or create daily log
             log = session.query(DailyLog).filter(
                 DailyLog.placement_id == placement_id,
                 DailyLog.date == date_obj
             ).first()
+            
+            should_add_periods = False
             
             if not log:
                 log_id = self.generate_id()
@@ -2016,9 +2044,7 @@ class DatabaseManager:
                     override_comment=override_note if is_override else None
                 )
                 session.add(log)
-                # Add 10 periods for new full day completion
-                placement.iss_periods_served = (placement.iss_periods_served or 0) + 10
-                placement.days_completed = (placement.days_completed or 0) + 1
+                should_add_periods = True
             else:
                 old_fulfillment = log.daily_fulfillment
                 log.daily_fulfillment = 'yes'
@@ -2031,14 +2057,39 @@ class DatabaseManager:
                 
                 # Only add periods if not already completed
                 if old_fulfillment != 'yes':
-                    placement.iss_periods_served = (placement.iss_periods_served or 0) + 10
-                    placement.days_completed = (placement.days_completed or 0) + 1
+                    should_add_periods = True
+            
+            if should_add_periods:
+                # Add 10 periods for full day completion
+                placement.iss_periods_served = (placement.iss_periods_served or 0) + 10
+                placement.days_completed = (placement.days_completed or 0) + 1
+                
+                # Create ISS Session Log entry
+                session_log = ISSSessionLog(
+                    id=self.generate_id(),
+                    placement_id=placement_id,
+                    session_date=date_obj,
+                    session_type='Full Day',
+                    start_period=1,
+                    end_period=10,
+                    periods_credited=10,
+                    points_target=10,
+                    points_earned=points_earned,
+                    completion_method='Override' if is_override else 'Complete',
+                    notes=log.notes if log else None,
+                    override_reason=override_note if is_override else None,
+                    completed_by=completed_by
+                )
+                session.add(session_log)
             
             # Check if ISS sentence is now complete
             iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
             if placement.iss_periods_served >= iss_total_required:
                 placement.status = PlacementStatus.completed
                 placement.end_date = date_obj
+                # Set the official label
+                iss_days = placement.iss_days_assigned or 0
+                placement.iss_label = f"{iss_days}-day ISS for {student_name}"
             
             session.commit()
             return True
@@ -2047,7 +2098,8 @@ class DatabaseManager:
     
     def complete_iss_partial_day_session(self, placement_id: str, log_date: str, completed_by: str,
                                           start_period: int, end_period: int, required_points: int = None,
-                                          is_override: bool = False, override_note: str = None) -> bool:
+                                          is_override: bool = False, override_note: str = None,
+                                          points_earned: int = None) -> bool:
         """Complete a Partial Day ISS session, adding planned periods to issPeriodsServed.
         
         Args:
@@ -2059,6 +2111,7 @@ class DatabaseManager:
             required_points: Points required for this partial day (optional)
             is_override: True if using Override
             override_note: Required note when using override
+            points_earned: Points earned for this session
             
         Returns:
             True if successful, False otherwise
@@ -2079,25 +2132,20 @@ class DatabaseManager:
             if not placement:
                 return False
             
+            # Get student for the label
+            student = session.query(Student).filter(Student.id == placement.student_id).first()
+            student_name = f"{student.first_name} {student.last_name}" if student else "Unknown"
+            
             # Get or create daily log
             log = session.query(DailyLog).filter(
                 DailyLog.placement_id == placement_id,
                 DailyLog.date == date_obj
             ).first()
             
-            # Build periods_covered array and session details JSON
+            # Build periods_covered array
             periods_covered = list(range(start_period, end_period + 1))
-            session_details = {
-                'start_period': start_period,
-                'end_period': end_period,
-                'planned_periods': planned_periods,
-                'required_points': required_points,
-                'is_override': is_override,
-                'completed_by': completed_by,
-                'completed_at': datetime.now().isoformat()
-            }
-            if is_override and override_note:
-                session_details['override_note'] = override_note
+            
+            should_add_periods = False
             
             if not log:
                 log_id = self.generate_id()
@@ -2118,9 +2166,7 @@ class DatabaseManager:
                     override_comment=override_note if is_override else None
                 )
                 session.add(log)
-                # Add planned periods for new partial day completion
-                placement.iss_periods_served = (placement.iss_periods_served or 0) + planned_periods
-                placement.days_completed = (placement.days_completed or 0) + 1
+                should_add_periods = True
             else:
                 old_fulfillment = log.daily_fulfillment
                 log.daily_fulfillment = 'yes'
@@ -2133,14 +2179,39 @@ class DatabaseManager:
                 
                 # Only add periods if not already completed
                 if old_fulfillment != 'yes':
-                    placement.iss_periods_served = (placement.iss_periods_served or 0) + planned_periods
-                    placement.days_completed = (placement.days_completed or 0) + 1
+                    should_add_periods = True
+            
+            if should_add_periods:
+                # Add planned periods for partial day completion
+                placement.iss_periods_served = (placement.iss_periods_served or 0) + planned_periods
+                placement.days_completed = (placement.days_completed or 0) + 1
+                
+                # Create ISS Session Log entry
+                session_log = ISSSessionLog(
+                    id=self.generate_id(),
+                    placement_id=placement_id,
+                    session_date=date_obj,
+                    session_type='Partial Day',
+                    start_period=start_period,
+                    end_period=end_period,
+                    periods_credited=planned_periods,
+                    points_target=required_points,
+                    points_earned=points_earned,
+                    completion_method='Override' if is_override else 'Complete',
+                    notes=log.notes if log else None,
+                    override_reason=override_note if is_override else None,
+                    completed_by=completed_by
+                )
+                session.add(session_log)
             
             # Check if ISS sentence is now complete
             iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
             if placement.iss_periods_served >= iss_total_required:
                 placement.status = PlacementStatus.completed
                 placement.end_date = date_obj
+                # Set the official label
+                iss_days = placement.iss_days_assigned or 0
+                placement.iss_label = f"{iss_days}-day ISS for {student_name}"
             
             session.commit()
             return True
@@ -2186,6 +2257,101 @@ class DatabaseManager:
             log.daily_total = positive_total + negative_total
             
             session.commit()
+        finally:
+            session.close()
+    
+    def get_iss_session_logs(self, placement_id: str) -> List[Dict]:
+        """Get all ISS session logs for a placement, ordered by date.
+        
+        Args:
+            placement_id: ID of the placement
+            
+        Returns:
+            List of session log dictionaries
+        """
+        session = self.get_session()
+        try:
+            logs = session.query(ISSSessionLog).filter(
+                ISSSessionLog.placement_id == placement_id
+            ).order_by(ISSSessionLog.session_date.asc()).all()
+            
+            return [{
+                'id': log.id,
+                'placementId': log.placement_id,
+                'sessionDate': log.session_date.isoformat() if log.session_date else None,
+                'sessionType': log.session_type,
+                'startPeriod': log.start_period,
+                'endPeriod': log.end_period,
+                'periodsCredited': log.periods_credited,
+                'pointsTarget': log.points_target,
+                'pointsEarned': log.points_earned,
+                'completionMethod': log.completion_method,
+                'notes': log.notes,
+                'overrideReason': log.override_reason,
+                'completedBy': log.completed_by,
+                'createdAt': log.created_at.isoformat() if log.created_at else None
+            } for log in logs]
+        finally:
+            session.close()
+    
+    def get_completed_iss_placements(self, student_id: str = None) -> List[Dict]:
+        """Get all completed ISS placements, optionally filtered by student.
+        
+        Args:
+            student_id: Optional student ID to filter by
+            
+        Returns:
+            List of completed ISS placement dictionaries with session logs
+        """
+        session = self.get_session()
+        try:
+            query = session.query(Placement, Student).join(
+                Student, Placement.student_id == Student.id
+            ).filter(
+                Placement.placement_type == PlacementCategory.ISS,
+                Placement.status == PlacementStatus.completed
+            )
+            
+            if student_id:
+                query = query.filter(Placement.student_id == student_id)
+            
+            results = query.order_by(Placement.end_date.desc()).all()
+            
+            placements = []
+            for placement, student in results:
+                # Get session logs for this placement
+                logs = session.query(ISSSessionLog).filter(
+                    ISSSessionLog.placement_id == placement.id
+                ).order_by(ISSSessionLog.session_date.asc()).all()
+                
+                session_logs = [{
+                    'sessionDate': log.session_date.isoformat() if log.session_date else None,
+                    'sessionType': log.session_type,
+                    'startPeriod': log.start_period,
+                    'endPeriod': log.end_period,
+                    'periodsCredited': log.periods_credited,
+                    'pointsTarget': log.points_target,
+                    'pointsEarned': log.points_earned,
+                    'completionMethod': log.completion_method,
+                    'notes': log.notes,
+                    'overrideReason': log.override_reason
+                } for log in logs]
+                
+                placements.append({
+                    'id': placement.id,
+                    'studentId': placement.student_id,
+                    'studentName': f"{student.first_name} {student.last_name}",
+                    'issLabel': placement.iss_label or f"{placement.iss_days_assigned or 0}-day ISS for {student.first_name} {student.last_name}",
+                    'issDaysAssigned': placement.iss_days_assigned,
+                    'issPeriodsServed': placement.iss_periods_served,
+                    'issTotalRequiredPeriods': placement.iss_total_required_periods,
+                    'startDate': placement.start_date.isoformat() if placement.start_date else None,
+                    'endDate': placement.end_date.isoformat() if placement.end_date else None,
+                    'reason': placement.reason,
+                    'sessionLogs': session_logs
+                })
+            
+            return placements
         finally:
             session.close()
     

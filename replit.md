@@ -78,6 +78,17 @@ Preferred communication style: Simple, everyday language.
 - Check-in buttons hidden for completed ISS sentences
 - day_type stored in daily_logs when checking in ('full' or 'partial')
 
+**Full Day ISS Check-In Flow:**
+- Clicking "Check-In – Full Day" opens a session panel labeled "Full Day ISS Session (10 periods)"
+- Panel shows student's ISS summary, current day label, behaviors dropdowns, points, and notes
+- Complete button: Requires 10+ points, adds 10 to issPeriodsServed, marks day completed
+- Override button: Opens note entry panel, requires reason, adds 10 periods with override note
+- After completion, ISS card progress updates immediately
+- When issPeriodsServed reaches issTotalRequiredPeriods, placement auto-completes
+
+**Database Method:**
+- `complete_iss_full_day_session()`: Adds 10 periods, marks day complete, handles override notes
+
 ## System Architecture
 
 ### Application Framework

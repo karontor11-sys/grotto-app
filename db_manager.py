@@ -1969,6 +1969,82 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def complete_iss_full_day_session(self, placement_id: str, log_date: str, completed_by: str, 
+                                       is_override: bool = False, override_note: str = None) -> bool:
+        """Complete a Full Day ISS session, adding 10 periods to issPeriodsServed.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            completed_by: Name/ID of person completing
+            is_override: True if using Override (early release with full credit)
+            override_note: Required note when using override
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            # Get placement to update issPeriodsServed
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    daily_fulfillment='yes',
+                    day_type='full',
+                    finalized_by=completed_by,
+                    finalized_at=datetime.now(),
+                    override_used=is_override,
+                    override_comment=override_note if is_override else None
+                )
+                session.add(log)
+                # Add 10 periods for new full day completion
+                placement.iss_periods_served = (placement.iss_periods_served or 0) + 10
+                placement.days_completed = (placement.days_completed or 0) + 1
+            else:
+                old_fulfillment = log.daily_fulfillment
+                log.daily_fulfillment = 'yes'
+                log.day_type = 'full'
+                log.finalized_by = completed_by
+                log.finalized_at = datetime.now()
+                if is_override:
+                    log.override_used = True
+                    log.override_comment = override_note
+                
+                # Only add periods if not already completed
+                if old_fulfillment != 'yes':
+                    placement.iss_periods_served = (placement.iss_periods_served or 0) + 10
+                    placement.days_completed = (placement.days_completed or 0) + 1
+            
+            # Check if ISS sentence is now complete
+            iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
+            if placement.iss_periods_served >= iss_total_required:
+                placement.status = PlacementStatus.completed
+                placement.end_date = date_obj
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def update_daily_log_totals(self, placement_id: str, log_date: str):
         """Update daily log totals based on point events."""
         session = self.get_session()

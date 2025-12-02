@@ -377,30 +377,21 @@ if page == "Dashboard":
                 st.markdown("---")
                 st.markdown("**Today's Session**")
                 
-                if is_day_completed:
-                    st.success("✅ Today's session completed")
-                elif is_checked_in:
-                    st.info("📍 Student checked in for today")
-                else:
-                    # Two check-in buttons for ISS
-                    col_checkin1, col_checkin2 = st.columns(2)
-                    with col_checkin1:
-                        if st.button("Check-In – Full Day", key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
-                            dm.check_in_student(placement_id, date_str, day_type='full')
-                            st.rerun()
-                    with col_checkin2:
-                        if st.button("Check-In – Partial Day", key=f"checkin_partial_{placement_id}_{date_str}", use_container_width=True):
-                            dm.check_in_student(placement_id, date_str, day_type='partial')
-                            st.rerun()
-            
-            # Points section with behaviors (only enabled after check-in, not for completed sentence)
-            if not is_sentence_complete:
-                col_left, col_right = st.columns([1, 1])
+                # Get day_type from daily log
+                day_type = daily_log.get('dayType', None)
                 
-                with col_left:
-                    st.markdown("**Behaviors**")
+                if is_day_completed:
+                    st.success("✅ Today's session completed (+10 periods)")
+                elif is_checked_in and day_type == 'full':
+                    # Show Full Day ISS Session Panel
+                    st.markdown("### 📋 Full Day ISS Session (10 periods)")
+                    st.info(f"**{iss_days_assigned}-day ISS for {student_name}** · Day {current_day} of {iss_days_assigned}")
                     
-                    if is_checked_in or is_day_completed:
+                    # Behaviors section
+                    col_left, col_right = st.columns([1, 1])
+                    
+                    with col_left:
+                        st.markdown("**Behaviors**")
                         # Positive behaviors dropdown
                         positive_menu = ps.get_positive_point_menu()
                         positive_options = ["-- Add Positive --"] + [item['label'] for item in positive_menu]
@@ -408,11 +399,10 @@ if page == "Dashboard":
                             "Positive",
                             positive_options,
                             key=f"pos_{placement_id}_{date_str}",
-                            label_visibility="collapsed",
-                            disabled=is_day_completed
+                            label_visibility="collapsed"
                         )
                         
-                        if selected_positive != "-- Add Positive --" and not is_day_completed:
+                        if selected_positive != "-- Add Positive --":
                             item = next((i for i in positive_menu if i['label'] == selected_positive), None)
                             if item:
                                 dm.add_point_event({
@@ -432,11 +422,10 @@ if page == "Dashboard":
                             "Negative",
                             negative_options,
                             key=f"neg_{placement_id}_{date_str}",
-                            label_visibility="collapsed",
-                            disabled=is_day_completed
+                            label_visibility="collapsed"
                         )
                         
-                        if selected_negative != "-- Add Negative --" and not is_day_completed:
+                        if selected_negative != "-- Add Negative --":
                             item = next((i for i in negative_menu if i['label'] == selected_negative), None)
                             if item:
                                 dm.add_point_event({
@@ -448,34 +437,85 @@ if page == "Dashboard":
                                     'date': date_str
                                 })
                                 st.rerun()
-                    else:
-                        st.caption("Check in student to add behaviors")
-                
-                with col_right:
-                    st.markdown("**Points Total**")
-                    if total_points >= 10:
-                        st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
-                        st.caption("Eligible for completion")
-                    else:
-                        st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
-                        st.caption(f"Need {10 - total_points} more points")
                     
-                    # Complete and Override buttons (only show after check-in)
-                    if is_day_completed:
-                        st.success("Completed")
-                    elif is_checked_in:
-                        # Complete button (requires 10 points for full-day ISS)
+                    with col_right:
+                        st.markdown("**Points Total**")
+                        if total_points >= 10:
+                            st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption("Eligible for completion")
+                        else:
+                            st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Need {10 - total_points} more points")
+                    
+                    # Notes for Full Day session
+                    st.caption("Session Notes")
+                    render_auto_save_notes(
+                        f"fullday_session_{placement_id}_{date_str}",
+                        daily_log.get('notes', '') or '',
+                        lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+                    )
+                    
+                    st.markdown("---")
+                    
+                    # Complete and Override buttons for Full Day session
+                    col_complete, col_override = st.columns(2)
+                    
+                    with col_complete:
                         can_complete = total_points >= 10
-                        if st.button("Complete", key=f"complete_{placement_id}_{date_str}", type="primary", disabled=not can_complete):
-                            dm.complete_placement_day(placement_id, date_str, "Admin")
+                        if st.button("✅ Complete", key=f"complete_full_{placement_id}_{date_str}", type="primary", 
+                                     use_container_width=True, disabled=not can_complete):
+                            dm.complete_iss_full_day_session(placement_id, date_str, "Admin")
                             st.rerun()
+                        if not can_complete:
+                            st.caption("Requires 10+ points")
+                    
+                    with col_override:
+                        # Initialize session state for override modal
+                        override_key = f"show_override_{placement_id}_{date_str}"
+                        if override_key not in st.session_state:
+                            st.session_state[override_key] = False
                         
-                        # Override & Count Full button
-                        if st.button("Override & Count Full", key=f"override_{placement_id}_{date_str}"):
-                            dm.complete_placement_day(placement_id, date_str, "Admin", is_override=True)
+                        if st.button("⚡ Override", key=f"override_btn_{placement_id}_{date_str}", use_container_width=True):
+                            st.session_state[override_key] = True
                             st.rerun()
-                    else:
-                        st.caption("Check in to enable completion")
+                    
+                    # Override panel (shown when Override button is clicked)
+                    if st.session_state.get(f"show_override_{placement_id}_{date_str}", False):
+                        st.warning("**Override: Complete with full 10-period credit**")
+                        override_note = st.text_area(
+                            "Reason for Override (required)",
+                            key=f"override_note_{placement_id}_{date_str}",
+                            placeholder="Enter reason for early release with full credit...",
+                            height=80
+                        )
+                        
+                        col_confirm, col_cancel = st.columns(2)
+                        with col_confirm:
+                            if st.button("Confirm Override", key=f"confirm_override_{placement_id}_{date_str}", 
+                                        type="primary", use_container_width=True, disabled=not override_note.strip()):
+                                dm.complete_iss_full_day_session(placement_id, date_str, "Admin", 
+                                                                  is_override=True, override_note=override_note.strip())
+                                st.session_state[f"show_override_{placement_id}_{date_str}"] = False
+                                st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"cancel_override_{placement_id}_{date_str}", use_container_width=True):
+                                st.session_state[f"show_override_{placement_id}_{date_str}"] = False
+                                st.rerun()
+                
+                elif is_checked_in:
+                    # Student is checked in but not with full day type (partial or legacy)
+                    st.info("📍 Student checked in for today")
+                else:
+                    # Not checked in - show check-in buttons
+                    col_checkin1, col_checkin2 = st.columns(2)
+                    with col_checkin1:
+                        if st.button("Check-In – Full Day", key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
+                            dm.check_in_student(placement_id, date_str, day_type='full')
+                            st.rerun()
+                    with col_checkin2:
+                        if st.button("Check-In – Partial Day", key=f"checkin_partial_{placement_id}_{date_str}", use_container_width=True):
+                            dm.check_in_student(placement_id, date_str, day_type='partial')
+                            st.rerun()
             
             # Notes (always visible with auto-save)
             st.caption("Notes")

@@ -1233,15 +1233,8 @@ if page == "Dashboard":
         for iss_session in iss_sessions:
             session_id = iss_session['session_id']
             student_name = iss_session['student_name']
-            expand_key = f"expand_iss_{session_id}"
-            if expand_key not in st.session_state:
-                st.session_state[expand_key] = False
             
-            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_iss_{session_id}", use_container_width=True):
-                st.session_state[expand_key] = not st.session_state[expand_key]
-                st.rerun()
-            
-            if st.session_state[expand_key]:
+            with st.expander(f"{student_name}", expanded=False):
                 render_iss_session_card(iss_session, selected_date)
     
     st.divider()
@@ -1255,15 +1248,8 @@ if page == "Dashboard":
             placement_id = placement['_id']
             student = placement['student']
             student_name = f"{student['firstName']} {student['lastName']}"
-            expand_key = f"expand_lunch_{placement_id}"
-            if expand_key not in st.session_state:
-                st.session_state[expand_key] = False
             
-            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_lunch_{placement_id}", use_container_width=True):
-                st.session_state[expand_key] = not st.session_state[expand_key]
-                st.rerun()
-            
-            if st.session_state[expand_key]:
+            with st.expander(f"{student_name}", expanded=False):
                 render_lunch_detention_card(placement, selected_date)
     
     st.divider()
@@ -1277,15 +1263,8 @@ if page == "Dashboard":
             placement_id = placement['_id']
             student = placement['student']
             student_name = f"{student['firstName']} {student['lastName']}"
-            expand_key = f"expand_classref_{placement_id}"
-            if expand_key not in st.session_state:
-                st.session_state[expand_key] = False
             
-            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_classref_{placement_id}", use_container_width=True):
-                st.session_state[expand_key] = not st.session_state[expand_key]
-                st.rerun()
-            
-            if st.session_state[expand_key]:
+            with st.expander(f"{student_name}", expanded=False):
                 render_unified_class_referral_card(placement, selected_date)
 
 # Placements Page

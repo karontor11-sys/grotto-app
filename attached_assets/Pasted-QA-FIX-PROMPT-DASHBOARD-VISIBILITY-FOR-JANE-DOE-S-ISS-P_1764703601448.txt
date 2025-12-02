@@ -1,0 +1,158 @@
+QA + FIX PROMPT — DASHBOARD VISIBILITY FOR JANE DOE’S ISS PLACEMENT
+
+IMPORTANT:
+
+First, DO NOT MODIFY ANY CODE during the diagnostic phase.
+
+After diagnosing, you may apply minimal, targeted fixes ONLY for the issue(s) you discover that prevent the Dashboard from showing ISS placements correctly.
+
+Do not alter any ISS logic, database design, or placement creation logic. Only fix UI visibility issues.
+
+PART 1 — DIAGNOSIS ONLY (NO CODE CHANGES YET)
+
+The goal is to determine why the seeded ISS placement for Jane Doe (ID: test-placement-jane-001) does not appear on the Dashboard / Daily Log Manager even though the database shows it is active.
+
+Step A — Locate Dashboard ISS Rendering Logic
+
+Find the Streamlit (or UI) code section responsible for rendering:
+
+Active placements
+
+ISS cards
+
+Daily logs or ISS sessions
+
+Identify any filtering logic, including but not limited to:
+
+Status filters (active / pending / completed)
+
+Date filters
+
+Placement type filters
+
+Whether ISS must match today’s date
+
+Pagination, slicing, head(), limit(), or scroll windows
+
+Step B — Check If Jane’s Placement Qualifies for Display
+
+For each filtering condition, tell me whether Jane’s seeded placement meets it.
+
+Specifically answer:
+
+Should Jane appear based on the current filters?
+
+Does the Dashboard query match on placement_type="ISS"?
+
+Does the Dashboard require certain dates to match “today”?
+
+Does the Dashboard sort data in such a way that her card might be at the bottom?
+
+Step C — Search the Rendered Page
+
+Run the app.
+
+Navigate to the Dashboard / Daily Log Manager.
+
+Use Playwright to:
+
+Scroll the page from top to bottom
+
+Search the rendered HTML for:
+
+“Jane Doe”
+
+“QA Test 3-day ISS”
+
+“test-jane-doe-001”
+
+“test-placement-jane-001”
+
+Tell me:
+
+Is Jane’s card rendered but not visible?
+
+Is it not rendered at all?
+
+Is it filtered out?
+
+Step D — Diagnosis Summary
+
+Provide a detailed explanation of:
+
+The exact reason Jane’s ISS placement is not appearing on the Dashboard
+
+The specific line(s) of code responsible for filtering/excluding her
+
+Whether any ISS cards appear at all
+
+Whether the Dashboard expects specific fields or naming conventions
+
+Do NOT propose changes during this phase. Just report.
+
+PART 2 — APPLY TARGETED FIXES (ONLY AFTER DIAGNOSIS)
+
+After completing Part 1 and explaining the exact cause:
+
+You are now authorized to apply only the smallest, safest fix necessary to make the Dashboard correctly show ISS placements, including Jane’s.
+Fixing Rules
+
+Do NOT modify ISS logic, calculations, period tracking, or placement creation logic.
+
+Do NOT modify database schemas, add fields, or remove fields.
+
+Do NOT refactor or redesign the Dashboard.
+
+You may ONLY:
+
+Adjust filtering to correctly include active ISS placements
+
+Fix sorting so ISS cards appear predictably
+
+Fix a query condition if it’s excluding ISS rows
+
+Fix name mismatches such as:
+
+placement_type == "ISS" vs "In-School Suspension"
+
+wrong field key
+
+wrong status check
+
+Fix visibility issues where the code renders 0 cards due to a logic mismatch
+
+After applying the fix:
+
+Reload the app.
+
+Confirm that the seeded placement for Jane Doe now appears.
+
+Confirm that ALL other active ISS placements still appear (no regression).
+
+Provide a short report that includes:
+
+The exact line(s) changed
+
+Why the change was necessary
+
+A screenshot or Playwright confirmation that Jane’s card now displays
+
+Do not change or add ANY ISS features — only fix the Dashboard visibility issue you identified.
+
+PART 3 — POST-FIX VALIDATION (Test Only)
+
+Once Jane’s card is visible:
+
+Interact with the existing UI to confirm you can:
+
+Open her daily log
+
+Mark Day 1 as complete
+
+Mark Day 2 as complete
+
+Mark Day 3 as complete
+
+Report how the existing system behaves (no changes).
+
+Again, this is pure testing — no modifications to logic.

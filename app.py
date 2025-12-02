@@ -316,26 +316,34 @@ if page == "Dashboard":
             # All referral types go into unified list
             unified_class_referral_placements.append(placement)
     
-    # Helper function to render ISS Full Day student card
+    # Helper function to render ISS Full Day student card with period-based tracking
     def render_iss_full_card(placement: dict, target_date: date):
-        """Render ISS Full Day card with Check In workflow, Day X of Y, points, and behaviors."""
+        """Render ISS Full Day card with period-based tracking, Check In workflow, and behaviors."""
+        import math
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
+        # Get period-based ISS tracking fields
+        iss_days_assigned = placement.get('issDaysAssigned') or placement.get('issTotalDays') or placement.get('daysAssigned', 1)
+        iss_total_required_periods = placement.get('issTotalRequiredPeriods') or (iss_days_assigned * 10)
+        iss_periods_served = placement.get('issPeriodsServed', 0) or 0
+        
+        # Calculate current day: min(floor(issPeriodsServed / 10) + 1, issDaysAssigned)
+        current_day = min(math.floor(iss_periods_served / 10) + 1, iss_days_assigned)
+        
+        # Check if ISS sentence is complete
+        is_sentence_complete = iss_periods_served >= iss_total_required_periods
+        
         # Get or create daily log
         daily_log = dm.get_or_create_daily_log(placement_id, date_str)
         
         # Determine status color
-        from utils import get_daily_status_color, calculate_school_day_number
+        from utils import get_daily_status_color
         fulfillment = daily_log.get('dailyFulfillment') or ''
         status_color = get_daily_status_color(fulfillment, date_str)
         status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
-        
-        # Calculate Day X of Y
-        total_days = placement.get('daysAssigned', 0)
-        day_number = calculate_school_day_number(placement['startDate'], date_str)
         
         # Get point events
         point_events = dm.get_point_events_for_date(placement_id, date_str)
@@ -343,121 +351,131 @@ if page == "Dashboard":
         negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
         total_points = positive_points + negative_points
         
-        # Check if student is checked in
+        # Check if student is checked in for today
         is_checked_in = daily_log.get('checkedIn', False)
-        is_completed = daily_log.get('dailyFulfillment') == 'yes'
+        is_day_completed = daily_log.get('dailyFulfillment') == 'yes'
         
         with st.container():
-            # Header row: Name, Grade, Check In
-            col1, col2, col3 = st.columns([3, 1, 2])
+            # Header row: Student name with status
+            st.markdown(f"### {status_icon} {student_name}")
+            st.caption(f"Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
             
-            with col1:
-                if st.button(f"{status_icon} {student_name}", key=f"name_{placement_id}_{date_str}", use_container_width=True):
-                    st.session_state.navigate_to_iss_detail = True
-                    st.session_state.iss_detail_placement_id = placement_id
-                    st.session_state.iss_detail_date = target_date
-                    st.rerun()
+            # Summary line: "{issDaysAssigned}-day ISS for {Student Name}"
+            st.markdown(f"**{iss_days_assigned}-day ISS for {student_name}**")
             
-            with col2:
-                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            # Progress line: "Periods served: X of Y"
+            st.info(f"📊 Periods served: **{iss_periods_served}** of **{iss_total_required_periods}**")
             
-            with col3:
-                # Check In button (replaces Present/Absent)
-                if is_completed:
-                    st.success("Checked Out")
-                elif is_checked_in:
-                    st.button("Check In", key=f"checkin_{placement_id}_{date_str}", disabled=True)
-                else:
-                    if st.button("Check In", key=f"checkin_{placement_id}_{date_str}", type="primary"):
-                        dm.check_in_student(placement_id, date_str)
-                        st.rerun()
+            # Day label or completion message
+            if is_sentence_complete:
+                st.success("✅ **ISS sentence complete**")
+            else:
+                st.markdown(f"📅 **Day {current_day} of {iss_days_assigned}**")
             
-            # Day X of Y
-            if day_number > 0 and day_number <= total_days:
-                st.caption(f"📅 Day {day_number} of {total_days}")
-            
-            # Points section with behaviors (only enabled after check-in)
-            col_left, col_right = st.columns([1, 1])
-            
-            with col_left:
-                st.markdown("**Behaviors**")
+            # Check-in buttons (only for active ISS, not completed sentence)
+            if not is_sentence_complete:
+                st.markdown("---")
+                st.markdown("**Today's Session**")
                 
-                if is_checked_in or is_completed:
-                    # Positive behaviors dropdown
-                    positive_menu = ps.get_positive_point_menu()
-                    positive_options = ["-- Add Positive --"] + [item['label'] for item in positive_menu]
-                    selected_positive = st.selectbox(
-                        "Positive",
-                        positive_options,
-                        key=f"pos_{placement_id}_{date_str}",
-                        label_visibility="collapsed",
-                        disabled=is_completed
-                    )
-                    
-                    if selected_positive != "-- Add Positive --" and not is_completed:
-                        item = next((i for i in positive_menu if i['label'] == selected_positive), None)
-                        if item:
-                            dm.add_point_event({
-                                'placementId': placement_id,
-                                'studentId': student['_id'],
-                                'code': item['code'],
-                                'type': 'positive',
-                                'value': item['value'],
-                                'date': date_str
-                            })
-                            st.rerun()
-                    
-                    # Negative behaviors dropdown
-                    negative_menu = ps.get_negative_point_menu()
-                    negative_options = ["-- Add Negative --"] + [item['label'] for item in negative_menu]
-                    selected_negative = st.selectbox(
-                        "Negative",
-                        negative_options,
-                        key=f"neg_{placement_id}_{date_str}",
-                        label_visibility="collapsed",
-                        disabled=is_completed
-                    )
-                    
-                    if selected_negative != "-- Add Negative --" and not is_completed:
-                        item = next((i for i in negative_menu if i['label'] == selected_negative), None)
-                        if item:
-                            dm.add_point_event({
-                                'placementId': placement_id,
-                                'studentId': student['_id'],
-                                'code': item['code'],
-                                'type': 'negative',
-                                'value': item['value'],
-                                'date': date_str
-                            })
-                            st.rerun()
-                else:
-                    st.caption("Check in student to add behaviors")
-            
-            with col_right:
-                st.markdown("**Points Total**")
-                if total_points >= 10:
-                    st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
-                    st.caption("Eligible for completion")
-                else:
-                    st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
-                    st.caption(f"Need {10 - total_points} more points")
-                
-                # Complete and Override buttons (only show after check-in)
-                if is_completed:
-                    st.success("Completed")
+                if is_day_completed:
+                    st.success("✅ Today's session completed")
                 elif is_checked_in:
-                    # Complete button (requires 10 points for full-day ISS)
-                    can_complete = total_points >= 10
-                    if st.button("Complete", key=f"complete_{placement_id}_{date_str}", type="primary", disabled=not can_complete):
-                        dm.complete_placement_day(placement_id, date_str, "Admin")
-                        st.rerun()
-                    
-                    # Override & Count Full button
-                    if st.button("Override & Count Full", key=f"override_{placement_id}_{date_str}"):
-                        dm.complete_placement_day(placement_id, date_str, "Admin", is_override=True)
-                        st.rerun()
+                    st.info("📍 Student checked in for today")
                 else:
-                    st.caption("Check in to enable completion")
+                    # Two check-in buttons for ISS
+                    col_checkin1, col_checkin2 = st.columns(2)
+                    with col_checkin1:
+                        if st.button("Check-In – Full Day", key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
+                            dm.check_in_student(placement_id, date_str, day_type='full')
+                            st.rerun()
+                    with col_checkin2:
+                        if st.button("Check-In – Partial Day", key=f"checkin_partial_{placement_id}_{date_str}", use_container_width=True):
+                            dm.check_in_student(placement_id, date_str, day_type='partial')
+                            st.rerun()
+            
+            # Points section with behaviors (only enabled after check-in, not for completed sentence)
+            if not is_sentence_complete:
+                col_left, col_right = st.columns([1, 1])
+                
+                with col_left:
+                    st.markdown("**Behaviors**")
+                    
+                    if is_checked_in or is_day_completed:
+                        # Positive behaviors dropdown
+                        positive_menu = ps.get_positive_point_menu()
+                        positive_options = ["-- Add Positive --"] + [item['label'] for item in positive_menu]
+                        selected_positive = st.selectbox(
+                            "Positive",
+                            positive_options,
+                            key=f"pos_{placement_id}_{date_str}",
+                            label_visibility="collapsed",
+                            disabled=is_day_completed
+                        )
+                        
+                        if selected_positive != "-- Add Positive --" and not is_day_completed:
+                            item = next((i for i in positive_menu if i['label'] == selected_positive), None)
+                            if item:
+                                dm.add_point_event({
+                                    'placementId': placement_id,
+                                    'studentId': student['_id'],
+                                    'code': item['code'],
+                                    'type': 'positive',
+                                    'value': item['value'],
+                                    'date': date_str
+                                })
+                                st.rerun()
+                        
+                        # Negative behaviors dropdown
+                        negative_menu = ps.get_negative_point_menu()
+                        negative_options = ["-- Add Negative --"] + [item['label'] for item in negative_menu]
+                        selected_negative = st.selectbox(
+                            "Negative",
+                            negative_options,
+                            key=f"neg_{placement_id}_{date_str}",
+                            label_visibility="collapsed",
+                            disabled=is_day_completed
+                        )
+                        
+                        if selected_negative != "-- Add Negative --" and not is_day_completed:
+                            item = next((i for i in negative_menu if i['label'] == selected_negative), None)
+                            if item:
+                                dm.add_point_event({
+                                    'placementId': placement_id,
+                                    'studentId': student['_id'],
+                                    'code': item['code'],
+                                    'type': 'negative',
+                                    'value': item['value'],
+                                    'date': date_str
+                                })
+                                st.rerun()
+                    else:
+                        st.caption("Check in student to add behaviors")
+                
+                with col_right:
+                    st.markdown("**Points Total**")
+                    if total_points >= 10:
+                        st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
+                        st.caption("Eligible for completion")
+                    else:
+                        st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
+                        st.caption(f"Need {10 - total_points} more points")
+                    
+                    # Complete and Override buttons (only show after check-in)
+                    if is_day_completed:
+                        st.success("Completed")
+                    elif is_checked_in:
+                        # Complete button (requires 10 points for full-day ISS)
+                        can_complete = total_points >= 10
+                        if st.button("Complete", key=f"complete_{placement_id}_{date_str}", type="primary", disabled=not can_complete):
+                            dm.complete_placement_day(placement_id, date_str, "Admin")
+                            st.rerun()
+                        
+                        # Override & Count Full button
+                        if st.button("Override & Count Full", key=f"override_{placement_id}_{date_str}"):
+                            dm.complete_placement_day(placement_id, date_str, "Admin", is_override=True)
+                            st.rerun()
+                    else:
+                        st.caption("Check in to enable completion")
             
             # Notes (always visible with auto-save)
             st.caption("Notes")

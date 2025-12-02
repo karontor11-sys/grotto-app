@@ -741,12 +741,13 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def check_in_student(self, placement_id: str, check_in_date: str) -> bool:
+    def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = 'full') -> bool:
         """Check in a student for an ISS day.
         
         Args:
             placement_id: ID of the placement
             check_in_date: ISO format date string
+            day_type: 'full' for full day (10 periods) or 'partial' for partial day
             
         Returns:
             True if successful, False otherwise
@@ -772,12 +773,14 @@ class DatabaseManager:
                     placement_id=placement_id,
                     date=date_obj,
                     checked_in=True,
-                    checked_in_at=datetime.now()
+                    checked_in_at=datetime.now(),
+                    day_type=day_type
                 )
                 session.add(log)
             else:
                 log.checked_in = True
                 log.checked_in_at = datetime.now()
+                log.day_type = day_type
             
             # Also add to served_dates for ISS placements
             if placement.placement_type == PlacementCategory.ISS:

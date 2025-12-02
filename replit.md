@@ -65,6 +65,19 @@ Preferred communication style: Simple, everyday language.
 - `day_type`, `periods_covered`, `override_used`, `override_comment`
 - `checked_in`, `checked_in_at`, `no_show`, `no_show_note`
 
+### ISS Period-Based Tracking (Dec 02, 2025)
+
+**Status:** Period-based ISS tracking display implemented on Dashboard
+
+**Features:**
+- ISS cards now show period-based progress: "Periods served: X of Y"
+- Summary line: "{issDaysAssigned}-day ISS for {Student Name}"
+- Day label: "Day {currentDay} of {issDaysAssigned}" calculated from periods served
+- Sentence completion detection: When issPeriodsServed >= issTotalRequiredPeriods, shows "ISS sentence complete"
+- Two check-in buttons: "Check-In – Full Day" and "Check-In – Partial Day"
+- Check-in buttons hidden for completed ISS sentences
+- day_type stored in daily_logs when checking in ('full' or 'partial')
+
 ## System Architecture
 
 ### Application Framework

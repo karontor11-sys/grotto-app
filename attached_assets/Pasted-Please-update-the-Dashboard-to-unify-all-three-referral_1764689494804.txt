@@ -1,0 +1,146 @@
+Please update the Dashboard to unify all three referral subtypes (Behavior Referral, Cool-Down Referral, and Pre-Planned Referral) under one parent category, while displaying subtype-specific details and maintaining correct completion and midnight logic.
+
+Below are the exact requirements:
+
+1. Dashboard Layout — One Parent Category
+
+On the Dashboard, replace the separate sections for Class Period Referral, Cool-Down Referral, and Pre-Planned Referral.
+
+Create one single parent section with the title:
+
+Class Period Referral
+
+Under this heading, list all students assigned to any of these subtypes:
+
+Behavior Referral
+
+Cool-Down Referral
+
+Pre-Planned Referral
+
+Do not separate them visually into multiple categories.
+
+2. Expanded Student Card — Required Elements
+
+When a user expands any student listed under Class Period Referral, the expanded card must show the following:
+
+A. Subtype Display
+
+Clearly display the subtype selected on the Placement Manager page:
+
+Behavior Referral
+
+Cool-Down Referral
+
+Pre-Planned Referral
+
+Place this near the top of the expanded card.
+
+B. Display the “Reason” Text
+
+Show the Reason entered at placement time.
+Place this near the subtype label so staff immediately see the rationale for the referral.
+
+Example:
+
+Reason: Disrespectful behavior in class
+or
+Reason: Emotional cooldown needed after argument
+
+C. Pre-Planned Referral — Show Scheduled Periods
+
+For Pre-Planned Referral only, also display:
+
+A line showing which class periods the student is scheduled to be in the office for the selected date.
+
+Examples:
+
+Periods 2–3
+
+Periods 1, 4, 7
+
+Periods 5–10
+
+These periods should be pulled from the Placement Manager scheduling data.
+
+3. Completion Controls by Subtype
+A. Behavior Referral
+
+Add a single button labeled:
+Complete Referral
+
+Pressing this button moves this record into Completed for that date.
+
+B. Cool-Down Referral
+
+Add a button labeled:
+Complete Cool-Down
+
+Pressing this moves the referral into Completed for that date.
+
+C. Pre-Planned Referral
+
+For Pre-Planned, the expanded card must include:
+
+Complete Pre-Planned Day button
+
+Marks the entire scheduled day for that student as Completed.
+
+No Show option
+
+A toggle or button indicating the student never arrived for any assigned period.
+
+Short note field
+
+Appears next to or below No Show.
+
+For brief notes such as:
+
+“Sick today”
+
+“Went home early”
+
+“Absent from school”
+
+These notes should save automatically using the same Notes auto-save logic already implemented.
+
+When No Show is used, the system should mark the day as:
+
+Completed (No Show)
+
+4. Midnight Logic (All Three Subtypes)
+
+Ensure that no Class Period Referral record stays active past midnight.
+
+At midnight, apply the following logic for ALL THREE subtypes:
+If “Complete” button was pressed earlier:
+
+Already completed — no action needed.
+
+If not completed by midnight:
+
+Automatically mark the referral as Completed.
+
+Special rule for Pre-Planned:
+
+If No Show was selected before midnight:
+
+Mark as Completed (No Show).
+
+If No Show was not selected:
+
+Mark as Completed (same as other two subtypes).
+
+This ensures no hanging or unclosed referrals on the Dashboard for the previous date.
+
+5. Do Not Modify Other Parts of the Dashboard
+
+Do not change ISS logic
+
+Do not change Lunch Detention
+
+Do not change general Dashboard layout apart from the Class Period Referral section
+
+Do not alter the student expansion behavior beyond what is described above
+
+Only implement the exact changes listed here for the unified Class Period Referral system.

@@ -303,9 +303,7 @@ if page == "Dashboard":
     # Group placements by type
     iss_placements = []
     lunch_detention_placements = []
-    class_referral_placements = []
-    cooldown_placements = []
-    preplanned_placements = []
+    unified_class_referral_placements = []  # All three referral subtypes merged
     
     for placement in placements_for_date:
         placement_type = placement.get('placementType', '').upper()
@@ -314,12 +312,9 @@ if page == "Dashboard":
             iss_placements.append(placement)
         elif placement_type == 'LUNCH_DETENTION':
             lunch_detention_placements.append(placement)
-        elif placement_type == 'CLASS_REFERRAL':
-            class_referral_placements.append(placement)
-        elif placement_type == 'COOL_DOWN':
-            cooldown_placements.append(placement)
-        elif placement_type == 'PRE_PLANNED_REFERRAL':
-            preplanned_placements.append(placement)
+        elif placement_type in ['CLASS_REFERRAL', 'COOL_DOWN', 'PRE_PLANNED_REFERRAL']:
+            # All referral types go into unified list
+            unified_class_referral_placements.append(placement)
     
     # Helper function to render ISS Full Day student card
     def render_iss_full_card(placement: dict, target_date: date):
@@ -603,9 +598,9 @@ if page == "Dashboard":
             
             st.divider()
     
-    # Helper function to render Class Period Referral student card
-    def render_class_referral_card(placement: dict, target_date: date):
-        """Render Class Period Referral card with periods only."""
+    # Unified helper function to render Class Period Referral student card (all subtypes)
+    def render_unified_class_referral_card(placement: dict, target_date: date):
+        """Render unified Class Period Referral card for all subtypes (Behavior, Cool-Down, Pre-Planned)."""
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
@@ -615,18 +610,73 @@ if page == "Dashboard":
         from utils import get_daily_status_color
         fulfillment = daily_log.get('dailyFulfillment') or ''
         status_color = get_daily_status_color(fulfillment, date_str)
-        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
         
-        # Get periods
-        start_period = placement.get('startPeriod', 'N/A')
-        end_period = placement.get('endPeriod', 'N/A')
-        if start_period == end_period:
-            period_label = f"Period {start_period}"
+        # Determine subtype from placement data
+        placement_type = placement.get('placementType', '').upper()
+        referral_subtype = placement.get('referralSubtype', '')
+        
+        # Map to display names and determine subtype
+        if placement_type == 'COOL_DOWN':
+            subtype_display = "Cool-Down Referral"
+            subtype_key = "cool_down"
+        elif placement_type == 'PRE_PLANNED_REFERRAL':
+            subtype_display = "Pre-Planned Referral"
+            subtype_key = "pre_planned"
+        elif referral_subtype == 'cool_down':
+            subtype_display = "Cool-Down Referral"
+            subtype_key = "cool_down"
+        elif referral_subtype == 'pre_planned':
+            subtype_display = "Pre-Planned Referral"
+            subtype_key = "pre_planned"
         else:
-            period_label = f"Periods {start_period}–{end_period}"
+            subtype_display = "Behavior Referral"
+            subtype_key = "behavior"
+        
+        # Check if no-show is set (for Pre-Planned only)
+        is_no_show = daily_log.get('noShow', False)
+        is_completed = fulfillment == 'yes'
+        
+        # Determine status icon
+        if is_completed and is_no_show:
+            status_icon = '🔴'  # Completed as No-Show
+        elif is_completed:
+            status_icon = '🟢'  # Completed
+        else:
+            status_icon = '🟡'  # In Progress
+        
+        # Get periods (different logic for Pre-Planned vs others)
+        if subtype_key == 'pre_planned':
+            # For Pre-Planned, get periods from scheduled slots for this date
+            scheduled_slots = placement.get('scheduledSlots', [])
+            periods_today = [slot['period'] for slot in scheduled_slots 
+                           if slot.get('date') == date_str]
+            if periods_today:
+                periods_today.sort()
+                if len(periods_today) == 1:
+                    period_label = f"Period {periods_today[0]}"
+                else:
+                    # Check if consecutive
+                    if periods_today == list(range(periods_today[0], periods_today[-1] + 1)):
+                        period_label = f"Periods {periods_today[0]}–{periods_today[-1]}"
+                    else:
+                        period_label = f"Periods {', '.join(map(str, periods_today))}"
+            else:
+                period_label = "No periods scheduled"
+        else:
+            # For Behavior and Cool-Down, use startPeriod/endPeriod
+            start_period = placement.get('startPeriod', 'N/A')
+            end_period = placement.get('endPeriod', 'N/A')
+            if start_period == end_period:
+                period_label = f"Period {start_period}"
+            else:
+                period_label = f"Periods {start_period}–{end_period}"
+        
+        # Get reason
+        reason = placement.get('reason', 'No reason provided')
         
         with st.container():
-            col1, col2, col3 = st.columns([3, 1, 1])
+            # Header: Name, Grade, Status
+            col1, col2 = st.columns([4, 1])
             
             with col1:
                 st.markdown(f"**{status_icon} {student_name}**")
@@ -634,112 +684,84 @@ if page == "Dashboard":
             with col2:
                 st.caption(f"Grade {student.get('grade', 'N/A')}")
             
-            with col3:
-                if daily_log.get('dailyFulfillment') != 'yes':
-                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+            # Subtype label
+            if subtype_key == 'behavior':
+                st.caption(f"📚 **{subtype_display}**")
+            elif subtype_key == 'cool_down':
+                st.caption(f"🧘 **{subtype_display}**")
+            else:
+                st.caption(f"📅 **{subtype_display}**")
+            
+            # Reason
+            st.caption(f"**Reason:** {reason}")
+            
+            # Periods (show for all subtypes)
+            st.caption(f"📚 {period_label}")
+            
+            st.markdown("---")
+            
+            # Completion controls - different by subtype
+            if not is_completed:
+                if subtype_key == 'behavior':
+                    # Behavior Referral: Simple "Complete Referral" button
+                    if st.button("Complete Referral", key=f"complete_behavior_{placement_id}_{date_str}", type="primary"):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         st.rerun()
+                
+                elif subtype_key == 'cool_down':
+                    # Cool-Down Referral: "Complete Cool-Down" button
+                    if st.button("Complete Cool-Down", key=f"complete_cooldown_{placement_id}_{date_str}", type="primary"):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        st.rerun()
+                
+                elif subtype_key == 'pre_planned':
+                    # Pre-Planned Referral: Complete button, No Show toggle, and note field
+                    col_complete, col_noshow = st.columns([1, 1])
+                    
+                    with col_complete:
+                        if st.button("Complete Pre-Planned Day", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
+                            dm.complete_placement_day(placement_id, date_str, "Admin")
+                            st.rerun()
+                    
+                    with col_noshow:
+                        # No Show toggle
+                        no_show_checked = st.checkbox(
+                            "No Show",
+                            value=is_no_show,
+                            key=f"noshow_{placement_id}_{date_str}"
+                        )
+                        if no_show_checked != is_no_show:
+                            dm.update_daily_log_no_show(placement_id, date_str, no_show_checked)
+                            st.rerun()
+                    
+                    # No Show note field (only shown if No Show is checked)
+                    if no_show_checked:
+                        st.caption("No Show Note")
+                        no_show_note = daily_log.get('noShowNote', '') or ''
+                        render_auto_save_notes(
+                            f"noshow_note_{placement_id}_{date_str}",
+                            no_show_note,
+                            lambda notes: dm.update_daily_log_no_show_note(placement_id, date_str, notes)
+                        )
+                        
+                        # Mark as Completed (No Show) button
+                        if st.button("Mark as Completed (No Show)", key=f"complete_noshow_{placement_id}_{date_str}", type="secondary"):
+                            dm.complete_placement_day_no_show(placement_id, date_str, "Admin")
+                            st.rerun()
+            else:
+                # Show completed status
+                if is_no_show:
+                    st.success("Completed (No Show)")
+                    no_show_note = daily_log.get('noShowNote', '')
+                    if no_show_note:
+                        st.caption(f"📝 {no_show_note}")
                 else:
                     st.success("Completed")
-            
-            st.caption(f"📚 {period_label}")
             
             # Notes (always visible with auto-save)
             st.caption("Notes")
             render_auto_save_notes(
                 f"classref_{placement_id}_{date_str}",
-                daily_log.get('notes', '') or '',
-                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
-            )
-            
-            st.divider()
-    
-    # Helper function to render Cool-Down Referral student card
-    def render_cooldown_card(placement: dict, target_date: date):
-        """Render Cool-Down Referral card with periods only."""
-        student = placement['student']
-        placement_id = placement['_id']
-        student_name = f"{student['firstName']} {student['lastName']}"
-        date_str = target_date.isoformat()
-        
-        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
-        from utils import get_daily_status_color
-        fulfillment = daily_log.get('dailyFulfillment') or ''
-        status_color = get_daily_status_color(fulfillment, date_str)
-        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
-        
-        # Get periods
-        start_period = placement.get('startPeriod', 'N/A')
-        end_period = placement.get('endPeriod', 'N/A')
-        if start_period == end_period:
-            period_label = f"Period {start_period}"
-        else:
-            period_label = f"Periods {start_period}–{end_period}"
-        
-        with st.container():
-            col1, col2, col3 = st.columns([3, 1, 1])
-            
-            with col1:
-                st.markdown(f"**{status_icon} {student_name}**")
-            
-            with col2:
-                st.caption(f"Grade {student.get('grade', 'N/A')}")
-            
-            with col3:
-                if daily_log.get('dailyFulfillment') != 'yes':
-                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
-                        dm.complete_placement_day(placement_id, date_str, "Admin")
-                        st.rerun()
-                else:
-                    st.success("Completed")
-            
-            st.caption(f"🧘 {period_label}")
-            
-            # Notes (always visible with auto-save)
-            st.caption("Notes")
-            render_auto_save_notes(
-                f"cooldown_{placement_id}_{date_str}",
-                daily_log.get('notes', '') or '',
-                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
-            )
-            
-            st.divider()
-    
-    # Helper function to render Pre-Planned Referral student card
-    def render_preplanned_card(placement: dict, target_date: date):
-        """Render Pre-Planned Referral card (simplified for now)."""
-        student = placement['student']
-        placement_id = placement['_id']
-        student_name = f"{student['firstName']} {student['lastName']}"
-        date_str = target_date.isoformat()
-        
-        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
-        from utils import get_daily_status_color
-        fulfillment = daily_log.get('dailyFulfillment') or ''
-        status_color = get_daily_status_color(fulfillment, date_str)
-        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
-        
-        with st.container():
-            col1, col2, col3 = st.columns([3, 1, 1])
-            
-            with col1:
-                st.markdown(f"**{status_icon} {student_name}**")
-            
-            with col2:
-                st.caption(f"Grade {student.get('grade', 'N/A')}")
-            
-            with col3:
-                if daily_log.get('dailyFulfillment') != 'yes':
-                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
-                        dm.complete_placement_day(placement_id, date_str, "Admin")
-                        st.rerun()
-                else:
-                    st.success("Completed")
-            
-            # Notes (always visible with auto-save)
-            st.caption("Notes")
-            render_auto_save_notes(
-                f"preplanned_{placement_id}_{date_str}",
                 daily_log.get('notes', '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
@@ -1004,69 +1026,25 @@ if page == "Dashboard":
     
     st.divider()
     
-    # 3. Class Period Referral
+    # 3. Class Period Referral (unified: includes Behavior, Cool-Down, and Pre-Planned)
     st.markdown("#### Class Period Referral")
-    if len(class_referral_placements) == 0:
+    if len(unified_class_referral_placements) == 0:
         st.caption("No students")
     else:
-        for placement in class_referral_placements:
+        for placement in unified_class_referral_placements:
             placement_id = placement['_id']
             student = placement['student']
             student_name = f"{student['firstName']} {student['lastName']}"
-            expand_key = f"expand_class_{placement_id}"
+            expand_key = f"expand_classref_{placement_id}"
             if expand_key not in st.session_state:
                 st.session_state[expand_key] = False
             
-            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_class_{placement_id}", use_container_width=True):
+            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_classref_{placement_id}", use_container_width=True):
                 st.session_state[expand_key] = not st.session_state[expand_key]
                 st.rerun()
             
             if st.session_state[expand_key]:
-                render_class_referral_card(placement, selected_date)
-    
-    st.divider()
-    
-    # 4. Cool-Down Referral
-    st.markdown("#### Cool-Down Referral")
-    if len(cooldown_placements) == 0:
-        st.caption("No students")
-    else:
-        for placement in cooldown_placements:
-            placement_id = placement['_id']
-            student = placement['student']
-            student_name = f"{student['firstName']} {student['lastName']}"
-            expand_key = f"expand_cooldown_{placement_id}"
-            if expand_key not in st.session_state:
-                st.session_state[expand_key] = False
-            
-            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_cooldown_{placement_id}", use_container_width=True):
-                st.session_state[expand_key] = not st.session_state[expand_key]
-                st.rerun()
-            
-            if st.session_state[expand_key]:
-                render_cooldown_card(placement, selected_date)
-    
-    st.divider()
-    
-    # 5. Pre-Planned Referral
-    st.markdown("#### Pre-Planned Referral")
-    if len(preplanned_placements) == 0:
-        st.caption("No students")
-    else:
-        for placement in preplanned_placements:
-            placement_id = placement['_id']
-            student = placement['student']
-            student_name = f"{student['firstName']} {student['lastName']}"
-            expand_key = f"expand_preplanned_{placement_id}"
-            if expand_key not in st.session_state:
-                st.session_state[expand_key] = False
-            
-            if st.button(f"{'▼' if st.session_state[expand_key] else '▶'} {student_name}", key=f"toggle_preplanned_{placement_id}", use_container_width=True):
-                st.session_state[expand_key] = not st.session_state[expand_key]
-                st.rerun()
-            
-            if st.session_state[expand_key]:
-                render_preplanned_card(placement, selected_date)
+                render_unified_class_referral_card(placement, selected_date)
 
 # Placements Page
 elif page == "Placements":

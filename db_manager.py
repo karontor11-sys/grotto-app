@@ -128,6 +128,9 @@ class DailyLog(Base):
     # Check-in workflow fields
     checked_in = Column(Boolean, default=False)  # True when student is checked in for the day
     checked_in_at = Column(DateTime, nullable=True)  # Timestamp when check-in occurred
+    # No Show fields (for Pre-Planned Referral)
+    no_show = Column(Boolean, default=False)  # True if student was marked as No Show
+    no_show_note = Column(Text, nullable=True)  # Brief note explaining the No Show (e.g., "Sick today")
     
     __table_args__ = (UniqueConstraint('placement_id', 'date', name='uix_placement_date'),)
 
@@ -1759,6 +1762,120 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def update_daily_log_no_show(self, placement_id: str, log_date: str, no_show: bool) -> bool:
+        """Update no_show flag for a daily log (for Pre-Planned Referral)."""
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    no_show=no_show
+                )
+                session.add(log)
+            else:
+                log.no_show = no_show
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
+    def update_daily_log_no_show_note(self, placement_id: str, log_date: str, note: str) -> bool:
+        """Update no_show_note for a daily log (for Pre-Planned Referral)."""
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    no_show=True,
+                    no_show_note=note
+                )
+                session.add(log)
+            else:
+                log.no_show_note = note
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
+    def complete_placement_day_no_show(self, placement_id: str, log_date: str, completed_by: str) -> bool:
+        """Mark a placement day as complete with No Show status.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            completed_by: Name/ID of person completing
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    daily_fulfillment='yes',
+                    no_show=True,
+                    finalized_by=completed_by,
+                    finalized_at=datetime.now()
+                )
+                session.add(log)
+            else:
+                old_fulfillment = log.daily_fulfillment
+                log.daily_fulfillment = 'yes'
+                log.no_show = True
+                log.finalized_by = completed_by
+                log.finalized_at = datetime.now()
+                
+                placement = session.query(Placement).filter(Placement.id == placement_id).first()
+                if placement and old_fulfillment != 'yes':
+                    placement.days_completed = (placement.days_completed or 0) + 1
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def complete_placement_day(self, placement_id: str, log_date: str, completed_by: str, is_override: bool = False) -> bool:
         """Mark a placement day as complete by setting daily_fulfillment to 'yes'.
         
@@ -2277,7 +2394,10 @@ class DatabaseManager:
             'overrideComment': log.override_comment,
             # Check-in workflow fields
             'checkedIn': log.checked_in or False,
-            'checkedInAt': log.checked_in_at.isoformat() if log.checked_in_at else None
+            'checkedInAt': log.checked_in_at.isoformat() if log.checked_in_at else None,
+            # No Show fields
+            'noShow': log.no_show or False,
+            'noShowNote': log.no_show_note
         }
     
     def _point_event_to_dict(self, event: PointEvent) -> Dict[str, Any]:
@@ -2326,6 +2446,10 @@ class DatabaseManager:
         Finds all DailyLog records and ISS sessions for the date where not completed,
         marks them as incomplete/no_show, sets alert_flag to True, and records the processing.
         
+        Special handling for Class Period Referrals (all subtypes):
+        - Auto-complete at midnight (mark as 'yes') instead of marking incomplete
+        - If No Show was selected for Pre-Planned, keep as Completed (No Show)
+        
         Args:
             target_date: The date to process (typically yesterday)
             
@@ -2346,9 +2470,25 @@ class DatabaseManager:
                 or_(DailyLog.daily_fulfillment != 'yes', DailyLog.daily_fulfillment.is_(None))
             ).all()
             
+            class_referral_auto_completed = 0
             for log in incomplete_logs:
-                log.daily_fulfillment = 'no'
-                log.alert_flag = True
+                # Get the placement to check if it's a Class Period Referral
+                placement = session.query(Placement).filter(
+                    Placement.id == log.placement_id
+                ).first()
+                
+                if placement and placement.placement_type.value in ['CLASS_REFERRAL', 'COOL_DOWN', 'PRE_PLANNED_REFERRAL']:
+                    # Auto-complete Class Period Referrals at midnight
+                    log.daily_fulfillment = 'yes'
+                    log.finalized_by = 'System (End of Day)'
+                    log.finalized_at = datetime.now()
+                    class_referral_auto_completed += 1
+                    # If no_show was set, keep it (it's already a Completed No Show)
+                    # Otherwise it's just a normal completion
+                else:
+                    # For ISS and other types, mark as incomplete
+                    log.daily_fulfillment = 'no'
+                    log.alert_flag = True
             
             incomplete_sessions = session.query(PartialDaySession).filter(
                 PartialDaySession.date == target_date,
@@ -2400,14 +2540,15 @@ class DatabaseManager:
             session.commit()
             
             return {
-                'incomplete_logs': len(incomplete_logs),
+                'incomplete_logs': len(incomplete_logs) - class_referral_auto_completed,  # Only count non-auto-completed
                 'incomplete_sessions': len(incomplete_sessions),
-                'iss_session_ids': iss_session_ids
+                'iss_session_ids': iss_session_ids,
+                'class_referral_auto_completed': class_referral_auto_completed
             }
         except Exception as e:
             session.rollback()
             print(f"Error processing end-of-day for {target_date}: {e}")
-            return {'incomplete_logs': 0, 'incomplete_sessions': 0, 'iss_session_ids': []}
+            return {'incomplete_logs': 0, 'incomplete_sessions': 0, 'iss_session_ids': [], 'class_referral_auto_completed': 0}
         finally:
             session.close()
     

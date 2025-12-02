@@ -502,8 +502,174 @@ if page == "Dashboard":
                                 st.session_state[f"show_override_{placement_id}_{date_str}"] = False
                                 st.rerun()
                 
+                elif is_checked_in and day_type == 'partial':
+                    # Show Partial Day ISS Session Panel
+                    st.markdown("### 📋 Partial Day ISS Session")
+                    st.info(f"**{iss_days_assigned}-day ISS for {student_name}** · Day {current_day} of {iss_days_assigned}")
+                    
+                    # Period selection
+                    col_start, col_end = st.columns(2)
+                    with col_start:
+                        start_period = st.selectbox(
+                            "Start Period",
+                            options=list(range(1, 11)),
+                            index=0,
+                            key=f"start_period_{placement_id}_{date_str}"
+                        )
+                    with col_end:
+                        # End period options should be >= start period
+                        end_options = list(range(start_period, 11))
+                        end_period = st.selectbox(
+                            "End Period",
+                            options=end_options,
+                            index=len(end_options) - 1 if end_options else 0,
+                            key=f"end_period_{placement_id}_{date_str}"
+                        )
+                    
+                    # Calculate planned periods
+                    planned_periods = end_period - start_period + 1
+                    st.markdown(f"**Planned Periods:** {planned_periods} (Period {start_period} to {end_period})")
+                    
+                    # Required points input
+                    default_required_points = planned_periods  # 1 point per period as default
+                    required_points = st.number_input(
+                        "Required Points for This Partial Day",
+                        min_value=1,
+                        max_value=10,
+                        value=default_required_points,
+                        key=f"required_points_{placement_id}_{date_str}"
+                    )
+                    
+                    st.markdown("---")
+                    
+                    # Behaviors section
+                    col_left, col_right = st.columns([1, 1])
+                    
+                    with col_left:
+                        st.markdown("**Behaviors**")
+                        # Positive behaviors dropdown
+                        positive_menu = ps.get_positive_point_menu()
+                        positive_options = ["-- Add Positive --"] + [item['label'] for item in positive_menu]
+                        selected_positive = st.selectbox(
+                            "Positive",
+                            positive_options,
+                            key=f"pos_partial_{placement_id}_{date_str}",
+                            label_visibility="collapsed"
+                        )
+                        
+                        if selected_positive != "-- Add Positive --":
+                            item = next((i for i in positive_menu if i['label'] == selected_positive), None)
+                            if item:
+                                dm.add_point_event({
+                                    'placementId': placement_id,
+                                    'studentId': student['_id'],
+                                    'code': item['code'],
+                                    'type': 'positive',
+                                    'value': item['value'],
+                                    'date': date_str
+                                })
+                                st.rerun()
+                        
+                        # Negative behaviors dropdown
+                        negative_menu = ps.get_negative_point_menu()
+                        negative_options = ["-- Add Negative --"] + [item['label'] for item in negative_menu]
+                        selected_negative = st.selectbox(
+                            "Negative",
+                            negative_options,
+                            key=f"neg_partial_{placement_id}_{date_str}",
+                            label_visibility="collapsed"
+                        )
+                        
+                        if selected_negative != "-- Add Negative --":
+                            item = next((i for i in negative_menu if i['label'] == selected_negative), None)
+                            if item:
+                                dm.add_point_event({
+                                    'placementId': placement_id,
+                                    'studentId': student['_id'],
+                                    'code': item['code'],
+                                    'type': 'negative',
+                                    'value': item['value'],
+                                    'date': date_str
+                                })
+                                st.rerun()
+                    
+                    with col_right:
+                        st.markdown("**Points Total**")
+                        if total_points >= required_points:
+                            st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Meets target of {required_points} points")
+                        else:
+                            st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Target: {required_points} points ({required_points - total_points} more needed)")
+                    
+                    # Notes for Partial Day session
+                    st.caption("Session Notes")
+                    render_auto_save_notes(
+                        f"partialday_session_{placement_id}_{date_str}",
+                        daily_log.get('notes', '') or '',
+                        lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+                    )
+                    
+                    st.markdown("---")
+                    
+                    # Complete and Override buttons for Partial Day session
+                    col_complete, col_override = st.columns(2)
+                    
+                    with col_complete:
+                        can_complete = total_points >= required_points
+                        if st.button("✅ Complete", key=f"complete_partial_{placement_id}_{date_str}", type="primary", 
+                                     use_container_width=True, disabled=not can_complete):
+                            dm.complete_iss_partial_day_session(
+                                placement_id, date_str, "Admin",
+                                start_period=start_period,
+                                end_period=end_period,
+                                required_points=required_points
+                            )
+                            st.rerun()
+                        if not can_complete:
+                            st.caption(f"Requires {required_points}+ points")
+                    
+                    with col_override:
+                        # Initialize session state for override modal
+                        override_key = f"show_partial_override_{placement_id}_{date_str}"
+                        if override_key not in st.session_state:
+                            st.session_state[override_key] = False
+                        
+                        if st.button("⚡ Override", key=f"override_partial_btn_{placement_id}_{date_str}", use_container_width=True):
+                            st.session_state[override_key] = True
+                            st.rerun()
+                    
+                    # Override panel (shown when Override button is clicked)
+                    if st.session_state.get(f"show_partial_override_{placement_id}_{date_str}", False):
+                        st.warning(f"**Override: Complete with full {planned_periods}-period credit**")
+                        override_note = st.text_area(
+                            "Reason for Override (required)",
+                            key=f"override_partial_note_{placement_id}_{date_str}",
+                            placeholder="Enter reason for override...",
+                            height=80
+                        )
+                        
+                        col_confirm, col_cancel = st.columns(2)
+                        with col_confirm:
+                            if st.button("Confirm Override", key=f"confirm_partial_override_{placement_id}_{date_str}", 
+                                        type="primary", use_container_width=True, disabled=not override_note.strip()):
+                                dm.complete_iss_partial_day_session(
+                                    placement_id, date_str, "Admin",
+                                    start_period=start_period,
+                                    end_period=end_period,
+                                    required_points=required_points,
+                                    is_override=True,
+                                    override_note=override_note.strip()
+                                )
+                                st.session_state[f"show_partial_override_{placement_id}_{date_str}"] = False
+                                st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"cancel_partial_override_{placement_id}_{date_str}", use_container_width=True):
+                                st.session_state[f"show_partial_override_{placement_id}_{date_str}"] = False
+                                st.rerun()
+                
                 elif is_checked_in:
-                    # Student is checked in but not with full day type (partial or legacy)
+                    # Student is checked in but without specific day type (legacy)
                     st.info("📍 Student checked in for today")
                 else:
                     # Not checked in - show check-in buttons

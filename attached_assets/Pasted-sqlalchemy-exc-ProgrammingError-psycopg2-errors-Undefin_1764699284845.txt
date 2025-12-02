@@ -1,0 +1,56 @@
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column placements.iss_label does not exist LINE 1: ..., placements.created_at AS placements_created_at, placements... ^ [SQL: SELECT placements.id AS placements_id, placements.student_id AS placements_student_id, placements.homeroom_teacher_id AS placements_homeroom_teacher_id, placements.reason AS placements_reason, placements.type AS placements_type, placements.placement_type AS placements_placement_type, placements.completion_rule AS placements_completion_rule, placements.min_sessions_required AS placements_min_sessions_required, placements.days_assigned AS placements_days_assigned, placements.days_completed AS placements_days_completed, placements.total_iss_periods AS placements_total_iss_periods, placements.iss_start_date AS placements_iss_start_date, placements.iss_total_days AS placements_iss_total_days, placements.iss_remaining_days AS placements_iss_remaining_days, placements.iss_days_assigned AS placements_iss_days_assigned, placements.iss_total_required_periods AS placements_iss_total_required_periods, placements.iss_periods_served AS placements_iss_periods_served, placements.start_date AS placements_start_date, placements.end_date AS placements_end_date, placements.start_period AS placements_start_period, placements.end_period AS placements_end_period, placements.scheduled_iss_dates AS placements_scheduled_iss_dates, placements.scheduled_iss_sessions AS placements_scheduled_iss_sessions, placements.served_dates AS placements_served_dates, placements.referral_subtype AS placements_referral_subtype, placements.status AS placements_status, placements.created_by AS placements_created_by, placements.created_at AS placements_created_at, placements.iss_label AS placements_iss_label FROM placements WHERE placements.id = %(id_1)s LIMIT %(param_1)s] [parameters: {'id_1': '65b5dcc2-137e-4b78-8d66-9fd06cab54de', 'param_1': 1}] (Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback:
+
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/exec_code.py", line 128, in exec_func_with_error_handling
+    result = func()
+             ^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 669, in code_to_exec
+    exec(code, module.__dict__)  # noqa: S102
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/app.py", line 256, in <module>
+    all_notifs = notifications.get_all_notifications()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/notifications.py", line 323, in get_all_notifications
+    all_notifications.extend(self.get_end_of_day_incomplete_notifications(days_back=7))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/notifications.py", line 244, in get_end_of_day_incomplete_notifications
+    incomplete_records = self.db.get_eod_incomplete_records(check_date)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/db_manager.py", line 3078, in get_eod_incomplete_records
+    placement = session.query(Placement).filter(Placement.id == log.placement_id).first()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2759, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)

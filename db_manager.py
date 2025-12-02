@@ -2067,6 +2067,10 @@ class DatabaseManager:
         try:
             date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
             
+            # Validate period range
+            if end_period < start_period:
+                end_period = start_period
+            
             # Calculate planned periods for this session
             planned_periods = end_period - start_period + 1
             
@@ -2081,8 +2085,19 @@ class DatabaseManager:
                 DailyLog.date == date_obj
             ).first()
             
-            # Build periods_covered array
+            # Build periods_covered array and session details JSON
             periods_covered = list(range(start_period, end_period + 1))
+            session_details = {
+                'start_period': start_period,
+                'end_period': end_period,
+                'planned_periods': planned_periods,
+                'required_points': required_points,
+                'is_override': is_override,
+                'completed_by': completed_by,
+                'completed_at': datetime.now().isoformat()
+            }
+            if is_override and override_note:
+                session_details['override_note'] = override_note
             
             if not log:
                 log_id = self.generate_id()
@@ -2113,9 +2128,8 @@ class DatabaseManager:
                 log.periods_covered = periods_covered
                 log.finalized_by = completed_by
                 log.finalized_at = datetime.now()
-                if is_override:
-                    log.override_used = True
-                    log.override_comment = override_note
+                log.override_used = is_override
+                log.override_comment = override_note if is_override else None
                 
                 # Only add periods if not already completed
                 if old_fulfillment != 'yes':

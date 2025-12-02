@@ -507,23 +507,37 @@ if page == "Dashboard":
                     st.markdown("### 📋 Partial Day ISS Session")
                     st.info(f"**{iss_days_assigned}-day ISS for {student_name}** · Day {current_day} of {iss_days_assigned}")
                     
+                    # Initialize session state for period selections
+                    start_key = f"start_period_{placement_id}_{date_str}"
+                    end_key = f"end_period_{placement_id}_{date_str}"
+                    
+                    if start_key not in st.session_state:
+                        st.session_state[start_key] = 1
+                    if end_key not in st.session_state:
+                        st.session_state[end_key] = 10
+                    
                     # Period selection
                     col_start, col_end = st.columns(2)
                     with col_start:
                         start_period = st.selectbox(
                             "Start Period",
                             options=list(range(1, 11)),
-                            index=0,
-                            key=f"start_period_{placement_id}_{date_str}"
+                            index=st.session_state[start_key] - 1,
+                            key=start_key
                         )
                     with col_end:
                         # End period options should be >= start period
                         end_options = list(range(start_period, 11))
+                        # Calculate current end period index within valid options
+                        current_end = st.session_state.get(end_key, 10)
+                        if current_end < start_period:
+                            current_end = start_period
+                        end_index = current_end - start_period if current_end >= start_period else 0
                         end_period = st.selectbox(
                             "End Period",
                             options=end_options,
-                            index=len(end_options) - 1 if end_options else 0,
-                            key=f"end_period_{placement_id}_{date_str}"
+                            index=min(end_index, len(end_options) - 1),
+                            key=end_key
                         )
                     
                     # Calculate planned periods

@@ -1,5 +1,3 @@
-# The Grotto - Student Placement Manager System
-
 ## Overview
 
 The Grotto is a student placement and behavior tracking system for educational institutions. It manages student placements in alternative learning environments, tracks daily attendance and behavior via a point-based system, manages assignments, and maintains communication logs. The system aims to streamline administrative tasks, provide actionable insights into student well-being and academic performance, and help educators monitor student progress and document interventions.
@@ -7,87 +5,6 @@ The Grotto is a student placement and behavior tracking system for educational i
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
-
-## Recent Development Status (Dec 02, 2025)
-
-### Unified Class Period Referral Dashboard - COMPLETED
-
-**Current Status:** Dashboard now displays 3 unified sections (ISS, Lunch Detention, Class Period Referral) with all referral subtypes under one parent section.
-
-**Completed:**
-1. **Dashboard Unification** - Merged 3 separate sections into one "Class Period Referral" parent section:
-   - Previously: Separate "Class Referral", "Cool-Down Referral", "Pre-Planned Referral" sections
-   - Now: Single "Class Period Referral" section containing all subtypes
-   - Uses `render_unified_class_referral_card()` function for all referral types
-
-2. **Subtype Labels & Display** - Each card shows clear subtype identification:
-   - 📚 Behavior Referral - Single-day with period selection
-   - 🧘 Cool-Down Referral - Short-term cool-down with date/period
-   - 📅 Pre-Planned Referral - Schedule-based with multiple date+period combinations
-   - Shows reason text and period information for each subtype
-
-3. **Subtype-Specific Completion Buttons**:
-   - Behavior Referral: "✅ Complete Referral" button
-   - Cool-Down Referral: "✅ Complete Cool-Down" button
-   - Pre-Planned Referral: "✅ Complete Pre-Planned Day" button
-
-4. **No Show Functionality for Pre-Planned Referrals**:
-   - Database columns added: `no_show` (BOOLEAN), `no_show_note` (TEXT)
-   - Checkbox toggle for marking student as No Show
-   - Text input for No Show notes (auto-saves)
-   - Methods: `update_daily_log_no_show()`, `update_daily_log_no_show_note()`, `complete_placement_day_no_show()`
-
-5. **End-of-Day Processing Updates**:
-   - Class Period Referrals: Auto-completed as 'yes' at midnight (student completed session)
-   - ISS and Lunch Detention: Still marked as 'no' (incomplete) at midnight
-   - Pre-Planned No Show: If no_show=True at midnight, marked complete with no show notation
-
-**Key Architecture Decisions:**
-- `unified_class_referral_placements` list combines CLASS_REFERRAL, COOL_DOWN, and PRE_PLANNED_REFERRAL types
-- Subtype identified via `referral_subtype` field or legacy `placementType` mapping
-- All Class Period Referrals now use same card rendering function with conditional display
-
----
-
-### Previous: Enhanced ISS Session Cards (Dec 01, 2025)
-
-**Status:** Session-based ISS display with comprehensive cards fully implemented
-
-**Features:**
-- Session-Based Dashboard using `get_iss_sessions_for_date()` from `PartialDaySession` table
-- Status indicators: 🟡 (In Progress), 🟢 (Completed), 🔴 (Not Completed/No-Show)
-- Check In button workflow with behavior controls enabled after check-in
-- Days-Based Progress Tracking ("Day X of Y Days") increments on check-in
-- Auto-Save Notes Section with 2-second "✓ Saved" indicator
-- Override & Count Full button with confirmation
-
-**Database Schema Updates (daily_logs):**
-- `day_type`, `periods_covered`, `override_used`, `override_comment`
-- `checked_in`, `checked_in_at`, `no_show`, `no_show_note`
-
-### ISS Period-Based Tracking (Dec 02, 2025)
-
-**Status:** Period-based ISS tracking display implemented on Dashboard
-
-**Features:**
-- ISS cards now show period-based progress: "Periods served: X of Y"
-- Summary line: "{issDaysAssigned}-day ISS for {Student Name}"
-- Day label: "Day {currentDay} of {issDaysAssigned}" calculated from periods served
-- Sentence completion detection: When issPeriodsServed >= issTotalRequiredPeriods, shows "ISS sentence complete"
-- Two check-in buttons: "Check-In – Full Day" and "Check-In – Partial Day"
-- Check-in buttons hidden for completed ISS sentences
-- day_type stored in daily_logs when checking in ('full' or 'partial')
-
-**Full Day ISS Check-In Flow:**
-- Clicking "Check-In – Full Day" opens a session panel labeled "Full Day ISS Session (10 periods)"
-- Panel shows student's ISS summary, current day label, behaviors dropdowns, points, and notes
-- Complete button: Requires 10+ points, adds 10 to issPeriodsServed, marks day completed
-- Override button: Opens note entry panel, requires reason, adds 10 periods with override note
-- After completion, ISS card progress updates immediately
-- When issPeriodsServed reaches issTotalRequiredPeriods, placement auto-completes
-
-**Database Method:**
-- `complete_iss_full_day_session()`: Adds 10 periods, marks day complete, handles override notes
 
 ## System Architecture
 
@@ -100,7 +17,7 @@ The system uses **SQLAlchemy ORM** with a relational database. Key design decisi
 - **Schema Enforcement**: Enum types for constrained fields (e.g., `StudentStatus`, `PlacementStatus`).
 - **Soft Deletes**: Students are soft-deleted to preserve historical data.
 - **JSON Storage**: Flexible storage for guardian contacts as JSON arrays.
-**Core Entities**: Students, Placements, Sessions (for partial-day tracking), DailyLogs, PointEvents, Assignments, and Notes.
+- **Core Entities**: Students, Placements, Sessions (for partial-day tracking), DailyLogs, PointEvents, Assignments, and Notes.
 
 ### Business Logic Layer
 A centralized **Point System Architecture** enforces business rules for behavioral tracking using configurable point categories with various constraint types (e.g., `once_per_placement`, `dailyCap`). Point definitions are isolated in a `PointSystem` class.
@@ -112,22 +29,12 @@ A consistent date handling strategy uses ISO format for storage, date objects fo
 ### UI Components
 The UI features a **Dashboard** with:
 - **Today's Sessions**: Horizontal chip strip for daily sessions.
-- **Active Placements**: Card-based student overviews displaying only placements with status="active", sorted with a 5-level hierarchy: (1) placement type (ISS → Lunch Detention → Class Referral → Cool-Down), (2) within ISS, multi-day placements before single-day, (3) placements active today appear first, (4) earliest start date, (5) alphabetical by student name. The "active today" check uses weekend-skipping logic for multi-day placements. Each card displays:
-  - **Placement Type Label**: Clear, descriptive labels showing placement type and date/period information (e.g., "ISS – Multi-Day (Nov 14–Nov 18)", "Lunch Detention – Single Day (Nov 14)", "Class Period Referral – Periods 2–4 (Nov 14)")
-  - **Progress Indicator**: For multi-day placements only, displays current progress (e.g., "📅 Day 2 of 5") using school-day calculations
-  - Student details (grade, homeroom teacher)
-  - Today's points (positive/negative)
-  - Quick action buttons (Daily Logs, Complete Placement)
-  
-  Completed placements appear only in the "Completed Placements" tab.
-- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation. Features a streamlined single-selector interface with 3 main placement types:
-  - **In-School Suspension (ISS)**: Simplified ISS placement using start date + number of days model. Stores `iss_start_date`, `iss_total_days`, and `iss_remaining_days` (initialized equal to total days). Also includes period-based tracking fields: `iss_days_assigned` (days from form), `iss_total_required_periods` (calculated as days × 10), and `iss_periods_served` (running counter, default 0). The period-based fields are for internal calculations only and not exposed on the Create Placement page.
-  - **Lunch Detention**: Multi-day lunch detention placement
-  - **Class Period Referral**: Umbrella category with 3 sub-types (selected via dropdown):
-    - **Behavior Referral**: Single-day with period selection (stores `referral_subtype='behavior'`)
-    - **Cool-Down Referral**: Short-term cool-down with date and period selection (stores `referral_subtype='cool_down'`)
-    - **Pre-Planned Referral**: Schedule-based referral with multiple date+period combinations (stores `referral_subtype='pre_planned'`)
-- **Daily Logs**: Interface for point tracking with "Session-Scoped View" (for specific sessions) and "Placement-Wide View" (default, for all placements).
+- **Active Placements**: Card-based student overviews displaying only active placements, sorted by a 5-level hierarchy (placement type, multi-day vs. single-day, active today, start date, student name). Cards show placement type, progress indicator (for multi-day), student details, today's points, and quick action buttons. The "Class Period Referral" section unifies all referral subtypes (Behavior, Cool-Down, Pre-Planned) under one display, using a single rendering function and subtype-specific completion buttons and "No Show" functionality for Pre-Planned referrals.
+- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry. Features a streamlined single-selector interface with three main placement types:
+    - **In-School Suspension (ISS)**: Simplified placement using start date + number of days model, including period-based tracking with `iss_days_assigned`, `iss_total_required_periods`, and `iss_periods_served`. ISS cards display period-based progress and two check-in options ("Full Day" and "Partial Day").
+    - **Lunch Detention**: Multi-day lunch detention placement.
+    - **Class Period Referral**: Umbrella category with three sub-types selected via dropdown: Behavior Referral (single-day), Cool-Down Referral (short-term), and Pre-Planned Referral (schedule-based). Referral sub-types are tracked via a `referral_subtype` field.
+- **Daily Logs**: Interface for point tracking with "Session-Scoped View" and "Placement-Wide View".
 - **Assignments**: Manages academic tasks.
 - **Notes**: For general documentation.
 - **Notifications**: Provides real-time event alerts.
@@ -137,23 +44,15 @@ The UI features a **Dashboard** with:
 ### Key Features
 - **Manual Student Entry**: Students are created manually during placement creation.
 - **Weekend-Skipping Logic**: Weekends are automatically excluded from all duration calculations, session generation, and "Days Remaining" displays for multi-day placements.
-- **Date Range Validation**: Multi-day ISS and Lunch Detention placements enforce end_date >= start_date with clear, formatted error messages. Validation order prevents confusing double errors by checking date validity before calculating weekdays. Weekend dates in ranges are allowed - only weekdays count toward days_assigned.
-- **Partial-Day Session Tracking**: Tracks student activities during partial days, including various session types (periods, lunch, cool-down, referral).
-- **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions for granular tracking, with behavior menus filtered by session type.
-- **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons, following a validated state machine.
+- **Date Range Validation**: Enforces `end_date >= start_date` for multi-day placements.
+- **Partial-Day Session Tracking**: Tracks student activities during partial days and various session types.
+- **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions.
+- **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons.
 - **Flexible Placement Completion Rules**: Configurable completion criteria for different placement types with role-based "Complete Placement" button.
-- **Three Main Placement Types**: Radio selector for choosing between In-School Suspension (ISS), Lunch Detention, and Class Period Referral. Class Period Referral is an umbrella category with a dropdown to select sub-types (Behavior, Cool-Down, or Pre-Planned Referral), with conditional scheduling fields based on selection.
-- **Referral Sub-Type Tracking**: Class Period Referrals store a `referral_subtype` field ('behavior', 'cool_down', or 'pre_planned') to differentiate referral types while maintaining all under placementType 'CLASS_REFERRAL'.
-- **Simplified ISS Form**: The ISS placement form collects:
-  - Student Information (name, grade, homeroom teacher)
-  - Placement Details (reason)
-  - Scheduling (start date and number of ISS days)
-  - Created By selector
-  The system initializes `iss_remaining_days` equal to `iss_total_days` for Dashboard tracking. No period/day conversion occurs at placement creation.
-- **Conditional Form Fields**: Dynamic form fields that appear based on placement type selection - period selection for Class Referral, date and period selection for Cool-Down, no additional fields for Lunch Detention, and multi-date schedule builder for Pre-Planned Referral.
-- **End-of-Day Processing**: Automated system that runs on app startup to process any pending dates, marking incomplete daily logs (where daily_fulfillment is not 'yes') as 'no' with alert_flag=True. Processing is tracked via EndOfDayProcessing table to ensure each date is processed exactly once.
-- **Retroactive Completion**: Staff can mark incomplete records from past dates as complete using the "✓ Complete" button. The alert_flag is preserved for audit accountability - if alerts were sent for an incomplete record, that history is maintained even after the record is marked complete.
-- **Status Indicators**: Visual status badges using color coding - Green (completed/daily_fulfillment='yes'), Yellow (in progress/today), Red (not completed/past date). Past dates marked incomplete by end-of-day processing display red until manually completed.
+- **Conditional Form Fields**: Dynamic form fields appear based on placement type selection (e.g., period selection for Class Referral, multi-date schedule builder for Pre-Planned Referral).
+- **End-of-Day Processing**: Automated system processes pending dates, marking incomplete daily logs and handling 'no show' for pre-planned referrals.
+- **Retroactive Completion**: Staff can mark past incomplete records as complete, preserving `alert_flag` for audit.
+- **Status Indicators**: Visual status badges using color coding (Green for completed, Yellow for in progress, Red for not completed/past date).
 
 ## External Dependencies
 

@@ -2045,6 +2045,94 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def complete_iss_partial_day_session(self, placement_id: str, log_date: str, completed_by: str,
+                                          start_period: int, end_period: int, required_points: int = None,
+                                          is_override: bool = False, override_note: str = None) -> bool:
+        """Complete a Partial Day ISS session, adding planned periods to issPeriodsServed.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            completed_by: Name/ID of person completing
+            start_period: Starting period (1-10)
+            end_period: Ending period (1-10)
+            required_points: Points required for this partial day (optional)
+            is_override: True if using Override
+            override_note: Required note when using override
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            # Calculate planned periods for this session
+            planned_periods = end_period - start_period + 1
+            
+            # Get placement to update issPeriodsServed
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            # Build periods_covered array
+            periods_covered = list(range(start_period, end_period + 1))
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    daily_fulfillment='yes',
+                    day_type='partial',
+                    periods_covered=periods_covered,
+                    finalized_by=completed_by,
+                    finalized_at=datetime.now(),
+                    override_used=is_override,
+                    override_comment=override_note if is_override else None
+                )
+                session.add(log)
+                # Add planned periods for new partial day completion
+                placement.iss_periods_served = (placement.iss_periods_served or 0) + planned_periods
+                placement.days_completed = (placement.days_completed or 0) + 1
+            else:
+                old_fulfillment = log.daily_fulfillment
+                log.daily_fulfillment = 'yes'
+                log.day_type = 'partial'
+                log.periods_covered = periods_covered
+                log.finalized_by = completed_by
+                log.finalized_at = datetime.now()
+                if is_override:
+                    log.override_used = True
+                    log.override_comment = override_note
+                
+                # Only add periods if not already completed
+                if old_fulfillment != 'yes':
+                    placement.iss_periods_served = (placement.iss_periods_served or 0) + planned_periods
+                    placement.days_completed = (placement.days_completed or 0) + 1
+            
+            # Check if ISS sentence is now complete
+            iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
+            if placement.iss_periods_served >= iss_total_required:
+                placement.status = PlacementStatus.completed
+                placement.end_date = date_obj
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def update_daily_log_totals(self, placement_id: str, log_date: str):
         """Update daily log totals based on point events."""
         session = self.get_session()

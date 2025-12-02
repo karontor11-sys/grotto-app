@@ -1918,10 +1918,18 @@ elif page == "Placements":
                             override_reason = log.get('overrideReason')
                             notes = log.get('notes')
                             
-                            # Build session description
+                            # Build session description using periods_covered
+                            periods_covered = log.get('periodsCovered', [])
                             if session_type == 'Full Day':
                                 period_desc = "Periods 1-10"
+                            elif periods_covered:
+                                # Display the actual periods attended
+                                if len(periods_covered) == 1:
+                                    period_desc = f"Period {periods_covered[0]}"
+                                else:
+                                    period_desc = f"Periods {', '.join(map(str, sorted(periods_covered)))}"
                             else:
+                                # Fallback to start/end if no periods_covered
                                 start_p = log.get('startPeriod', 1)
                                 end_p = log.get('endPeriod', 10)
                                 period_desc = f"Periods {start_p}-{end_p}"

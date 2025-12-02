@@ -213,6 +213,7 @@ class ISSSessionLog(Base):
     session_type = Column(String, nullable=False)  # 'Full Day' or 'Partial Day'
     start_period = Column(Integer, nullable=True)  # For partial days: starting period (1-10)
     end_period = Column(Integer, nullable=True)  # For partial days: ending period (1-10)
+    periods_covered = Column(JSON, nullable=True)  # Array of period numbers attended (for non-contiguous selections)
     periods_credited = Column(Integer, nullable=False)  # Number of periods credited (10 for full, calculated for partial)
     points_target = Column(Integer, nullable=True)  # Points required for this session
     points_earned = Column(Integer, nullable=True)  # Actual points earned
@@ -363,6 +364,20 @@ class DatabaseManager:
             
             if 'override_comment' not in existing_daily_log_columns:
                 session.execute("ALTER TABLE daily_logs ADD COLUMN override_comment TEXT")
+                session.commit()
+            
+            # Check which columns exist in iss_session_logs table
+            result = session.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'iss_session_logs' 
+                AND column_name = 'periods_covered'
+            """)
+            existing_session_log_columns = {row[0] for row in result}
+            
+            # Add periods_covered column to iss_session_logs if it doesn't exist
+            if 'periods_covered' not in existing_session_log_columns:
+                session.execute("ALTER TABLE iss_session_logs ADD COLUMN periods_covered JSON DEFAULT '[]'::json")
                 session.commit()
                 
         except Exception as e:
@@ -2072,6 +2087,7 @@ class DatabaseManager:
                     session_type='Full Day',
                     start_period=1,
                     end_period=10,
+                    periods_covered=list(range(1, 11)),  # [1,2,3,4,5,6,7,8,9,10]
                     periods_credited=10,
                     points_target=10,
                     points_earned=points_earned,
@@ -2097,7 +2113,9 @@ class DatabaseManager:
             session.close()
     
     def complete_iss_partial_day_session(self, placement_id: str, log_date: str, completed_by: str,
-                                          start_period: int, end_period: int, required_points: int = None,
+                                          start_period: int = None, end_period: int = None, 
+                                          periods_covered_list: list = None,
+                                          required_points: int = None,
                                           is_override: bool = False, override_note: str = None,
                                           points_earned: int = None) -> bool:
         """Complete a Partial Day ISS session, adding planned periods to issPeriodsServed.
@@ -2106,8 +2124,9 @@ class DatabaseManager:
             placement_id: ID of the placement
             log_date: ISO format date string
             completed_by: Name/ID of person completing
-            start_period: Starting period (1-10)
-            end_period: Ending period (1-10)
+            start_period: Starting period (1-10) - used if periods_covered_list not provided
+            end_period: Ending period (1-10) - used if periods_covered_list not provided
+            periods_covered_list: Explicit list of period numbers attended (for non-contiguous selections)
             required_points: Points required for this partial day (optional)
             is_override: True if using Override
             override_note: Required note when using override
@@ -2120,12 +2139,18 @@ class DatabaseManager:
         try:
             date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
             
-            # Validate period range
-            if end_period < start_period:
-                end_period = start_period
-            
-            # Calculate planned periods for this session
-            planned_periods = end_period - start_period + 1
+            # Calculate planned periods - prefer explicit list if provided
+            if periods_covered_list:
+                planned_periods = len(periods_covered_list)
+                # Set start/end from list for backward compatibility
+                start_period = min(periods_covered_list)
+                end_period = max(periods_covered_list)
+            else:
+                # Validate period range
+                if end_period < start_period:
+                    end_period = start_period
+                # Calculate planned periods from range
+                planned_periods = end_period - start_period + 1
             
             # Get placement to update issPeriodsServed
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
@@ -2142,8 +2167,11 @@ class DatabaseManager:
                 DailyLog.date == date_obj
             ).first()
             
-            # Build periods_covered array
-            periods_covered = list(range(start_period, end_period + 1))
+            # Build periods_covered array - use explicit list if provided, else generate from range
+            if periods_covered_list:
+                periods_covered = sorted(periods_covered_list)
+            else:
+                periods_covered = list(range(start_period, end_period + 1))
             
             should_add_periods = False
             
@@ -2194,6 +2222,7 @@ class DatabaseManager:
                     session_type='Partial Day',
                     start_period=start_period,
                     end_period=end_period,
+                    periods_covered=periods_covered,  # Array of period numbers attended
                     periods_credited=planned_periods,
                     points_target=required_points,
                     points_earned=points_earned,
@@ -2282,6 +2311,7 @@ class DatabaseManager:
                 'sessionType': log.session_type,
                 'startPeriod': log.start_period,
                 'endPeriod': log.end_period,
+                'periodsCovered': log.periods_covered or [],
                 'periodsCredited': log.periods_credited,
                 'pointsTarget': log.points_target,
                 'pointsEarned': log.points_earned,
@@ -2329,6 +2359,7 @@ class DatabaseManager:
                     'sessionType': log.session_type,
                     'startPeriod': log.start_period,
                     'endPeriod': log.end_period,
+                    'periodsCovered': log.periods_covered or [],
                     'periodsCredited': log.periods_credited,
                     'pointsTarget': log.points_target,
                     'pointsEarned': log.points_earned,
@@ -2435,6 +2466,10 @@ class DatabaseManager:
             if placement.iss_remaining_days is None:
                 placement.iss_remaining_days = placement.iss_total_days or 0
             
+            # Get student for the label
+            student = session.query(Student).filter(Student.id == placement.student_id).first()
+            student_name = f"{student.first_name} {student.last_name}" if student else "Unknown"
+            
             # IDEMPOTENCY CHECK: Only adjust iss_remaining_days when transitioning states
             # This prevents double-counting on reruns or edits
             
@@ -2443,6 +2478,44 @@ class DatabaseManager:
                 # Full Day or Partial Day: Decrement remaining days
                 if day_type in ['full', 'partial'] and placement.iss_remaining_days > 0:
                     placement.iss_remaining_days -= 1
+                    
+                    # Also update period-based tracking
+                    if day_type == 'full':
+                        periods_credited = 10
+                        actual_periods = list(range(1, 11))
+                    else:
+                        periods_credited = len(periods_covered) if periods_covered else 0
+                        actual_periods = sorted(periods_covered) if periods_covered else []
+                    
+                    placement.iss_periods_served = (placement.iss_periods_served or 0) + periods_credited
+                    placement.days_completed = (placement.days_completed or 0) + 1
+                    
+                    # Create ISS Session Log entry
+                    session_log = ISSSessionLog(
+                        id=self.generate_id(),
+                        placement_id=placement_id,
+                        session_date=date_obj,
+                        session_type='Full Day' if day_type == 'full' else 'Partial Day',
+                        start_period=min(actual_periods) if actual_periods else 1,
+                        end_period=max(actual_periods) if actual_periods else 10,
+                        periods_covered=actual_periods,
+                        periods_credited=periods_credited,
+                        points_target=10 if day_type == 'full' else len(periods_covered),
+                        points_earned=log.daily_total,
+                        completion_method='Complete',
+                        notes=log.notes,
+                        completed_by=completed_by
+                    )
+                    session.add(session_log)
+                    
+                    # Check if ISS sentence is now complete
+                    iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
+                    if placement.iss_periods_served >= iss_total_required:
+                        placement.status = PlacementStatus.completed
+                        placement.end_date = date_obj
+                        iss_days = placement.iss_days_assigned or 0
+                        placement.iss_label = f"{iss_days}-day ISS for {student_name}"
+                
                 # Absent Day: Do NOT decrement (student didn't serve time)
             
             # Case 2: Editing an already-fulfilled day (changing day type)

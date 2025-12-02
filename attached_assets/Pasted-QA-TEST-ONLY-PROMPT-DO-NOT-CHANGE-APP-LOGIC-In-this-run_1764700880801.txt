@@ -1,0 +1,89 @@
+QA / TEST-ONLY PROMPT – DO NOT CHANGE APP LOGIC
+
+In this run, please do not change or refactor any existing code or data models in the Grotto App.
+Your job is to test the current ISS functionality as it already exists and report what happens. You may create and delete test data (students, placements, logs), but do not alter the core logic or UI structure.
+
+Goal
+
+Test a simple 3-day ISS placement for Jane Doe, with all days as full ISS days, and see whether the current app correctly:
+
+Creates the placement
+
+Lets you log three days of ISS
+
+Marks the placement as complete on the correct day
+
+Moves it to whatever “completed” or “past placements” area currently exists (if any)
+
+Test Scenario – Jane Doe
+
+Start the app and navigate to the Create New Placement page.
+
+Create a test placement with the following details (using whatever existing fields are available in the current version of the app):
+
+Student Name: Jane Doe
+
+Placement Type: In-School Suspension (ISS)
+
+Start Date: Tuesday, 12/2/2025
+
+Length: 3 days of ISS (or the closest equivalent in the current UI)
+
+Save the placement and navigate to whatever page shows active ISS placements or daily ISS logs (Dashboard, Daily Log Manager, etc.).
+
+Day 1 (Tue 12/2/2025) – Full ISS Day
+
+Using only existing features, log Jane’s first ISS day as a full-day ISS session.
+
+Use whatever “check-in”, “daily log”, or “points/behavior” system is currently built.
+
+Mark the day as completed using whatever mechanism the app already provides (complete, finalize, etc.).
+
+After doing that, note:
+
+How does the app show Jane’s progress?
+
+Does it show “Day 1 of 3” or something similar?
+
+Does anything change in the ISS list or Dashboard?
+
+Day 2 (Wed 12/3/2025) – Full ISS Day
+
+Repeat the process for Jane’s second full day of ISS using the current app.
+
+Log and complete her second day in whatever way is currently supported.
+
+Observe and record:
+
+How does the app represent the second day?
+
+Does it appear to track “2 of 3 days” or something equivalent?
+
+Day 3 (Thu 12/4/2025) – Full ISS Day and Completion
+
+Log Jane’s third full ISS day using the existing UI and workflows.
+
+Again, use the current method to mark the day as finished.
+
+After completing the third day, check:
+
+Does the app show that Jane’s ISS is finished?
+
+Is there any indication that her placement is now complete?
+
+Does her ISS placement move out of the “active” area into some kind of completed/history section, or does it stay in the active list?
+
+Report
+
+Do not change the code. Simply provide a clear written summary of:
+
+Exactly what steps you took in the UI
+
+What you saw at each step (screens, labels, buttons, status changes)
+
+Whether the current system fully supports the idea of a “3-day ISS that ends after 3 full days”
+
+Any gaps, awkwardness, or missing pieces you noticed (for example: can’t clearly tell which day she’s on, can’t see a completed status, etc.).
+
+Again, this is a read-only functional test of existing behavior (plus creating/deleting test records).
+Do not implement new features; just tell me what happens with Jane Doe’s 3-day full ISS in the current app.

@@ -464,7 +464,8 @@ if page == "Dashboard":
                         can_complete = total_points >= 10
                         if st.button("✅ Complete", key=f"complete_full_{placement_id}_{date_str}", type="primary", 
                                      use_container_width=True, disabled=not can_complete):
-                            dm.complete_iss_full_day_session(placement_id, date_str, "Admin")
+                            dm.complete_iss_full_day_session(placement_id, date_str, "Admin", 
+                                                              points_earned=total_points)
                             st.rerun()
                         if not can_complete:
                             st.caption("Requires 10+ points")
@@ -494,7 +495,8 @@ if page == "Dashboard":
                             if st.button("Confirm Override", key=f"confirm_override_{placement_id}_{date_str}", 
                                         type="primary", use_container_width=True, disabled=not override_note.strip()):
                                 dm.complete_iss_full_day_session(placement_id, date_str, "Admin", 
-                                                                  is_override=True, override_note=override_note.strip())
+                                                                  is_override=True, override_note=override_note.strip(),
+                                                                  points_earned=total_points)
                                 st.session_state[f"show_override_{placement_id}_{date_str}"] = False
                                 st.rerun()
                         with col_cancel:
@@ -637,7 +639,8 @@ if page == "Dashboard":
                                 placement_id, date_str, "Admin",
                                 start_period=start_period,
                                 end_period=end_period,
-                                required_points=required_points
+                                required_points=required_points,
+                                points_earned=total_points
                             )
                             st.rerun()
                         if not can_complete:
@@ -673,7 +676,8 @@ if page == "Dashboard":
                                     end_period=end_period,
                                     required_points=required_points,
                                     is_override=True,
-                                    override_note=override_note.strip()
+                                    override_note=override_note.strip(),
+                                    points_earned=total_points
                                 )
                                 st.session_state[f"show_partial_override_{placement_id}_{date_str}"] = False
                                 st.rerun()
@@ -1292,9 +1296,14 @@ elif page == "Placements":
     completed_placements = dm.get_completed_placements_with_students()
     completed_count = len(completed_placements)
     
-    tab1, tab2 = st.tabs([
+    # Get completed ISS placements for history tab
+    completed_iss_placements = dm.get_completed_iss_placements()
+    iss_history_count = len(completed_iss_placements)
+    
+    tab1, tab2, tab3 = st.tabs([
         "Create Placement", 
-        f"Completed Placements ({completed_count})"
+        f"Completed Placements ({completed_count})",
+        f"ISS History ({iss_history_count})"
     ])
     
     # Tab 1: Create Placement
@@ -1857,6 +1866,93 @@ elif page == "Placements":
                         st.rerun()
         else:
             st.info("No completed placements found.")
+    
+    # Tab 3: ISS History
+    with tab3:
+        st.subheader("Completed ISS Sentences")
+        st.caption("View detailed session logs for all completed ISS placements")
+        
+        if completed_iss_placements:
+            # Search filter
+            iss_search_name = st.text_input("Search by Student Name", "", key="iss_history_search")
+            
+            filtered_iss = completed_iss_placements
+            if iss_search_name:
+                filtered_iss = [p for p in filtered_iss 
+                               if iss_search_name.lower() in p['studentName'].lower()]
+            
+            st.write(f"**Showing {len(filtered_iss)} of {iss_history_count} completed ISS placements**")
+            st.divider()
+            
+            for iss_placement in filtered_iss:
+                iss_label = iss_placement.get('issLabel', '')
+                student_name = iss_placement.get('studentName', 'Unknown')
+                
+                with st.expander(f"✅ {iss_label} (Completed)", expanded=False):
+                    # Header info
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Student:** {student_name}")
+                        st.write(f"**Days Assigned:** {iss_placement.get('issDaysAssigned', 0)}")
+                        st.write(f"**Reason:** {iss_placement.get('reason', 'N/A')}")
+                    with col2:
+                        st.write(f"**Start Date:** {format_date(iss_placement.get('startDate', 'N/A'))}")
+                        st.write(f"**End Date:** {format_date(iss_placement.get('endDate', 'N/A'))}")
+                        periods_served = iss_placement.get('issPeriodsServed', 0)
+                        total_required = iss_placement.get('issTotalRequiredPeriods', 0)
+                        st.write(f"**Periods Served:** {periods_served} of {total_required}")
+                    
+                    st.divider()
+                    
+                    # Session logs
+                    session_logs = iss_placement.get('sessionLogs', [])
+                    if session_logs:
+                        st.markdown("**Session History:**")
+                        for i, log in enumerate(session_logs, 1):
+                            session_date = log.get('sessionDate', 'Unknown')
+                            session_type = log.get('sessionType', 'Unknown')
+                            periods_credited = log.get('periodsCredited', 0)
+                            completion_method = log.get('completionMethod', 'Unknown')
+                            points_earned = log.get('pointsEarned')
+                            points_target = log.get('pointsTarget')
+                            override_reason = log.get('overrideReason')
+                            notes = log.get('notes')
+                            
+                            # Build session description
+                            if session_type == 'Full Day':
+                                period_desc = "Periods 1-10"
+                            else:
+                                start_p = log.get('startPeriod', 1)
+                                end_p = log.get('endPeriod', 10)
+                                period_desc = f"Periods {start_p}-{end_p}"
+                            
+                            # Status indicator
+                            status_icon = "⚡" if completion_method == "Override" else "✅"
+                            
+                            # Points display
+                            points_display = ""
+                            if points_earned is not None:
+                                points_display = f" · {points_earned}"
+                                if points_target:
+                                    points_display += f"/{points_target} pts"
+                                else:
+                                    points_display += " pts"
+                            
+                            st.markdown(f"**{i}. {format_date(session_date)}** - {session_type} ({period_desc}) · {periods_credited} periods credited {status_icon}{points_display}")
+                            
+                            # Show override reason if applicable
+                            if completion_method == "Override" and override_reason:
+                                st.caption(f"   ⚡ Override: {override_reason}")
+                            
+                            # Show notes if present
+                            if notes:
+                                st.caption(f"   📝 Notes: {notes}")
+                    else:
+                        st.info("No session logs recorded for this placement.")
+        else:
+            st.info("No completed ISS placements found.")
+            st.caption("Completed ISS sentences will appear here with full session history.")
+
 # ISS Detail Page - Hidden page for ISS daily workflow
 elif page == "ISS Detail":
     placement_id = st.session_state.get('iss_detail_placement_id')

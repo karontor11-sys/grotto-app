@@ -70,3 +70,32 @@ The UI features a **Dashboard** with:
 - **datetime**: For handling temporal data.
 - **typing**: For type hinting.
 - **enum**: For defining constrained value sets.
+
+## Recent Changes
+
+### ISS Session Log Storage & History View (Dec 02, 2025)
+
+**New Database Model - ISSSessionLog:**
+- Records each completed session within an ISS placement
+- Fields: session_date, session_type (Full Day/Partial Day), start_period, end_period, periods_credited
+- Points tracking: points_target, points_earned
+- Completion tracking: completion_method (Complete/Override), override_reason, completed_by
+
+**Placement Enhancement:**
+- Added `iss_label` field to Placement model
+- Stores official label "{issDaysAssigned}-day ISS for {Student Name}" when sentence completes
+
+**Complete Methods Updated:**
+- `complete_iss_full_day_session()`: Creates ISSSessionLog entry, sets iss_label on completion
+- `complete_iss_partial_day_session()`: Creates ISSSessionLog entry, sets iss_label on completion
+
+**New Retrieval Methods:**
+- `get_iss_session_logs(placement_id)`: Returns all session logs for a placement
+- `get_completed_iss_placements(student_id)`: Returns completed ISS placements with session logs
+
+**ISS History View (Placements > ISS History tab):**
+- Shows all completed ISS sentences with expandable details
+- Header: "{X}-day ISS for Student Name (Completed)"
+- Session list: Date, Full/Partial Day, periods credited, Complete vs Override, points, notes
+- Search by student name
+- Override reasons and notes displayed for each session

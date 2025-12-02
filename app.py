@@ -260,10 +260,12 @@ if warning_count > 0:
 
 # Dashboard Page
 if page == "Dashboard":
-    # Create New Placement button at the very top
-    if st.button("Create New Placement", type="primary"):
-        st.session_state.navigate_to_create_placement = True
-        st.rerun()
+    # Create New Placement button - centered and prominent at the very top
+    btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
+    with btn_col2:
+        if st.button("Create New Placement", type="primary", use_container_width=True):
+            st.session_state.navigate_to_create_placement = True
+            st.rerun()
     
     st.header("Dashboard")
     

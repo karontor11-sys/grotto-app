@@ -8,62 +8,62 @@ The Grotto is a student placement and behavior tracking system for educational i
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Development Status (Dec 01, 2025)
+## Recent Development Status (Dec 02, 2025)
 
-### Enhanced ISS Session Cards - COMPLETED
+### Unified Class Period Referral Dashboard - COMPLETED
 
-**Current Status:** Session-based ISS display with comprehensive cards fully implemented
+**Current Status:** Dashboard now displays 3 unified sections (ISS, Lunch Detention, Class Period Referral) with all referral subtypes under one parent section.
 
 **Completed:**
-1. **Database Schema Updates** - Added columns to `daily_logs` table:
-   - `day_type` (VARCHAR) - Stores 'full', 'partial', or 'absent'
-   - `periods_covered` (JSON) - Array of period numbers for partial days
-   - `override_used` (BOOLEAN) - Tracks "Call It Good" override usage
-   - `override_comment` (TEXT) - Required comment when override is used
-   - `checked_in` (BOOLEAN) - True when student is checked in for the day
-   - `checked_in_at` (DATETIME) - Timestamp when check-in occurred
+1. **Dashboard Unification** - Merged 3 separate sections into one "Class Period Referral" parent section:
+   - Previously: Separate "Class Referral", "Cool-Down Referral", "Pre-Planned Referral" sections
+   - Now: Single "Class Period Referral" section containing all subtypes
+   - Uses `render_unified_class_referral_card()` function for all referral types
 
-2. **Session-Based Dashboard** - Refactored ISS display from placement-based to session-based:
-   - Uses `get_iss_sessions_for_date()` to fetch from `PartialDaySession` table
-   - Each session card shows: student name, periods, day progress, attendance, points, behaviors
-   - Status indicators: 🟡 (In Progress), 🟢 (Completed), 🔴 (Not Completed/No-Show)
+2. **Subtype Labels & Display** - Each card shows clear subtype identification:
+   - 📚 Behavior Referral - Single-day with period selection
+   - 🧘 Cool-Down Referral - Short-term cool-down with date/period
+   - 📅 Pre-Planned Referral - Schedule-based with multiple date+period combinations
+   - Shows reason text and period information for each subtype
 
-3. **Enhanced ISS Session Card** - `render_iss_session_card()` function includes:
-   - Clickable student name with status indicator
-   - Period display (Full Day or Partial Day with period count)
-   - Days-based progress ("Completed X of Y ISS days")
-   - **Check In button workflow** (replaces Present/Absent radio):
-     - Check In button is clickable when student hasn't checked in
-     - Button becomes disabled/greyed after check-in
-     - Behavior controls and Complete/Override only enabled after check-in
-   - Points Total with completion eligibility (10+ for full day)
-   - Positive/Negative behavior dropdowns (enabled after check-in)
-   - Complete button (requires check-in and 10+ points for full day)
-   - Override & Count Full button with confirmation (requires check-in)
-   - **Always-visible Notes with auto-save** (see below)
+3. **Subtype-Specific Completion Buttons**:
+   - Behavior Referral: "✅ Complete Referral" button
+   - Cool-Down Referral: "✅ Complete Cool-Down" button
+   - Pre-Planned Referral: "✅ Complete Pre-Planned Day" button
 
-5. **Auto-Save Notes Section** - Updated all placement type cards:
-   - Notes text area is always visible (no expand/collapse toggle)
-   - Compact 60px height text box with placeholder text
-   - Auto-saves when user finishes editing (on blur/tab away)
-   - Shows "✓ Saved" indicator for 2 seconds after successful save
-   - Applied to all 5 placement types: ISS, Lunch Detention, Class Period Referral, Cool-Down Referral, Pre-Planned Referral
-   - Helper function `render_auto_save_notes()` handles all Notes UI and save logic
+4. **No Show Functionality for Pre-Planned Referrals**:
+   - Database columns added: `no_show` (BOOLEAN), `no_show_note` (TEXT)
+   - Checkbox toggle for marking student as No Show
+   - Text input for No Show notes (auto-saves)
+   - Methods: `update_daily_log_no_show()`, `update_daily_log_no_show_note()`, `complete_placement_day_no_show()`
 
-4. **Days-Based Progress Tracking (Check-In Based)**:
-   - "Day X of Y Days" counter now advances when Check In is pressed (not on completion)
-   - `calculate_iss_checkin_progress()` counts days where `checked_in = True`
-   - X = number of days checked in, Y = total ISS days assigned
-   - Counter increments once per date (multiple check-ins same day don't double-count)
-   - Complete/Override do NOT increment the day counter
-   - Past date views show progress up to and including selected date
+5. **End-of-Day Processing Updates**:
+   - Class Period Referrals: Auto-completed as 'yes' at midnight (student completed session)
+   - ISS and Lunch Detention: Still marked as 'no' (incomplete) at midnight
+   - Pre-Planned No Show: If no_show=True at midnight, marked complete with no show notation
 
 **Key Architecture Decisions:**
-- Daily logs keyed by placement_id + date (one session per day for full-day ISS)
-- Completion uses `mark_session_completed()` to set session status to fulfilled and update daily log
-- Override uses `mark_session_completed()` with is_override=True flag
-- Notes stored in daily_logs.notes field
-- Progress (Day X of Y) calculated from daily_logs with checked_in=True
+- `unified_class_referral_placements` list combines CLASS_REFERRAL, COOL_DOWN, and PRE_PLANNED_REFERRAL types
+- Subtype identified via `referral_subtype` field or legacy `placementType` mapping
+- All Class Period Referrals now use same card rendering function with conditional display
+
+---
+
+### Previous: Enhanced ISS Session Cards (Dec 01, 2025)
+
+**Status:** Session-based ISS display with comprehensive cards fully implemented
+
+**Features:**
+- Session-Based Dashboard using `get_iss_sessions_for_date()` from `PartialDaySession` table
+- Status indicators: 🟡 (In Progress), 🟢 (Completed), 🔴 (Not Completed/No-Show)
+- Check In button workflow with behavior controls enabled after check-in
+- Days-Based Progress Tracking ("Day X of Y Days") increments on check-in
+- Auto-Save Notes Section with 2-second "✓ Saved" indicator
+- Override & Count Full button with confirmation
+
+**Database Schema Updates (daily_logs):**
+- `day_type`, `periods_covered`, `override_used`, `override_comment`
+- `checked_in`, `checked_in_at`, `no_show`, `no_show_note`
 
 ## System Architecture
 

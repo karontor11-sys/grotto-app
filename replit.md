@@ -96,12 +96,13 @@ The UI features a **Dashboard** with:
   - Quick action buttons (Daily Logs, Complete Placement)
   
   Completed placements appear only in the "Completed Placements" tab.
-- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation. Features a streamlined single-selector interface with 5 placement type options:
+- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry during placement creation. Features a streamlined single-selector interface with 3 main placement types:
   - **In-School Suspension (ISS)**: Simplified ISS placement using start date + number of days model. Stores `iss_start_date`, `iss_total_days`, and `iss_remaining_days` (initialized equal to total days). No period/day conversion at placement creation.
   - **Lunch Detention**: Multi-day lunch detention placement
-  - **Class Period Referral**: Single-period or multi-period classroom referral with period selection
-  - **Cool-Down Referral**: Short-term cool-down placement with date and period selection
-  - **Pre-Planned Referral**: Schedule-based referral with multiple date+period combinations
+  - **Class Period Referral**: Umbrella category with 3 sub-types (selected via dropdown):
+    - **Behavior Referral**: Single-day with period selection (stores `referral_subtype='behavior'`)
+    - **Cool-Down Referral**: Short-term cool-down with date and period selection (stores `referral_subtype='cool_down'`)
+    - **Pre-Planned Referral**: Schedule-based referral with multiple date+period combinations (stores `referral_subtype='pre_planned'`)
 - **Daily Logs**: Interface for point tracking with "Session-Scoped View" (for specific sessions) and "Placement-Wide View" (default, for all placements).
 - **Assignments**: Manages academic tasks.
 - **Notes**: For general documentation.
@@ -117,7 +118,8 @@ The UI features a **Dashboard** with:
 - **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions for granular tracking, with behavior menus filtered by session type.
 - **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons, following a validated state machine.
 - **Flexible Placement Completion Rules**: Configurable completion criteria for different placement types with role-based "Complete Placement" button.
-- **Five Placement Types**: Single radio selector for choosing between In-School Suspension (ISS), Lunch Detention, Class Period Referral, Cool-Down Referral, and Pre-Planned Referral with conditional fields based on selection.
+- **Three Main Placement Types**: Radio selector for choosing between In-School Suspension (ISS), Lunch Detention, and Class Period Referral. Class Period Referral is an umbrella category with a dropdown to select sub-types (Behavior, Cool-Down, or Pre-Planned Referral), with conditional scheduling fields based on selection.
+- **Referral Sub-Type Tracking**: Class Period Referrals store a `referral_subtype` field ('behavior', 'cool_down', or 'pre_planned') to differentiate referral types while maintaining all under placementType 'CLASS_REFERRAL'.
 - **Simplified ISS Form**: The ISS placement form collects:
   - Student Information (name, grade, homeroom teacher)
   - Placement Details (reason)

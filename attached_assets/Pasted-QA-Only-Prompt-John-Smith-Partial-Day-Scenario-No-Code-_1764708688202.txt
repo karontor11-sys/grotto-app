@@ -1,0 +1,124 @@
+QA-Only Prompt – John Smith Partial-Day Scenario (No Code Changes)
+
+QA / TEST-ONLY PROMPT – DO NOT CHANGE ANY APP LOGIC
+
+We have confirmed that the full-day ISS check-in flow works for Jane Doe (10 points → Complete → +10 iss_periods_served, iss_remaining_days decremented).
+
+Now I want to test how well the current system can represent a more complex ISS sentence with partial days, without adding any new features or changing any code.
+
+GOAL
+
+Use only the existing ISS features to simulate this scenario for a new student, John Smith:
+
+A 4-day ISS sentence
+
+Day 1: partial (Periods 4–10, target 7 points)
+
+Days 2, 3, 4: full days (10 points each)
+
+A final partial make-up (Periods 1–3, target 3 points) on a 5th calendar day
+
+We know the current system always counts a completed/overridden day as +10 periods, but I want to see:
+
+How close we can get to representing this scenario with what we have now
+
+Where the limitations are
+
+PART 1 – Seed John Smith’s ISS Placement (Test Data Only)
+
+Insert a test student and ISS placement directly in the database (similar to what you did for Jane), with:
+
+Student: John Smith (grade, homeroom can be any reasonable test values)
+
+Placement Type: In-School Suspension (ISS)
+
+Start Date: 2025-12-02 (or close)
+
+iss_days_assigned = 4
+
+iss_total_required_periods = 40
+
+iss_periods_served = 0
+
+iss_remaining_days = 4
+
+Reason: “QA Test 4-day ISS w/ partials”
+
+Status: active
+
+Confirm via SQL/DB inspection that John’s placement is present and looks structurally similar to Jane’s, just with 4 days / 40 periods.
+
+PART 2 – Use the Existing Dashboard UI to Simulate the Scenario
+
+Do NOT change any logic. Just use the UI as it is.
+
+Calendar Day 1 – Attempt Partial Day (Periods 4–10, 7 points)
+
+Go to the Dashboard and locate John Smith’s ISS card (scroll as needed).
+
+Click “Check In” on his card.
+
+In the daily log:
+
+Try to simulate a partial day (Periods 4–10, target 7 points) using whatever tools the current UI provides (behaviors, points, notes).
+
+If there is no way to specify periods explicitly, just:
+
+Set a lower point target (e.g., stop at 7 points instead of 10), and
+
+Add a note like “Partial ISS – Periods 4–10, 7-point target.”
+
+When you’re ready to end the day, choose one of the existing buttons:
+
+✓ Complete (if he has ≥ target points), or
+
+🔓 Override & Count Full
+
+After ending Day 1:
+
+Report John’s new iss_periods_served and iss_remaining_days from the database.
+
+Describe how the UI represents that day (does it look any different from a full day?).
+
+Calendar Days 2, 3, and 4 – Full ISS Days
+
+For the next three calendar days, use the existing ISS flow to log full days for John:
+
+Check In → Log behaviors/points → ✓ Complete
+
+After each day (Day 2, Day 3, and Day 4), record:
+
+The updated iss_periods_served
+
+The updated iss_remaining_days
+
+Whether the UI gives any sense of “Day 2 of 4”, “Day 3 of 4”, “Day 4 of 4”, etc., or just shows a generic ISS card.
+
+Calendar Day 5 – Attempt Partial Make-Up (Periods 1–3, 3 points)
+
+Now, attempt to simulate a short make-up day where John only serves Periods 1–3 and needs 3 points:
+
+Check In again on a new day.
+
+Stop at a low number of points (e.g., 3) and add a note like “Partial make-up – Periods 1–3, 3-point target.”
+
+End the day using ✓ Complete or Override & Count Full (whichever the system requires).
+
+After this final “partial” make-up:
+
+Report John’s final iss_periods_served and iss_remaining_days.
+
+Report whether the app considers his ISS “done” in any visible way (status, remaining days, card behavior, etc.).
+
+PART 3 – Report Limitations (No Fixes Yet)
+
+Without changing any code, give me a clear written summary of:
+
+How you approximated partial days with the existing system.
+
+How the actual behavior differed from the ideal partial-day model (e.g., each completion still added +10 periods, drained iss_remaining_days by 1).
+
+Whether the current system can meaningfully track a 4-day ISS that is made up of partial first/last days, or if it essentially treats every completed/overridden day as a full day.
+
+This is a test-only exercise.
+Please do not implement any new partial-day features or change logic; I only want to understand how the current app behaves when we try to run a partial-day ISS scenario like John Smith’s.

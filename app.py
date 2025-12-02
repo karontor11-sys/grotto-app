@@ -1051,7 +1051,9 @@ if page == "Dashboard":
         is_present = date_str in served_dates
         
         # Get ISS total days from placement for partial day control
-        iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
+        iss_total_days = placement_data.get('issTotalDays') if placement_data else 1
+        if iss_total_days is None:
+            iss_total_days = 1
         is_multi_day_iss = iss_total_days > 1
         
         # Check if student is checked in for today

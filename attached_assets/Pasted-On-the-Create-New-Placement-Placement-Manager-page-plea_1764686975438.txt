@@ -1,0 +1,58 @@
+On the Create New Placement / Placement Manager page, please update the Placement Type section so that Class Period Referral becomes an umbrella category with three sub-options, while preserving the existing scheduling logic for each type.
+
+1. Placement Type radio buttons
+
+Update the main Placement Type radio group so that it includes:
+
+In-School Suspension (ISS)
+
+Lunch Detention
+
+Class Period Referral ← umbrella option
+
+(Remove Cool-Down Referral and Pre-Planned Referral as separate top-level radio buttons, since they will now live under Class Period Referral.)
+
+2. Add sub-type selector when Class Period Referral is chosen
+
+When the user selects the Class Period Referral radio button, display a dropdown menu (or similar selector) labeled something like “Referral Type” with these three options:
+
+Behavior Referral
+
+Cool-Down Referral
+
+Pre-Planned Referral
+
+The dropdown should only be visible when Class Period Referral is selected as the main placement type.
+
+3. Reuse existing scheduling logic for each sub-type
+
+After the user selects one of the three sub-options from the Referral Type dropdown:
+
+If Behavior Referral is selected:
+
+Show and use the same scheduling fields and logic that are currently used for Class Period Referral (period-based referral for a specific class period or periods).
+
+If Cool-Down Referral is selected:
+
+Show and use the same scheduling fields and logic that are currently used for Cool-Down Referral.
+
+If Pre-Planned Referral is selected:
+
+Show and use the same scheduling fields and logic that are currently used for Pre-Planned Referral (including any date + period builder).
+
+Do not invent new scheduling behavior; just re-use the existing forms/logic and conditionally show the correct one based on the chosen sub-type.
+
+4. Data storage
+
+Ensure that both:
+
+The main placement type (Class Period Referral), and
+
+The sub-type (Behavior Referral / Cool-Down Referral / Pre-Planned Referral)
+are stored with the placement record so that the Dashboard can later distinguish which subtype was selected.
+
+5. No Dashboard changes yet
+
+Do not change anything on the Dashboard in this prompt.
+
+Only modify the Placement Manager / Create New Placement flow as described above.

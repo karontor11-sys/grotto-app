@@ -99,6 +99,7 @@ class Placement(Base):
     scheduled_iss_dates = Column(JSON, default=list)  # Array of scheduled ISS dates (ISO format strings) for full-day ISS
     scheduled_iss_sessions = Column(JSON, default=list)  # Array of scheduled ISS sessions with date, periods, and session type
     served_dates = Column(JSON, default=list)  # Array of dates when student was present (ISO format strings)
+    referral_subtype = Column(String, nullable=True)  # For CLASS_REFERRAL: 'behavior', 'cool_down', or 'pre_planned'
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now)
@@ -445,6 +446,7 @@ class DatabaseManager:
                 scheduled_iss_dates=scheduled_iss_dates,
                 scheduled_iss_sessions=placement_data.get('scheduledIssSessions', []),
                 served_dates=served_dates,
+                referral_subtype=placement_data.get('referralSubtype'),
                 status=PlacementStatus.active,
                 created_by=placement_data.get('createdBy'),
                 created_at=datetime.fromisoformat(placement_data.get('createdAt', datetime.now().isoformat()))
@@ -2247,6 +2249,7 @@ class DatabaseManager:
             'scheduledIssDates': placement.scheduled_iss_dates or [],
             'scheduledIssSessions': placement.scheduled_iss_sessions or [],
             'servedDates': placement.served_dates or [],
+            'referralSubtype': placement.referral_subtype,
             'status': placement.status.value,
             'createdBy': placement.created_by,
             'createdAt': placement.created_at.isoformat() if placement.created_at else None

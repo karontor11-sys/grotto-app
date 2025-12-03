@@ -367,8 +367,8 @@ if page == "Dashboard":
             st.markdown(f"### {status_icon} {student_name}")
             st.caption(f"Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
             
-            # Summary line: "{issDaysAssigned}-day ISS for {Student Name}"
-            st.markdown(f"**{iss_days_assigned}-day ISS for {student_name}**")
+            # Summary line: "{issDaysAssigned}-day ISS Session for {Student Name}"
+            st.markdown(f"**{iss_days_assigned}-day ISS Session for {student_name}**")
             
             # Progress line: "Periods served: X of Y"
             st.info(f"📊 Periods served: **{iss_periods_served}** of **{iss_total_required_periods}**")
@@ -377,7 +377,7 @@ if page == "Dashboard":
             if is_session_complete:
                 st.success("✅ **ISS Session complete**")
             else:
-                st.markdown(f"📅 **Day {current_day} of {iss_days_assigned}**")
+                st.markdown(f"📅 **Day {current_day} of {iss_days_assigned} ISS Session**")
             
             # Check-in buttons (only for active ISS, not completed Session)
             if not is_session_complete:
@@ -392,7 +392,7 @@ if page == "Dashboard":
                 elif is_checked_in and day_type == 'full':
                     # Show Full Day ISS Session Panel
                     st.markdown("### 📋 Full Day ISS Session (10 periods)")
-                    st.info(f"**{iss_days_assigned}-day ISS for {student_name}** · Day {current_day} of {iss_days_assigned}")
+                    st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
                     
                     # Behaviors section
                     col_left, col_right = st.columns([1, 1])
@@ -514,7 +514,7 @@ if page == "Dashboard":
                 elif is_checked_in and day_type == 'partial':
                     # Show Partial Day ISS Session Panel
                     st.markdown("### 📋 Partial Day ISS Session")
-                    st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned}")
+                    st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
                     
                     # Get stored period values from daily log (set during check-in)
                     start_period = daily_log.get('startPeriod') or 1

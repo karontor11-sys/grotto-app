@@ -736,17 +736,28 @@ class DatabaseManager:
             if placement_type == 'ISS' and placement.get('issStartDate'):
                 # Use new simplified ISS model
                 iss_start_date = datetime.fromisoformat(placement['issStartDate']).date()
-                iss_remaining_days = placement.get('issRemainingDays', 0)
+                iss_remaining_days = placement.get('issRemainingDays') or 0
+                
+                # For placements using iss_days_assigned, calculate remaining days if not set
+                if iss_remaining_days == 0 and placement.get('issDaysAssigned'):
+                    days_completed = placement.get('daysCompleted') or 0
+                    iss_remaining_days = (placement.get('issDaysAssigned') or 0) - days_completed
                 
                 # Check if placement has been overridden (check most recent daily log)
                 daily_log = self.get_or_create_daily_log(placement['_id'], target_date.isoformat())
                 override_used = daily_log.get('overrideUsed', False)
                 
+                # Check if placement needs make-up (completed all days but has remaining periods)
+                iss_periods_served = placement.get('issPeriodsServed') or 0
+                iss_total_required = placement.get('issTotalRequiredPeriods') or 0
+                needs_makeup = (iss_remaining_days <= 0 and iss_periods_served < iss_total_required)
+                is_needs_makeup_status = placement.get('status') == 'needs_makeup'
+                
                 # Show on dashboard if:
                 # 1. Today is on or after start date
-                # 2. Still has remaining days
+                # 2. Still has remaining days OR needs make-up periods OR has needs_makeup status
                 # 3. No override has ended it early
-                if target_date >= iss_start_date and iss_remaining_days > 0 and not override_used:
+                if target_date >= iss_start_date and (iss_remaining_days > 0 or needs_makeup or is_needs_makeup_status) and not override_used:
                     result.append(placement)
             else:
                 # LEGACY LOGIC for non-ISS or old ISS placements
@@ -1559,8 +1570,8 @@ class DatabaseManager:
             result = []
             for sess in sessions:
                 placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
-                # Include both active and scheduled placements
-                if placement and placement.status in [PlacementStatus.active, PlacementStatus.scheduled]:
+                # Include active, scheduled, and needs_makeup placements
+                if placement and placement.status in [PlacementStatus.active, PlacementStatus.scheduled, PlacementStatus.needs_makeup]:
                     student = db_session.query(Student).filter(Student.id == placement.student_id).first()
                     if student:
                         periods = sess.periods if sess.periods else list(range(1, 11))
@@ -1588,7 +1599,11 @@ class DatabaseManager:
                             'iss_remaining_days': placement.iss_remaining_days,
                             'reason': placement.reason,
                             'placement_status': placement.status.value,
-                            'start_date': placement.start_date.isoformat() if placement.start_date else None
+                            'start_date': placement.start_date.isoformat() if placement.start_date else None,
+                            'iss_days_assigned': placement.iss_days_assigned,
+                            'iss_total_required_periods': placement.iss_total_required_periods,
+                            'iss_periods_served': placement.iss_periods_served or 0,
+                            'days_completed': placement.days_completed or 0
                         })
             
             return result
@@ -1902,7 +1917,8 @@ class DatabaseManager:
             if not placement:
                 return {'total_days': 0, 'checked_in_days': 0, 'remaining_days': 0}
             
-            total_days = placement.iss_total_days or 0
+            # Use iss_days_assigned as primary source, fallback to iss_total_days
+            total_days = placement.iss_days_assigned or placement.iss_total_days or 0
             
             if up_to_date is None:
                 up_to_date = datetime.now().date()

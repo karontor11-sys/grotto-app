@@ -73,6 +73,23 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes
 
+### ISS Periods-Based Completion Logic (Dec 03, 2025)
+
+**Total Required Periods:**
+- `iss_total_required_periods = iss_days_assigned * 10` on placement creation
+- Example: 4-day ISS Session → iss_total_required_periods = 40
+
+**Periods-Based Completion:**
+- `complete_iss_full_day_session` now uses `periods_covered` from daily log instead of hard-coded +10
+- `complete_iss_partial_day_session` already used `planned_periods` correctly
+- Override completion uses the same periods_covered logic
+- Progress uses `iss_periods_served` out of `iss_total_required_periods`
+
+**Example Scenario:**
+- Day 1: Full Day (10 periods) → iss_periods_served = 10
+- Day 2: Partial Day (periods 8-10 = 3 periods) → iss_periods_served = 13
+- Progress: 13 of 40 = 32.5%
+
 ### Full-Day ISS Simplification & Session Labeling (Dec 03, 2025)
 
 **Full-Day Check-In Defaults:**

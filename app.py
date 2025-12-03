@@ -514,54 +514,19 @@ if page == "Dashboard":
                 elif is_checked_in and day_type == 'partial':
                     # Show Partial Day ISS Session Panel
                     st.markdown("### 📋 Partial Day ISS Session")
-                    st.info(f"**{iss_days_assigned}-day ISS for {student_name}** · Day {current_day} of {iss_days_assigned}")
+                    st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned}")
                     
-                    # Initialize session state for period selections
-                    start_key = f"start_period_{placement_id}_{date_str}"
-                    end_key = f"end_period_{placement_id}_{date_str}"
+                    # Get stored period values from daily log (set during check-in)
+                    start_period = daily_log.get('startPeriod') or 1
+                    end_period = daily_log.get('endPeriod') or 10
+                    required_points = daily_log.get('requiredPoints') or (end_period - start_period + 1)
                     
-                    if start_key not in st.session_state:
-                        st.session_state[start_key] = 1
-                    if end_key not in st.session_state:
-                        st.session_state[end_key] = 10
+                    # Display period info (read-only since already checked in)
+                    periods_count = end_period - start_period + 1
+                    st.markdown(f"**Periods:** {start_period} to {end_period} ({periods_count} periods)")
                     
-                    # Period selection
-                    col_start, col_end = st.columns(2)
-                    with col_start:
-                        start_period = st.selectbox(
-                            "Start Period",
-                            options=list(range(1, 11)),
-                            index=st.session_state[start_key] - 1,
-                            key=start_key
-                        )
-                    with col_end:
-                        # End period options should be >= start period
-                        end_options = list(range(start_period, 11))
-                        # Calculate current end period index within valid options
-                        current_end = st.session_state.get(end_key, 10)
-                        if current_end < start_period:
-                            current_end = start_period
-                        end_index = current_end - start_period if current_end >= start_period else 0
-                        end_period = st.selectbox(
-                            "End Period",
-                            options=end_options,
-                            index=min(end_index, len(end_options) - 1),
-                            key=end_key
-                        )
-                    
-                    # Calculate planned periods
-                    planned_periods = end_period - start_period + 1
-                    st.markdown(f"**Planned Periods:** {planned_periods} (Period {start_period} to {end_period})")
-                    
-                    # Required points input
-                    default_required_points = planned_periods  # 1 point per period as default
-                    required_points = st.number_input(
-                        "Required Points for This Partial Day",
-                        min_value=1,
-                        max_value=10,
-                        value=default_required_points,
-                        key=f"required_points_{placement_id}_{date_str}"
-                    )
+                    # Prominently display required points
+                    st.success(f"**Required Points for this Session: {required_points}**")
                     
                     st.markdown("---")
                     
@@ -698,15 +663,61 @@ if page == "Dashboard":
                     st.info("📍 Student checked in for today")
                 else:
                     # Not checked in - show check-in buttons
-                    col_checkin1, col_checkin2 = st.columns(2)
-                    with col_checkin1:
-                        if st.button("Check-In – Full Day", key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
-                            dm.check_in_student(placement_id, date_str, day_type='full')
-                            st.rerun()
-                    with col_checkin2:
-                        if st.button("Check-In – Partial Day", key=f"checkin_partial_{placement_id}_{date_str}", use_container_width=True):
-                            dm.check_in_student(placement_id, date_str, day_type='partial')
-                            st.rerun()
+                    # Check if partial day form should be shown
+                    show_partial_form_key = f"show_partial_form_{placement_id}_{date_str}"
+                    
+                    if st.session_state.get(show_partial_form_key, False):
+                        # Show Partial Day period selection form
+                        st.markdown("#### Select Periods for Partial Day")
+                        
+                        col_start, col_end = st.columns(2)
+                        with col_start:
+                            partial_start = st.selectbox(
+                                "Start Period",
+                                options=list(range(1, 11)),
+                                index=0,
+                                key=f"partial_start_{placement_id}_{date_str}"
+                            )
+                        with col_end:
+                            # End period must be >= start period
+                            end_options = list(range(partial_start, 11))
+                            partial_end = st.selectbox(
+                                "End Period",
+                                options=end_options,
+                                index=len(end_options) - 1,
+                                key=f"partial_end_{placement_id}_{date_str}"
+                            )
+                        
+                        # Calculate and display periods covered and required points
+                        periods_count = partial_end - partial_start + 1
+                        st.info(f"**Periods Covered:** {periods_count} (Period {partial_start} to {partial_end})")
+                        st.markdown(f"**Required Points for this Session:** {periods_count}")
+                        
+                        col_confirm, col_cancel = st.columns(2)
+                        with col_confirm:
+                            if st.button("Confirm Check-In", key=f"confirm_partial_{placement_id}_{date_str}", 
+                                        type="primary", use_container_width=True):
+                                dm.check_in_student(placement_id, date_str, day_type='partial',
+                                                   start_period=partial_start, end_period=partial_end)
+                                st.session_state[show_partial_form_key] = False
+                                st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"cancel_partial_{placement_id}_{date_str}", 
+                                        use_container_width=True):
+                                st.session_state[show_partial_form_key] = False
+                                st.rerun()
+                    else:
+                        # Show check-in buttons
+                        col_checkin1, col_checkin2 = st.columns(2)
+                        with col_checkin1:
+                            if st.button("Check-In – Full Day", key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
+                                dm.check_in_student(placement_id, date_str, day_type='full')
+                                st.rerun()
+                        with col_checkin2:
+                            if st.button("Check-In – Partial Day", key=f"checkin_partial_{placement_id}_{date_str}", use_container_width=True):
+                                # Show partial day form instead of immediately checking in
+                                st.session_state[show_partial_form_key] = True
+                                st.rerun()
             
             # Notes (always visible with auto-save)
             st.caption("Notes")

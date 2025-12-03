@@ -844,16 +844,23 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = 'full') -> bool:
+    def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = 'full',
+                         start_period: int = None, end_period: int = None) -> bool:
         """Check in a student for an ISS day.
         
         Args:
             placement_id: ID of the placement
             check_in_date: ISO format date string
             day_type: 'full' for full day (10 periods) or 'partial' for partial day
+            start_period: For partial day, the starting period (1-10)
+            end_period: For partial day, the ending period (1-10)
             
         Returns:
             True if successful, False otherwise
+            
+        Period-Based Point Target:
+            For partial days: required_points = end_period - start_period + 1 (periods_covered)
+            For full days: required_points = 10
             
         Auto-Classification for Day 1 Partial (Multi-day ISS Session):
             When ALL conditions are met:
@@ -890,6 +897,30 @@ class DatabaseManager:
                 # Flag placement for flexible session mode (period-based completion)
                 placement.is_flexible_session_mode = True
             
+            # Calculate periods_covered and required_points based on day_type
+            if day_type == 'full':
+                # Full day: all 10 periods, 10 required points
+                calc_start_period = 1
+                calc_end_period = 10
+                periods_covered = list(range(1, 11))
+                required_points = 10
+            elif day_type == 'partial':
+                # Partial day: use provided periods or defaults
+                calc_start_period = start_period if start_period else 1
+                calc_end_period = end_period if end_period else 10
+                # Validate: end_period >= start_period
+                if calc_end_period < calc_start_period:
+                    calc_end_period = calc_start_period
+                periods_covered = list(range(calc_start_period, calc_end_period + 1))
+                # Required points = periods covered (1 point per period)
+                required_points = calc_end_period - calc_start_period + 1
+            else:
+                # Absent or other
+                calc_start_period = None
+                calc_end_period = None
+                periods_covered = []
+                required_points = None
+            
             # Get or create daily log
             log = session.query(DailyLog).filter(
                 DailyLog.placement_id == placement_id,
@@ -903,13 +934,21 @@ class DatabaseManager:
                     date=date_obj,
                     checked_in=True,
                     checked_in_at=datetime.now(),
-                    day_type=day_type
+                    day_type=day_type,
+                    start_period=calc_start_period,
+                    end_period=calc_end_period,
+                    periods_covered=periods_covered,
+                    required_points=required_points
                 )
                 session.add(log)
             else:
                 log.checked_in = True
                 log.checked_in_at = datetime.now()
                 log.day_type = day_type
+                log.start_period = calc_start_period
+                log.end_period = calc_end_period
+                log.periods_covered = periods_covered
+                log.required_points = required_points
             
             # Also add to served_dates for ISS placements
             if placement.placement_type == PlacementCategory.ISS:
@@ -2993,6 +3032,10 @@ class DatabaseManager:
             'periodsCovered': log.periods_covered or [],
             'overrideUsed': log.override_used or False,
             'overrideComment': log.override_comment,
+            # Period-based fields for partial day ISS
+            'startPeriod': log.start_period,
+            'endPeriod': log.end_period,
+            'requiredPoints': log.required_points,
             # Check-in workflow fields
             'checkedIn': log.checked_in or False,
             'checkedInAt': log.checked_in_at.isoformat() if log.checked_in_at else None,

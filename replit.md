@@ -73,6 +73,34 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes
 
+### Partial-Day Period Selection + Period-Based Point Target (Dec 03, 2025)
+
+**Feature Summary:**
+- When clicking "Check In Partial Day" for ISS placements, the UI now shows Start Period and End Period dropdown selectors (1-10)
+- Periods covered is calculated as: `end_period - start_period + 1`
+- Required points for partial days is automatically set to periods covered (1 point per period)
+- For full days, required points remains 10
+
+**UI Changes:**
+- Clicking "Partial Day" button shows a period selection form before check-in
+- Start Period dropdown (1-10, default 1)
+- End Period dropdown (starts from Start Period, default 10)
+- Shows "Periods Covered: X" and "Required Points for this Session: X" before confirming
+- After check-in, the Partial Day panel shows stored values read-only with prominent "Required Points for this Session: X"
+
+**Database Changes (DailyLog table):**
+- Added `start_period` (Integer): Starting period for partial day (1-10)
+- Added `end_period` (Integer): Ending period for partial day (1-10)
+- Added `required_points` (Integer): Points required for session completion (= periods covered)
+- Migration added to `_run_migrations()` for automatic column creation
+
+**Updated Methods:**
+- `check_in_student()`: Accepts `start_period` and `end_period` parameters, calculates and stores `periods_covered` and `required_points`
+- `_daily_log_to_dict()`: Exposes `startPeriod`, `endPeriod`, `requiredPoints` in API responses
+
+**Validation:**
+- End period must be >= start period (enforced in UI via filtered dropdown options)
+
 ### Day 1 Partial Auto-Classification for Multi-Day ISS Sessions (Dec 03, 2025)
 
 **Feature Summary:**

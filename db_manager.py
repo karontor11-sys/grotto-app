@@ -132,6 +132,10 @@ class DailyLog(Base):
     periods_covered = Column(JSON, default=list)  # Array of period numbers covered for partial days
     override_used = Column(Boolean, default=False)  # True if "Call It Good" override was used
     override_comment = Column(Text, nullable=True)  # Required comment when override is used
+    # Period-based fields for partial day ISS
+    start_period = Column(Integer, nullable=True)  # For partial day: starting period (1-10)
+    end_period = Column(Integer, nullable=True)  # For partial day: ending period (1-10)
+    required_points = Column(Integer, nullable=True)  # Points required for this session (= periods covered)
     # Check-in workflow fields
     checked_in = Column(Boolean, default=False)  # True when student is checked in for the day
     checked_in_at = Column(DateTime, nullable=True)  # Timestamp when check-in occurred
@@ -280,7 +284,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'daily_logs' 
-                AND column_name IN ('day_type', 'periods_covered', 'override_used', 'override_comment')
+                AND column_name IN ('day_type', 'periods_covered', 'override_used', 'override_comment', 'start_period', 'end_period', 'required_points')
             """)
             existing_daily_log_columns = {row[0] for row in result}
             
@@ -375,6 +379,19 @@ class DatabaseManager:
             
             if 'override_comment' not in existing_daily_log_columns:
                 session.execute("ALTER TABLE daily_logs ADD COLUMN override_comment TEXT")
+                session.commit()
+            
+            # Add period-based fields for partial day ISS
+            if 'start_period' not in existing_daily_log_columns:
+                session.execute("ALTER TABLE daily_logs ADD COLUMN start_period INTEGER")
+                session.commit()
+            
+            if 'end_period' not in existing_daily_log_columns:
+                session.execute("ALTER TABLE daily_logs ADD COLUMN end_period INTEGER")
+                session.commit()
+            
+            if 'required_points' not in existing_daily_log_columns:
+                session.execute("ALTER TABLE daily_logs ADD COLUMN required_points INTEGER")
                 session.commit()
             
             # Check which columns exist in iss_session_logs table

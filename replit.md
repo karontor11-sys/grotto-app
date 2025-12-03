@@ -73,6 +73,21 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes
 
+### Full-Day ISS Simplification & Session Labeling (Dec 03, 2025)
+
+**Full-Day Check-In Defaults:**
+- When clicking "Check In Full Day", the system now explicitly stores:
+  - `start_period = 1`
+  - `end_period = 10`
+  - `periods_covered = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`
+  - `required_points = 10`
+- Values stored in same format as partial-day for consistency
+
+**Session Labels:**
+- All ISS labels now use "Day X of Y ISS Session" format
+- Examples: "Day 2 of 4 ISS Session", "3-day ISS Session for John Smith"
+- Consistent terminology across card summary, day labels, and session panels
+
 ### Partial-Day Period Selection + Period-Based Point Target (Dec 03, 2025)
 
 **Feature Summary:**

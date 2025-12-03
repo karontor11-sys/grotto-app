@@ -147,6 +147,9 @@ class DailyLog(Base):
     # No Show fields (for Pre-Planned Referral)
     no_show = Column(Boolean, default=False)  # True if student was marked as No Show
     no_show_note = Column(Text, nullable=True)  # Brief note explaining the No Show (e.g., "Sick today")
+    # Make-up session fields
+    is_makeup_session = Column(Boolean, default=False)  # True if this is a make-up session
+    periods_added = Column(Integer, nullable=True)  # Number of periods added when session is completed
     
     __table_args__ = (UniqueConstraint('placement_id', 'date', name='uix_placement_date'),)
 
@@ -890,7 +893,7 @@ class DatabaseManager:
             session.close()
     
     def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = 'full',
-                         start_period: int = None, end_period: int = None) -> bool:
+                         start_period: int = None, end_period: int = None, is_makeup: bool = False) -> bool:
         """Check in a student for an ISS day.
         
         Args:
@@ -899,6 +902,7 @@ class DatabaseManager:
             day_type: 'full' for full day (10 periods) or 'partial' for partial day
             start_period: For partial day, the starting period (1-10)
             end_period: For partial day, the ending period (1-10)
+            is_makeup: True if this is a make-up session (for needs_makeup placements)
             
         Returns:
             True if successful, False otherwise
@@ -983,7 +987,8 @@ class DatabaseManager:
                     start_period=calc_start_period,
                     end_period=calc_end_period,
                     periods_covered=periods_covered,
-                    required_points=required_points
+                    required_points=required_points,
+                    is_makeup_session=is_makeup
                 )
                 session.add(log)
             else:
@@ -994,6 +999,7 @@ class DatabaseManager:
                 log.end_period = calc_end_period
                 log.periods_covered = periods_covered
                 log.required_points = required_points
+                log.is_makeup_session = is_makeup
             
             # Also add to served_dates for ISS placements
             if placement.placement_type == PlacementCategory.ISS:
@@ -2340,6 +2346,9 @@ class DatabaseManager:
                 if old_fulfillment != 'yes':
                     should_add_periods = True
             
+            # Store periods_added in the daily log
+            log.periods_added = periods_to_credit
+            
             if should_add_periods:
                 # Add periods_covered (not hard-coded 10) for completion
                 placement.iss_periods_served = (placement.iss_periods_served or 0) + periods_to_credit
@@ -2350,7 +2359,7 @@ class DatabaseManager:
                     id=self.generate_id(),
                     placement_id=placement_id,
                     session_date=date_obj,
-                    session_type='Full Day',
+                    session_type='Make-Up Full Day' if log.is_makeup_session else 'Full Day',
                     start_period=start_period,
                     end_period=end_period,
                     periods_covered=periods_covered,
@@ -2475,6 +2484,9 @@ class DatabaseManager:
                 if old_fulfillment != 'yes':
                     should_add_periods = True
             
+            # Store periods_added in the daily log
+            log.periods_added = planned_periods
+            
             if should_add_periods:
                 # Add planned periods for partial day completion
                 placement.iss_periods_served = (placement.iss_periods_served or 0) + planned_periods
@@ -2485,7 +2497,7 @@ class DatabaseManager:
                     id=self.generate_id(),
                     placement_id=placement_id,
                     session_date=date_obj,
-                    session_type='Partial Day',
+                    session_type='Make-Up Partial Day' if log.is_makeup_session else 'Partial Day',
                     start_period=start_period,
                     end_period=end_period,
                     periods_covered=periods_covered,  # Array of period numbers attended
@@ -3242,7 +3254,10 @@ class DatabaseManager:
             'checkedInAt': log.checked_in_at.isoformat() if log.checked_in_at else None,
             # No Show fields
             'noShow': log.no_show or False,
-            'noShowNote': log.no_show_note
+            'noShowNote': log.no_show_note,
+            # Make-up session fields
+            'isMakeupSession': log.is_makeup_session or False,
+            'periodsAdded': log.periods_added
         }
     
     def _point_event_to_dict(self, event: PointEvent) -> Dict[str, Any]:

@@ -57,6 +57,7 @@ The UI features a **Dashboard** with:
 - **Day 1 Partial Auto-Classification**: Multi-day ISS sessions starting with a partial day check-in on Day 1 are automatically classified as "flexible session mode."
 - **ISS Start Date Logic & Terminology**: Future-dated ISS placements are shown as locked cards with a "First Check-In Date," automatically transitioning to active on the start date.
 - **ISS Session Log Storage & History View**: A new `ISSSessionLog` model records details for each completed session within an ISS placement, providing a historical view.
+- **Make-Up Session Support**: When students complete their scheduled ISS days but still have periods remaining (`needs_makeup` status), staff can perform additional check-ins via "Make-Up – Full Day" or "Make-Up – Partial Day" buttons. Make-up sessions are tracked with `is_makeup_session` and `periods_added` fields in daily logs, and recorded in ISSSessionLogs with session types like "Make-Up Full Day" or "Make-Up Partial Day". Placements auto-complete when total periods served meets or exceeds the required periods.
 
 ## External Dependencies
 

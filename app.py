@@ -386,16 +386,28 @@ if page == "Dashboard":
             else:
                 st.markdown(f"📅 **Day {current_day} of {iss_days_assigned} ISS Session**")
             
-            # Check-in buttons (only for active ISS, not completed Session)
-            if not is_session_complete:
+            # Check-in buttons (only for active ISS or needs_makeup, not completed Session)
+            if not is_session_complete or needs_makeup:
                 st.markdown("---")
-                st.markdown("**Today's Session**")
+                
+                # Show appropriate session label
+                if needs_makeup:
+                    periods_remaining = iss_total_required_periods - iss_periods_served
+                    st.markdown("**Make-Up Session**")
+                    st.info(f"🔄 **Make-Up Session Needed:** {periods_remaining} periods remaining to complete ISS")
+                else:
+                    st.markdown("**Today's Session**")
                 
                 # Get day_type from daily log
                 day_type = daily_log.get('dayType', None)
+                is_makeup_session = daily_log.get('isMakeupSession', False)
                 
                 if is_day_completed:
-                    st.success("✅ Today's session completed (+10 periods)")
+                    periods_added = daily_log.get('periodsAdded', 10)
+                    if is_makeup_session:
+                        st.success(f"✅ Make-up session completed (+{periods_added} periods)")
+                    else:
+                        st.success(f"✅ Today's session completed (+{periods_added} periods)")
                 elif is_checked_in and day_type == 'full':
                     # Show Full Day ISS Session Panel
                     st.markdown("### 📋 Full Day ISS Session (10 periods)")
@@ -725,7 +737,8 @@ if page == "Dashboard":
                             if st.button("Confirm Check-In", key=f"confirm_partial_{placement_id}_{date_str}", 
                                         type="primary", use_container_width=True):
                                 dm.check_in_student(placement_id, date_str, day_type='partial',
-                                                   start_period=partial_start, end_period=partial_end)
+                                                   start_period=partial_start, end_period=partial_end,
+                                                   is_makeup=needs_makeup)
                                 st.session_state[show_partial_form_key] = False
                                 st.rerun()
                         with col_cancel:
@@ -737,11 +750,15 @@ if page == "Dashboard":
                         # Show check-in buttons
                         col_checkin1, col_checkin2 = st.columns(2)
                         with col_checkin1:
-                            if st.button("Check-In – Full Day", key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
-                                dm.check_in_student(placement_id, date_str, day_type='full')
+                            # Adjust button label for make-up sessions
+                            btn_label = "Make-Up – Full Day" if needs_makeup else "Check-In – Full Day"
+                            if st.button(btn_label, key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
+                                dm.check_in_student(placement_id, date_str, day_type='full', is_makeup=needs_makeup)
                                 st.rerun()
                         with col_checkin2:
-                            if st.button("Check-In – Partial Day", key=f"checkin_partial_{placement_id}_{date_str}", use_container_width=True):
+                            # Adjust button label for make-up sessions
+                            btn_label = "Make-Up – Partial Day" if needs_makeup else "Check-In – Partial Day"
+                            if st.button(btn_label, key=f"checkin_partial_{placement_id}_{date_str}", use_container_width=True):
                                 # Show partial day form instead of immediately checking in
                                 st.session_state[show_partial_form_key] = True
                                 st.rerun()

@@ -73,6 +73,27 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes
 
+### Day 1 Partial Auto-Classification for Multi-Day ISS Sessions (Dec 03, 2025)
+
+**Feature Summary:**
+- When a multi-day ISS Session starts with a Partial Day check-in on Day 1, the system automatically classifies it as a "flexible session mode" placement
+- No user prompts required - the system auto-detects the conditions and flags the placement accordingly
+
+**Auto-Classification Conditions:**
+- Placement type is ISS
+- Multi-day Session (iss_days_assigned > 1)
+- Check-in date equals start_date (Day 1)
+- No periods served yet (iss_periods_served = 0)
+- Day type is 'partial'
+
+**Database Changes:**
+- Added `is_flexible_session_mode` Boolean field to Placement model (default: FALSE)
+- Migration added to `_run_migrations()` for automatic column creation
+
+**Updated Methods:**
+- `check_in_student()`: Detects Day 1 partial conditions and sets `is_flexible_session_mode = True`
+- `_placement_to_dict()`: Exposes `isFlexibleSessionMode` in API responses
+
 ### ISS Start Date Logic & Terminology Update (Dec 03, 2025)
 
 **Terminology Change:**
@@ -95,8 +116,8 @@ The UI features a **Dashboard** with:
 
 **Dashboard Changes:**
 - ISS section now displays both active sessions and scheduled (locked) placements
-- Locked cards show: 🔒 icon, "(Scheduled)" label, grayed appearance, disabled Check In button
-- Info box displays: "📅 First Check-In Date: {formatted_date}"
+- Locked cards show: lock icon, "(Scheduled)" label, grayed appearance, disabled Check In button
+- Info box displays: "First Check-In Date: {formatted_date}"
 - Caption: "This ISS Session has not started yet. Check-in will be available on the start date."
 
 ### ISS Session Log Storage & History View (Dec 02, 2025)

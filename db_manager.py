@@ -108,7 +108,8 @@ class Placement(Base):
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now)
-    iss_label = Column(String, nullable=True)  # Official label: "{issDaysAssigned}-day ISS for {Student Name}"
+    iss_label = Column(String, nullable=True)  # Official label: "{issDaysAssigned}-day ISS Session for {Student Name}"
+    is_flexible_session_mode = Column(Boolean, default=False)  # True when multi-day ISS Session started with partial day on Day 1
 
 class DailyLog(Base):
     __tablename__ = 'daily_logs'
@@ -270,7 +271,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -341,6 +342,11 @@ class DatabaseManager:
             
             if 'iss_label' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN iss_label VARCHAR")
+                session.commit()
+            
+            # Add is_flexible_session_mode column for Day 1 partial auto-classification
+            if 'is_flexible_session_mode' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN is_flexible_session_mode BOOLEAN DEFAULT FALSE")
                 session.commit()
             
             # Migrate existing ISS placements to populate new period-based fields
@@ -831,6 +837,18 @@ class DatabaseManager:
             
         Returns:
             True if successful, False otherwise
+            
+        Auto-Classification for Day 1 Partial (Multi-day ISS Session):
+            When ALL conditions are met:
+            - placement_type is ISS
+            - iss_days_assigned > 1 (multi-day Session)
+            - start_date = today (check_in_date)
+            - iss_periods_served = 0 (no periods served yet)
+            - day_type = 'partial'
+            
+            Then automatically:
+            - Treat as Day 1 of the multi-day ISS Session
+            - Set is_flexible_session_mode = True for period-based completion tracking
         """
         session = self.get_session()
         try:
@@ -840,6 +858,20 @@ class DatabaseManager:
             
             date_obj = datetime.fromisoformat(check_in_date).date()
             date_str = date_obj.isoformat()
+            
+            # Auto-classification for Day 1 Partial of multi-day ISS Session
+            # When: ISS, multi-day (>1), start_date = today, no periods served yet, partial day
+            is_iss = placement.placement_type == PlacementCategory.ISS
+            iss_days = placement.iss_days_assigned or placement.iss_total_days or 1
+            is_multi_day = iss_days > 1
+            is_start_date = placement.start_date == date_obj
+            no_periods_served = (placement.iss_periods_served or 0) == 0
+            is_partial = day_type == 'partial'
+            
+            if is_iss and is_multi_day and is_start_date and no_periods_served and is_partial:
+                # Auto-classify as Day 1 of multi-day ISS Session
+                # Flag placement for flexible session mode (period-based completion)
+                placement.is_flexible_session_mode = True
             
             # Get or create daily log
             log = session.query(DailyLog).filter(
@@ -2919,7 +2951,9 @@ class DatabaseManager:
             'referralSubtype': placement.referral_subtype,
             'status': placement.status.value,
             'createdBy': placement.created_by,
-            'createdAt': placement.created_at.isoformat() if placement.created_at else None
+            'createdAt': placement.created_at.isoformat() if placement.created_at else None,
+            'issLabel': placement.iss_label,
+            'isFlexibleSessionMode': placement.is_flexible_session_mode or False
         }
     
     def _daily_log_to_dict(self, log: DailyLog) -> Dict[str, Any]:

@@ -1,6 +1,6 @@
 ## Overview
 
-The Grotto is a student placement and behavior tracking system for educational institutions. It manages student placements in alternative learning environments, tracks daily attendance and behavior via a point-based system, manages assignments, and maintains communication logs. The system aims to streamline administrative tasks, provide actionable insights into student well-being and academic performance, and help educators monitor student progress and document interventions.
+The Grotto is a student placement and behavior tracking system for educational institutions. Its primary purpose is to manage student placements in alternative learning environments, track daily attendance and behavior using a point-based system, manage assignments, and maintain communication logs. The system aims to streamline administrative tasks, provide actionable insights into student well-being and academic performance, and assist educators in monitoring student progress and documenting interventions.
 
 ## User Preferences
 
@@ -9,10 +9,10 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Application Framework
-The application is built with **Streamlit**, utilizing a multi-page architecture with robust session state management. The layout is optimized for data-rich dashboards.
+The application is built with **Streamlit**, employing a multi-page architecture with robust session state management, optimized for data-rich dashboards.
 
 ### Data Layer
-The system uses **SQLAlchemy ORM** with a relational database. Key design decisions include:
+The system utilizes **SQLAlchemy ORM** with a relational database. Key design decisions include:
 - **ORM Choice**: SQLAlchemy with declarative base for type safety and query abstraction.
 - **Schema Enforcement**: Enum types for constrained fields (e.g., `StudentStatus`, `PlacementStatus`).
 - **Soft Deletes**: Students are soft-deleted to preserve historical data.
@@ -20,20 +20,19 @@ The system uses **SQLAlchemy ORM** with a relational database. Key design decisi
 - **Core Entities**: Students, Placements, Sessions (for partial-day tracking), DailyLogs, PointEvents, Assignments, and Notes.
 
 ### Business Logic Layer
-A centralized **Point System Architecture** enforces business rules for behavioral tracking using configurable point categories with various constraint types (e.g., `once_per_placement`, `dailyCap`). Point definitions are isolated in a `PointSystem` class.
-**Placement Duration Tracking**: A unified interface provides comprehensive duration information for all placement types (ISS, Lunch Detention, Class Referral, Cool-Down) including total duration, current progress ("Day X of Y"), days remaining, and active status, normalizing field names and handling weekend logic.
+A centralized **Point System Architecture** enforces business rules for behavioral tracking using configurable point categories with various constraint types. Point definitions are isolated in a `PointSystem` class. **Placement Duration Tracking** provides comprehensive duration information for all placement types, including total duration, current progress, days remaining, and active status, with integrated weekend logic.
 
 ### Utility Layer
 A consistent date handling strategy uses ISO format for storage, date objects for calculations, and formatted strings for display. Utilities abstract presentation concerns and handle business logic like calculating remaining placement days and status-based UI theming.
 
 ### UI Components
 The UI features a **Dashboard** with:
-- **Today's Sessions**: Horizontal chip strip for daily sessions.
-- **Active Placements**: Card-based student overviews displaying only active placements, sorted by a 5-level hierarchy (placement type, multi-day vs. single-day, active today, start date, student name). Cards show placement type, progress indicator (for multi-day), student details, today's points, and quick action buttons. The "Class Period Referral" section unifies all referral subtypes (Behavior, Cool-Down, Pre-Planned) under one display, using a single rendering function and subtype-specific completion buttons and "No Show" functionality for Pre-Planned referrals.
-- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry. Features a streamlined single-selector interface with three main placement types:
-    - **In-School Suspension (ISS)**: Simplified placement using start date + number of days model, including period-based tracking with `iss_days_assigned`, `iss_total_required_periods`, and `iss_periods_served`. ISS cards display period-based progress and two check-in options ("Full Day" and "Partial Day").
+- **Today's Sessions**: Horizontal chip strip.
+- **Active Placements**: Card-based student overviews for active placements, sorted by a 5-level hierarchy. Cards display placement type, progress indicator, student details, today's points, and quick action buttons. The "Class Period Referral" section unifies all referral subtypes under one display.
+- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry and featuring a streamlined single-selector interface for three main placement types:
+    - **In-School Suspension (ISS)**: Simplified placement with period-based tracking, displaying progress and two check-in options ("Full Day" and "Partial Day").
     - **Lunch Detention**: Multi-day lunch detention placement.
-    - **Class Period Referral**: Umbrella category with three sub-types selected via dropdown: Behavior Referral (single-day), Cool-Down Referral (short-term), and Pre-Planned Referral (schedule-based). Referral sub-types are tracked via a `referral_subtype` field.
+    - **Class Period Referral**: Umbrella category with sub-types (Behavior, Cool-Down, Pre-Planned) selected via dropdown.
 - **Daily Logs**: Interface for point tracking with "Session-Scoped View" and "Placement-Wide View".
 - **Assignments**: Manages academic tasks.
 - **Notes**: For general documentation.
@@ -43,16 +42,21 @@ The UI features a **Dashboard** with:
 
 ### Key Features
 - **Manual Student Entry**: Students are created manually during placement creation.
-- **Weekend-Skipping Logic**: Weekends are automatically excluded from all duration calculations, session generation, and "Days Remaining" displays for multi-day placements.
+- **Weekend-Skipping Logic**: Weekends are automatically excluded from all duration calculations and displays for multi-day placements.
 - **Date Range Validation**: Enforces `end_date >= start_date` for multi-day placements.
 - **Partial-Day Session Tracking**: Tracks student activities during partial days and various session types.
 - **Session-Scoped Behavior Tracking**: Point events can be associated with specific sessions.
 - **Session Attendance Tracking**: Real-time attendance management with Check-in, Check-out, and Mark No-show buttons.
 - **Flexible Placement Completion Rules**: Configurable completion criteria for different placement types with role-based "Complete Placement" button.
-- **Conditional Form Fields**: Dynamic form fields appear based on placement type selection (e.g., period selection for Class Referral, multi-date schedule builder for Pre-Planned Referral).
+- **Conditional Form Fields**: Dynamic form fields appear based on placement type selection.
 - **End-of-Day Processing**: Automated system processes pending dates, marking incomplete daily logs and handling 'no show' for pre-planned referrals.
 - **Retroactive Completion**: Staff can mark past incomplete records as complete, preserving `alert_flag` for audit.
-- **Status Indicators**: Visual status badges using color coding (Green for completed, Yellow for in progress, Red for not completed/past date).
+- **Status Indicators**: Visual status badges using color coding.
+- **ISS Periods-Based Completion Logic**: ISS placements now use `iss_periods_served` out of `iss_total_required_periods` for progress tracking.
+- **Partial-Day Period Selection**: For ISS partial days, users can select start and end periods, with required points automatically calculated.
+- **Day 1 Partial Auto-Classification**: Multi-day ISS sessions starting with a partial day check-in on Day 1 are automatically classified as "flexible session mode."
+- **ISS Start Date Logic & Terminology**: Future-dated ISS placements are shown as locked cards with a "First Check-In Date," automatically transitioning to active on the start date.
+- **ISS Session Log Storage & History View**: A new `ISSSessionLog` model records details for each completed session within an ISS placement, providing a historical view.
 
 ## External Dependencies
 
@@ -70,139 +74,3 @@ The UI features a **Dashboard** with:
 - **datetime**: For handling temporal data.
 - **typing**: For type hinting.
 - **enum**: For defining constrained value sets.
-
-## Recent Changes
-
-### ISS Periods-Based Completion Logic (Dec 03, 2025)
-
-**Total Required Periods:**
-- `iss_total_required_periods = iss_days_assigned * 10` on placement creation
-- Example: 4-day ISS Session → iss_total_required_periods = 40
-
-**Periods-Based Completion:**
-- `complete_iss_full_day_session` now uses `periods_covered` from daily log instead of hard-coded +10
-- `complete_iss_partial_day_session` already used `planned_periods` correctly
-- Override completion uses the same periods_covered logic
-- Progress uses `iss_periods_served` out of `iss_total_required_periods`
-
-**Example Scenario:**
-- Day 1: Full Day (10 periods) → iss_periods_served = 10
-- Day 2: Partial Day (periods 8-10 = 3 periods) → iss_periods_served = 13
-- Progress: 13 of 40 = 32.5%
-
-### Full-Day ISS Simplification & Session Labeling (Dec 03, 2025)
-
-**Full-Day Check-In Defaults:**
-- When clicking "Check In Full Day", the system now explicitly stores:
-  - `start_period = 1`
-  - `end_period = 10`
-  - `periods_covered = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`
-  - `required_points = 10`
-- Values stored in same format as partial-day for consistency
-
-**Session Labels:**
-- All ISS labels now use "Day X of Y ISS Session" format
-- Examples: "Day 2 of 4 ISS Session", "3-day ISS Session for John Smith"
-- Consistent terminology across card summary, day labels, and session panels
-
-### Partial-Day Period Selection + Period-Based Point Target (Dec 03, 2025)
-
-**Feature Summary:**
-- When clicking "Check In Partial Day" for ISS placements, the UI now shows Start Period and End Period dropdown selectors (1-10)
-- Periods covered is calculated as: `end_period - start_period + 1`
-- Required points for partial days is automatically set to periods covered (1 point per period)
-- For full days, required points remains 10
-
-**UI Changes:**
-- Clicking "Partial Day" button shows a period selection form before check-in
-- Start Period dropdown (1-10, default 1)
-- End Period dropdown (starts from Start Period, default 10)
-- Shows "Periods Covered: X" and "Required Points for this Session: X" before confirming
-- After check-in, the Partial Day panel shows stored values read-only with prominent "Required Points for this Session: X"
-
-**Database Changes (DailyLog table):**
-- Added `start_period` (Integer): Starting period for partial day (1-10)
-- Added `end_period` (Integer): Ending period for partial day (1-10)
-- Added `required_points` (Integer): Points required for session completion (= periods covered)
-- Migration added to `_run_migrations()` for automatic column creation
-
-**Updated Methods:**
-- `check_in_student()`: Accepts `start_period` and `end_period` parameters, calculates and stores `periods_covered` and `required_points`
-- `_daily_log_to_dict()`: Exposes `startPeriod`, `endPeriod`, `requiredPoints` in API responses
-
-**Validation:**
-- End period must be >= start period (enforced in UI via filtered dropdown options)
-
-### Day 1 Partial Auto-Classification for Multi-Day ISS Sessions (Dec 03, 2025)
-
-**Feature Summary:**
-- When a multi-day ISS Session starts with a Partial Day check-in on Day 1, the system automatically classifies it as a "flexible session mode" placement
-- No user prompts required - the system auto-detects the conditions and flags the placement accordingly
-
-**Auto-Classification Conditions:**
-- Placement type is ISS
-- Multi-day Session (iss_days_assigned > 1)
-- Check-in date equals start_date (Day 1)
-- No periods served yet (iss_periods_served = 0)
-- Day type is 'partial'
-
-**Database Changes:**
-- Added `is_flexible_session_mode` Boolean field to Placement model (default: FALSE)
-- Migration added to `_run_migrations()` for automatic column creation
-
-**Updated Methods:**
-- `check_in_student()`: Detects Day 1 partial conditions and sets `is_flexible_session_mode = True`
-- `_placement_to_dict()`: Exposes `isFlexibleSessionMode` in API responses
-
-### ISS Start Date Logic & Terminology Update (Dec 03, 2025)
-
-**Terminology Change:**
-- All references to "sentence" now use "Session" (e.g., "4-day ISS Session")
-
-**Start Date Logic for ISS Placements:**
-- Future-dated ISS placements show as locked cards on the Dashboard with "First Check-In Date" labels
-- Three placement states: active (start date is today/past), scheduled (start date is future), completed
-- PlacementStatus enum updated to include 'scheduled' value
-- Automatic transition: scheduled → active when start date arrives
-
-**Database Changes:**
-- Added 'scheduled' to PlacementStatus enum via PostgreSQL ALTER TYPE
-- Placement creation logic: status = 'active' if start_date <= today, else 'scheduled'
-
-**New/Updated Methods:**
-- `get_scheduled_iss_placements()`: Returns all scheduled ISS placements with future start dates
-- `activate_scheduled_placements()`: Runs on app startup, transitions scheduled → active when start date arrives
-- `add_placement()`: Sets initial status based on start date comparison with today
-
-**Dashboard Changes:**
-- ISS section now displays both active sessions and scheduled (locked) placements
-- Locked cards show: lock icon, "(Scheduled)" label, grayed appearance, disabled Check In button
-- Info box displays: "First Check-In Date: {formatted_date}"
-- Caption: "This ISS Session has not started yet. Check-in will be available on the start date."
-
-### ISS Session Log Storage & History View (Dec 02, 2025)
-
-**New Database Model - ISSSessionLog:**
-- Records each completed session within an ISS placement
-- Fields: session_date, session_type (Full Day/Partial Day), start_period, end_period, periods_credited
-- Points tracking: points_target, points_earned
-- Completion tracking: completion_method (Complete/Override), override_reason, completed_by
-
-**Placement Enhancement:**
-- Added `iss_label` field to Placement model
-- Stores official label "{issDaysAssigned}-day ISS Session for {Student Name}" when Session completes
-
-**Complete Methods Updated:**
-- `complete_iss_full_day_session()`: Creates ISSSessionLog entry, sets iss_label on completion
-- `complete_iss_partial_day_session()`: Creates ISSSessionLog entry, sets iss_label on completion
-
-**New Retrieval Methods:**
-- `get_iss_session_logs(placement_id)`: Returns all session logs for a placement
-- `get_completed_iss_placements(student_id)`: Returns completed ISS placements with session logs
-
-**ISS History View (Placements > ISS History tab):**
-- Shows all completed ISS sentences with expandable details
-- Header: "{X}-day ISS for Student Name (Completed)"
-- Session list: Date, Full/Partial Day, periods credited, Complete vs Override, points, notes
-- Search by student name
-- Override reasons and notes displayed for each session

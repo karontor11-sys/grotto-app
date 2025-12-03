@@ -373,9 +373,16 @@ if page == "Dashboard":
             # Progress line: "Periods served: X of Y"
             st.info(f"📊 Periods served: **{iss_periods_served}** of **{iss_total_required_periods}**")
             
+            # Check if placement needs make-up
+            placement_status = placement.get('status', 'active')
+            needs_makeup = placement_status == 'needs_makeup'
+            
             # Day label or completion message
             if is_session_complete:
                 st.success("✅ **ISS Session complete**")
+            elif needs_makeup:
+                periods_remaining = iss_total_required_periods - iss_periods_served
+                st.warning(f"⚠️ **Needs Make-Up Session** — {periods_remaining} periods remaining")
             else:
                 st.markdown(f"📅 **Day {current_day} of {iss_days_assigned} ISS Session**")
             
@@ -473,6 +480,11 @@ if page == "Dashboard":
                                      use_container_width=True, disabled=not can_complete):
                             dm.complete_iss_full_day_session(placement_id, date_str, "Admin", 
                                                               points_earned=total_points)
+                            # Check if make-up is needed after completing
+                            makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                            if makeup_check.get('needsMakeup', False):
+                                st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                st.session_state[f"makeup_info_{placement_id}"] = makeup_check
                             st.rerun()
                         if not can_complete:
                             st.caption("Requires 10+ points")
@@ -505,6 +517,11 @@ if page == "Dashboard":
                                                                   is_override=True, override_note=override_note.strip(),
                                                                   points_earned=total_points)
                                 st.session_state[f"show_override_{placement_id}_{date_str}"] = False
+                                # Check if make-up is needed after completing
+                                makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                                if makeup_check.get('needsMakeup', False):
+                                    st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                    st.session_state[f"makeup_info_{placement_id}"] = makeup_check
                                 st.rerun()
                         with col_cancel:
                             if st.button("Cancel", key=f"cancel_override_{placement_id}_{date_str}", use_container_width=True):
@@ -614,6 +631,11 @@ if page == "Dashboard":
                                 required_points=required_points,
                                 points_earned=total_points
                             )
+                            # Check if make-up is needed after completing
+                            makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                            if makeup_check.get('needsMakeup', False):
+                                st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                st.session_state[f"makeup_info_{placement_id}"] = makeup_check
                             st.rerun()
                         if not can_complete:
                             st.caption(f"Requires {required_points}+ points")
@@ -652,6 +674,11 @@ if page == "Dashboard":
                                     points_earned=total_points
                                 )
                                 st.session_state[f"show_partial_override_{placement_id}_{date_str}"] = False
+                                # Check if make-up is needed after completing
+                                makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                                if makeup_check.get('needsMakeup', False):
+                                    st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                    st.session_state[f"makeup_info_{placement_id}"] = makeup_check
                                 st.rerun()
                         with col_cancel:
                             if st.button("Cancel", key=f"cancel_partial_override_{placement_id}_{date_str}", use_container_width=True):
@@ -718,6 +745,63 @@ if page == "Dashboard":
                                 # Show partial day form instead of immediately checking in
                                 st.session_state[show_partial_form_key] = True
                                 st.rerun()
+            
+            # Make-up prompt - OUTSIDE the if not is_session_complete block
+            # Shows after final day completion when periods are short
+            if st.session_state.get(f"show_makeup_prompt_{placement_id}", False):
+                makeup_info = st.session_state.get(f"makeup_info_{placement_id}", {})
+                periods_remaining = makeup_info.get('periodsRemaining', 0)
+                
+                st.warning(f"""
+                **⚠️ ISS Session Needs Make-Up Periods**
+                
+                This student still needs **{periods_remaining}** more periods to complete this ISS Session.
+                
+                Would you like to keep the case open for a make-up Session?
+                """)
+                
+                col_keep, col_close = st.columns(2)
+                with col_keep:
+                    if st.button("✅ YES, keep the case open", key=f"keep_open_main_{placement_id}", 
+                                type="primary", use_container_width=True):
+                        dm.keep_iss_session_open_for_makeup(placement_id)
+                        st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                        st.success("Case kept open for make-up periods.")
+                        st.rerun()
+                
+                with col_close:
+                    close_key = f"show_close_early_main_{placement_id}"
+                    if close_key not in st.session_state:
+                        st.session_state[close_key] = False
+                    
+                    if st.button("❌ NO, close the case anyway", key=f"close_early_main_btn_{placement_id}", 
+                                use_container_width=True):
+                        st.session_state[close_key] = True
+                        st.rerun()
+                
+                if st.session_state.get(f"show_close_early_main_{placement_id}", False):
+                    st.info("**Close Case Early**")
+                    close_note = st.text_area(
+                        "Reason for closing early (optional):",
+                        key=f"close_early_main_note_{placement_id}",
+                        placeholder="Session closed early — remaining periods waived by staff judgment.",
+                        height=80
+                    )
+                    
+                    col_confirm_close, col_cancel_close = st.columns(2)
+                    with col_confirm_close:
+                        if st.button("Confirm Close", key=f"confirm_close_main_{placement_id}", 
+                                    type="primary", use_container_width=True):
+                            note = close_note.strip() if close_note.strip() else "Session closed early — remaining periods waived by staff judgment."
+                            dm.close_iss_session_early(placement_id, note)
+                            st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                            st.session_state[f"show_close_early_main_{placement_id}"] = False
+                            st.success(f"Case closed. {periods_remaining} periods waived.")
+                            st.rerun()
+                    with col_cancel_close:
+                        if st.button("Cancel", key=f"cancel_close_main_{placement_id}", use_container_width=True):
+                            st.session_state[f"show_close_early_main_{placement_id}"] = False
+                            st.rerun()
             
             # Notes (always visible with auto-save)
             st.caption("Notes")
@@ -1237,6 +1321,11 @@ if page == "Dashboard":
                         dm.mark_session_completed(session_id, "Admin")
                         if not is_present:
                             dm.update_iss_attendance(placement_id, date_str, True)
+                        # Check if make-up is needed after completing
+                        makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                        if makeup_check.get('needsMakeup', False):
+                            st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                            st.session_state[f"makeup_info_{placement_id}"] = makeup_check
                         success_msg = "Session completed retroactively!" if is_past_session else "Session completed!"
                         st.success(success_msg)
                         st.rerun()
@@ -1260,6 +1349,11 @@ if page == "Dashboard":
                         dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
                         if not is_present:
                             dm.update_iss_attendance(placement_id, date_str, True)
+                        # Check if make-up is needed after completing
+                        makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                        if makeup_check.get('needsMakeup', False):
+                            st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                            st.session_state[f"makeup_info_{placement_id}"] = makeup_check
                         st.success("✅ Override applied retroactively!" if is_past_session else "✅ Override applied!")
                         st.session_state[f"iss_override_expand_{session_id}"] = False
                         st.rerun()
@@ -1285,6 +1379,63 @@ if page == "Dashboard":
             else:
                 st.success("Session Completed" + (" (Override)" if override_used else ""))
                 st.markdown(f"**Points Total: {total_points}**")
+            
+            # Check for and display make-up prompt (shown after completing final day when periods are short)
+            # This needs to be outside the is_completed check so it shows after completion
+            if st.session_state.get(f"show_makeup_prompt_{placement_id}", False):
+                makeup_info = st.session_state.get(f"makeup_info_{placement_id}", {})
+                periods_remaining = makeup_info.get('periodsRemaining', 0)
+                
+                st.warning(f"""
+                **⚠️ ISS Session Needs Make-Up Periods**
+                
+                This student still needs **{periods_remaining}** more periods to complete this ISS Session.
+                
+                Would you like to keep the case open for a make-up Session?
+                """)
+                
+                col_keep, col_close = st.columns(2)
+                with col_keep:
+                    if st.button("✅ YES, keep the case open", key=f"keep_open_final_{placement_id}", 
+                                type="primary", use_container_width=True):
+                        dm.keep_iss_session_open_for_makeup(placement_id)
+                        st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                        st.success("Case kept open for make-up periods.")
+                        st.rerun()
+                
+                with col_close:
+                    close_key = f"show_close_early_final_{placement_id}"
+                    if close_key not in st.session_state:
+                        st.session_state[close_key] = False
+                    
+                    if st.button("❌ NO, close the case anyway", key=f"close_early_final_btn_{placement_id}", 
+                                use_container_width=True):
+                        st.session_state[close_key] = True
+                        st.rerun()
+                
+                if st.session_state.get(f"show_close_early_final_{placement_id}", False):
+                    st.info("**Close Case Early**")
+                    close_note = st.text_area(
+                        "Reason for closing early (optional):",
+                        key=f"close_early_final_note_{placement_id}",
+                        placeholder="Session closed early — remaining periods waived by staff judgment.",
+                        height=80
+                    )
+                    
+                    col_confirm_close, col_cancel_close = st.columns(2)
+                    with col_confirm_close:
+                        if st.button("Confirm Close", key=f"confirm_close_final_{placement_id}", 
+                                    type="primary", use_container_width=True):
+                            note = close_note.strip() if close_note.strip() else "Session closed early — remaining periods waived by staff judgment."
+                            dm.close_iss_session_early(placement_id, note)
+                            st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                            st.session_state[f"show_close_early_final_{placement_id}"] = False
+                            st.success(f"Case closed. {periods_remaining} periods waived.")
+                            st.rerun()
+                    with col_cancel_close:
+                        if st.button("Cancel", key=f"cancel_close_final_{placement_id}", use_container_width=True):
+                            st.session_state[f"show_close_early_final_{placement_id}"] = False
+                            st.rerun()
             
             # Notes (always visible with auto-save)
             st.caption("Notes")

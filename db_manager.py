@@ -19,6 +19,7 @@ class PlacementStatus(enum.Enum):
     active = "active"
     scheduled = "scheduled"
     completed = "completed"
+    needs_makeup = "needs_makeup"  # Session complete but periods short, awaiting make-up
 
 class PlacementType(enum.Enum):
     iss_full_day = "iss_full_day"
@@ -110,6 +111,10 @@ class Placement(Base):
     created_at = Column(DateTime, default=datetime.now)
     iss_label = Column(String, nullable=True)  # Official label: "{issDaysAssigned}-day ISS Session for {Student Name}"
     is_flexible_session_mode = Column(Boolean, default=False)  # True when multi-day ISS Session started with partial day on Day 1
+    # Early closure tracking
+    closed_early = Column(Boolean, default=False)  # True if Session was closed early with periods remaining
+    early_closure_note = Column(Text, nullable=True)  # Required note when closing early
+    periods_waived = Column(Integer, default=0)  # Number of periods waived when closing early
 
 class DailyLog(Base):
     __tablename__ = 'daily_logs'
@@ -275,7 +280,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -353,6 +358,19 @@ class DatabaseManager:
                 session.execute("ALTER TABLE placements ADD COLUMN is_flexible_session_mode BOOLEAN DEFAULT FALSE")
                 session.commit()
             
+            # Add early closure tracking columns
+            if 'closed_early' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN closed_early BOOLEAN DEFAULT FALSE")
+                session.commit()
+            
+            if 'early_closure_note' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN early_closure_note TEXT")
+                session.commit()
+            
+            if 'periods_waived' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN periods_waived INTEGER DEFAULT 0")
+                session.commit()
+            
             # Migrate existing ISS placements to populate new period-based fields
             session.execute("""
                 UPDATE placements 
@@ -407,6 +425,20 @@ class DatabaseManager:
             if 'periods_covered' not in existing_session_log_columns:
                 session.execute("ALTER TABLE iss_session_logs ADD COLUMN periods_covered JSON DEFAULT '[]'::json")
                 session.commit()
+            
+            # Add 'needs_makeup' to PlacementStatus enum if not already present
+            try:
+                result = session.execute("""
+                    SELECT enumlabel 
+                    FROM pg_enum 
+                    WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'placementstatus')
+                    AND enumlabel = 'needs_makeup'
+                """)
+                if not result.fetchone():
+                    session.execute("ALTER TYPE placementstatus ADD VALUE IF NOT EXISTS 'needs_makeup'")
+                    session.commit()
+            except Exception:
+                session.rollback()
                 
         except Exception as e:
             # Silently ignore migration errors on first run
@@ -581,10 +613,12 @@ class DatabaseManager:
             session.close()
     
     def get_active_placements(self) -> List[Dict[str, Any]]:
-        """Get all active placements."""
+        """Get all active placements (including those needing make-up periods)."""
         session = self.get_session()
         try:
-            placements = session.query(Placement).filter(Placement.status == PlacementStatus.active).all()
+            placements = session.query(Placement).filter(
+                Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup])
+            ).all()
             return [self._placement_to_dict(p) for p in placements]
         finally:
             session.close()
@@ -2463,6 +2497,116 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def check_iss_session_needs_makeup(self, placement_id: str) -> Dict[str, Any]:
+        """Check if an ISS session needs make-up periods after final scheduled day.
+        
+        Args:
+            placement_id: ID of the placement
+            
+        Returns:
+            Dictionary with:
+            - needsMakeup: True if periods are short after final scheduled day
+            - isFinalDay: True if this was the final scheduled day
+            - periodsServed: Current periods served
+            - periodsRequired: Total required periods
+            - periodsRemaining: Periods still needed (0 if complete)
+            - daysCompleted: Number of days completed
+            - daysAssigned: Number of days assigned
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'needsMakeup': False, 'isFinalDay': False}
+            
+            iss_days_assigned = placement.iss_days_assigned or 0
+            iss_total_required = placement.iss_total_required_periods or (iss_days_assigned * 10)
+            iss_periods_served = placement.iss_periods_served or 0
+            days_completed = placement.days_completed or 0
+            
+            # Check if this is the final scheduled day (days_completed == iss_days_assigned)
+            is_final_day = days_completed >= iss_days_assigned
+            
+            # Check if periods are short
+            periods_remaining = max(0, iss_total_required - iss_periods_served)
+            needs_makeup = is_final_day and periods_remaining > 0
+            
+            return {
+                'needsMakeup': needs_makeup,
+                'isFinalDay': is_final_day,
+                'periodsServed': iss_periods_served,
+                'periodsRequired': iss_total_required,
+                'periodsRemaining': periods_remaining,
+                'daysCompleted': days_completed,
+                'daysAssigned': iss_days_assigned
+            }
+        finally:
+            session.close()
+    
+    def keep_iss_session_open_for_makeup(self, placement_id: str) -> bool:
+        """Keep the ISS session open for make-up periods.
+        
+        Args:
+            placement_id: ID of the placement
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Set status to needs_makeup
+            placement.status = PlacementStatus.needs_makeup
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
+    def close_iss_session_early(self, placement_id: str, note: str) -> bool:
+        """Close an ISS session early, waiving remaining periods.
+        
+        Args:
+            placement_id: ID of the placement
+            note: Required note explaining the early closure
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Get student for the label
+            student = session.query(Student).filter(Student.id == placement.student_id).first()
+            student_name = f"{student.first_name} {student.last_name}" if student else "Unknown"
+            
+            # Calculate periods waived
+            iss_total_required = placement.iss_total_required_periods or 0
+            iss_periods_served = placement.iss_periods_served or 0
+            periods_waived = max(0, iss_total_required - iss_periods_served)
+            
+            # Update placement
+            placement.status = PlacementStatus.completed
+            placement.end_date = date.today()
+            placement.closed_early = True
+            placement.early_closure_note = note or "Session closed early — remaining periods waived by staff judgment."
+            placement.periods_waived = periods_waived
+            
+            # Set the official label
+            iss_days = placement.iss_days_assigned or 0
+            placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def update_daily_log_totals(self, placement_id: str, log_date: str):
         """Update daily log totals based on point events."""
         session = self.get_session()
@@ -3046,7 +3190,11 @@ class DatabaseManager:
             'createdBy': placement.created_by,
             'createdAt': placement.created_at.isoformat() if placement.created_at else None,
             'issLabel': placement.iss_label,
-            'isFlexibleSessionMode': placement.is_flexible_session_mode or False
+            'isFlexibleSessionMode': placement.is_flexible_session_mode or False,
+            # Early closure tracking
+            'closedEarly': placement.closed_early or False,
+            'earlyClosureNote': placement.early_closure_note,
+            'periodsWaived': placement.periods_waived or 0
         }
     
     def _daily_log_to_dict(self, log: DailyLog) -> Dict[str, Any]:

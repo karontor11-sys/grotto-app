@@ -2186,7 +2186,7 @@ class DatabaseManager:
     def complete_iss_full_day_session(self, placement_id: str, log_date: str, completed_by: str, 
                                        is_override: bool = False, override_note: str = None,
                                        points_earned: int = None) -> bool:
-        """Complete a Full Day ISS session, adding 10 periods to issPeriodsServed.
+        """Complete a Full Day ISS session, adding periods_covered to issPeriodsServed.
         
         Args:
             placement_id: ID of the placement
@@ -2198,6 +2198,11 @@ class DatabaseManager:
             
         Returns:
             True if successful, False otherwise
+            
+        Note:
+            Uses the stored periods_covered from the daily log (set during check-in)
+            to determine how many periods to credit. For full days this is typically 10,
+            but the system now respects what was actually stored at check-in time.
         """
         session = self.get_session()
         try:
@@ -2220,6 +2225,23 @@ class DatabaseManager:
             
             should_add_periods = False
             
+            # Read periods_covered from the daily log (set during check-in)
+            # Default to 10 for full day if not set
+            if log and log.periods_covered:
+                periods_covered = log.periods_covered
+                periods_to_credit = len(periods_covered)
+                start_period = min(periods_covered) if periods_covered else 1
+                end_period = max(periods_covered) if periods_covered else 10
+            else:
+                # Fallback to full day defaults
+                periods_covered = list(range(1, 11))
+                periods_to_credit = 10
+                start_period = 1
+                end_period = 10
+            
+            # Read required_points from daily log (for points_target in session log)
+            required_points = log.required_points if log and log.required_points else 10
+            
             if not log:
                 log_id = self.generate_id()
                 log = DailyLog(
@@ -2232,6 +2254,10 @@ class DatabaseManager:
                     readiness='continue',
                     daily_fulfillment='yes',
                     day_type='full',
+                    start_period=start_period,
+                    end_period=end_period,
+                    periods_covered=periods_covered,
+                    required_points=required_points,
                     finalized_by=completed_by,
                     finalized_at=datetime.now(),
                     override_used=is_override,
@@ -2249,13 +2275,24 @@ class DatabaseManager:
                     log.override_used = True
                     log.override_comment = override_note
                 
+                # Ensure period values are persisted in the log for consistency
+                # These values come from check-in time, but ensure they're set
+                if not log.start_period:
+                    log.start_period = start_period
+                if not log.end_period:
+                    log.end_period = end_period
+                if not log.periods_covered:
+                    log.periods_covered = periods_covered
+                if not log.required_points:
+                    log.required_points = required_points
+                
                 # Only add periods if not already completed
                 if old_fulfillment != 'yes':
                     should_add_periods = True
             
             if should_add_periods:
-                # Add 10 periods for full day completion
-                placement.iss_periods_served = (placement.iss_periods_served or 0) + 10
+                # Add periods_covered (not hard-coded 10) for completion
+                placement.iss_periods_served = (placement.iss_periods_served or 0) + periods_to_credit
                 placement.days_completed = (placement.days_completed or 0) + 1
                 
                 # Create ISS Session Log entry
@@ -2264,11 +2301,11 @@ class DatabaseManager:
                     placement_id=placement_id,
                     session_date=date_obj,
                     session_type='Full Day',
-                    start_period=1,
-                    end_period=10,
-                    periods_covered=list(range(1, 11)),  # [1,2,3,4,5,6,7,8,9,10]
-                    periods_credited=10,
-                    points_target=10,
+                    start_period=start_period,
+                    end_period=end_period,
+                    periods_covered=periods_covered,
+                    periods_credited=periods_to_credit,
+                    points_target=required_points,
                     points_earned=points_earned,
                     completion_method='Override' if is_override else 'Complete',
                     notes=log.notes if log else None,

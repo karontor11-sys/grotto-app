@@ -17,6 +17,7 @@ class StudentStatus(enum.Enum):
 
 class PlacementStatus(enum.Enum):
     active = "active"
+    scheduled = "scheduled"
     completed = "completed"
 
 class PlacementType(enum.Enum):
@@ -500,6 +501,16 @@ class DatabaseManager:
             iss_total_required_periods = iss_days_assigned * 10 if placement_category == PlacementCategory.ISS else None
             iss_periods_served = 0
             
+            # Determine placement status based on start date
+            # If start date is in the future, set status to 'scheduled'
+            # If start date is today or in the past, set status to 'active'
+            start_date_obj = datetime.fromisoformat(placement_data['startDate']).date()
+            today = date.today()
+            if start_date_obj > today:
+                initial_status = PlacementStatus.scheduled
+            else:
+                initial_status = PlacementStatus.active
+            
             placement = Placement(
                 id=placement_id,
                 student_id=placement_data['studentId'],
@@ -517,7 +528,7 @@ class DatabaseManager:
                 iss_days_assigned=iss_days_assigned if placement_category == PlacementCategory.ISS else None,
                 iss_total_required_periods=iss_total_required_periods,
                 iss_periods_served=iss_periods_served if placement_category == PlacementCategory.ISS else None,
-                start_date=datetime.fromisoformat(placement_data['startDate']).date(),
+                start_date=start_date_obj,
                 end_date=end_date,
                 start_period=placement_data.get('startPeriod'),
                 end_period=placement_data.get('endPeriod'),
@@ -525,7 +536,7 @@ class DatabaseManager:
                 scheduled_iss_sessions=placement_data.get('scheduledIssSessions', []),
                 served_dates=served_dates,
                 referral_subtype=placement_data.get('referralSubtype'),
-                status=PlacementStatus.active,
+                status=initial_status,
                 created_by=placement_data.get('createdBy'),
                 created_at=datetime.fromisoformat(placement_data.get('createdAt', datetime.now().isoformat()))
             )
@@ -715,6 +726,36 @@ class DatabaseManager:
                 session.commit()
                 return True
             return False
+        finally:
+            session.close()
+    
+    def activate_scheduled_placements(self) -> int:
+        """Auto-transition scheduled placements to active when their start date has arrived.
+        
+        This should be called on app startup to ensure placements are activated
+        on their start date.
+        
+        Returns:
+            Number of placements that were activated.
+        """
+        session = self.get_session()
+        try:
+            today = date.today()
+            # Find all scheduled placements whose start_date is today or in the past
+            scheduled_placements = session.query(Placement).filter(
+                Placement.status == PlacementStatus.scheduled,
+                Placement.start_date <= today
+            ).all()
+            
+            activated_count = 0
+            for placement in scheduled_placements:
+                placement.status = PlacementStatus.active
+                activated_count += 1
+            
+            if activated_count > 0:
+                session.commit()
+            
+            return activated_count
         finally:
             session.close()
     
@@ -1380,7 +1421,12 @@ class DatabaseManager:
             db_session.close()
     
     def get_iss_sessions_for_date(self, target_date: date) -> List[Dict[str, Any]]:
-        """Get all ISS sessions scheduled for a specific date with student and placement info."""
+        """Get all ISS sessions scheduled for a specific date with student and placement info.
+        
+        Includes both active and scheduled placements so Dashboard can show:
+        - Active placements: fully interactive cards
+        - Scheduled (future) placements: locked cards with 'First Check-In Date' label
+        """
         db_session = self.get_session()
         try:
             sessions = db_session.query(PartialDaySession).filter(
@@ -1391,7 +1437,8 @@ class DatabaseManager:
             result = []
             for sess in sessions:
                 placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
-                if placement and placement.status == PlacementStatus.active:
+                # Include both active and scheduled placements
+                if placement and placement.status in [PlacementStatus.active, PlacementStatus.scheduled]:
                     student = db_session.query(Student).filter(Student.id == placement.student_id).first()
                     if student:
                         periods = sess.periods if sess.periods else list(range(1, 11))
@@ -1417,8 +1464,48 @@ class DatabaseManager:
                             'status': sess.status.value,
                             'iss_total_days': placement.iss_total_days,
                             'iss_remaining_days': placement.iss_remaining_days,
-                            'reason': placement.reason
+                            'reason': placement.reason,
+                            'placement_status': placement.status.value,
+                            'start_date': placement.start_date.isoformat() if placement.start_date else None
                         })
+            
+            return result
+        finally:
+            db_session.close()
+    
+    def get_scheduled_iss_placements(self) -> List[Dict[str, Any]]:
+        """Get all scheduled ISS placements that haven't started yet.
+        
+        These are placements with status='scheduled' and start_date in the future.
+        Used to display locked cards on the Dashboard before the start date.
+        """
+        db_session = self.get_session()
+        try:
+            today = date.today()
+            placements = db_session.query(Placement).filter(
+                Placement.status == PlacementStatus.scheduled,
+                Placement.placement_type == PlacementCategory.ISS,
+                Placement.start_date > today
+            ).all()
+            
+            result = []
+            for placement in placements:
+                student = db_session.query(Student).filter(Student.id == placement.student_id).first()
+                if student:
+                    result.append({
+                        'placement_id': placement.id,
+                        'student_id': student.id,
+                        'student_name': f"{student.first_name} {student.last_name}",
+                        'student_first_name': student.first_name,
+                        'student_last_name': student.last_name,
+                        'grade': student.grade,
+                        'homeroom_teacher': student.homeroom_teacher,
+                        'iss_total_days': placement.iss_total_days,
+                        'iss_days_assigned': placement.iss_days_assigned,
+                        'reason': placement.reason,
+                        'placement_status': 'scheduled',
+                        'start_date': placement.start_date.isoformat() if placement.start_date else None
+                    })
             
             return result
         finally:
@@ -2102,14 +2189,14 @@ class DatabaseManager:
                 )
                 session.add(session_log)
             
-            # Check if ISS sentence is now complete
+            # Check if ISS Session is now complete
             iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
             if placement.iss_periods_served >= iss_total_required:
                 placement.status = PlacementStatus.completed
                 placement.end_date = date_obj
                 # Set the official label
                 iss_days = placement.iss_days_assigned or 0
-                placement.iss_label = f"{iss_days}-day ISS for {student_name}"
+                placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
             
             session.commit()
             return True
@@ -2237,14 +2324,14 @@ class DatabaseManager:
                 )
                 session.add(session_log)
             
-            # Check if ISS sentence is now complete
+            # Check if ISS Session is now complete
             iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
             if placement.iss_periods_served >= iss_total_required:
                 placement.status = PlacementStatus.completed
                 placement.end_date = date_obj
                 # Set the official label
                 iss_days = placement.iss_days_assigned or 0
-                placement.iss_label = f"{iss_days}-day ISS for {student_name}"
+                placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
             
             session.commit()
             return True
@@ -2512,13 +2599,13 @@ class DatabaseManager:
                     )
                     session.add(session_log)
                     
-                    # Check if ISS sentence is now complete
+                    # Check if ISS Session is now complete
                     iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
                     if placement.iss_periods_served >= iss_total_required:
                         placement.status = PlacementStatus.completed
                         placement.end_date = date_obj
                         iss_days = placement.iss_days_assigned or 0
-                        placement.iss_label = f"{iss_days}-day ISS for {student_name}"
+                        placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
                 
                 # Absent Day: Do NOT decrement (student didn't serve time)
             

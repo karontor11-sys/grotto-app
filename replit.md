@@ -73,6 +73,32 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes
 
+### ISS Start Date Logic & Terminology Update (Dec 03, 2025)
+
+**Terminology Change:**
+- All references to "sentence" now use "Session" (e.g., "4-day ISS Session")
+
+**Start Date Logic for ISS Placements:**
+- Future-dated ISS placements show as locked cards on the Dashboard with "First Check-In Date" labels
+- Three placement states: active (start date is today/past), scheduled (start date is future), completed
+- PlacementStatus enum updated to include 'scheduled' value
+- Automatic transition: scheduled → active when start date arrives
+
+**Database Changes:**
+- Added 'scheduled' to PlacementStatus enum via PostgreSQL ALTER TYPE
+- Placement creation logic: status = 'active' if start_date <= today, else 'scheduled'
+
+**New/Updated Methods:**
+- `get_scheduled_iss_placements()`: Returns all scheduled ISS placements with future start dates
+- `activate_scheduled_placements()`: Runs on app startup, transitions scheduled → active when start date arrives
+- `add_placement()`: Sets initial status based on start date comparison with today
+
+**Dashboard Changes:**
+- ISS section now displays both active sessions and scheduled (locked) placements
+- Locked cards show: 🔒 icon, "(Scheduled)" label, grayed appearance, disabled Check In button
+- Info box displays: "📅 First Check-In Date: {formatted_date}"
+- Caption: "This ISS Session has not started yet. Check-in will be available on the start date."
+
 ### ISS Session Log Storage & History View (Dec 02, 2025)
 
 **New Database Model - ISSSessionLog:**
@@ -83,7 +109,7 @@ The UI features a **Dashboard** with:
 
 **Placement Enhancement:**
 - Added `iss_label` field to Placement model
-- Stores official label "{issDaysAssigned}-day ISS for {Student Name}" when sentence completes
+- Stores official label "{issDaysAssigned}-day ISS Session for {Student Name}" when Session completes
 
 **Complete Methods Updated:**
 - `complete_iss_full_day_session()`: Creates ISSSessionLog entry, sets iss_label on completion

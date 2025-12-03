@@ -40,6 +40,13 @@ if not st.session_state.eod_processing_checked:
     if processing_results:
         st.session_state.eod_processing_results = processing_results
 
+# Auto-activate scheduled placements whose start date has arrived (runs once per session)
+if 'scheduled_activation_checked' not in st.session_state:
+    activated_count = dm.activate_scheduled_placements()
+    st.session_state.scheduled_activation_checked = True
+    if activated_count > 0:
+        st.session_state.placements_activated = activated_count
+
 # Helper functions for session generation
 def generate_periods_sessions(session_date, periods, repeat_days, location):
     """Generate sessions for period-based placements"""
@@ -333,8 +340,8 @@ if page == "Dashboard":
         # Calculate current day: min(floor(issPeriodsServed / 10) + 1, issDaysAssigned)
         current_day = min(math.floor(iss_periods_served / 10) + 1, iss_days_assigned)
         
-        # Check if ISS sentence is complete
-        is_sentence_complete = iss_periods_served >= iss_total_required_periods
+        # Check if ISS Session is complete
+        is_session_complete = iss_periods_served >= iss_total_required_periods
         
         # Get or create daily log
         daily_log = dm.get_or_create_daily_log(placement_id, date_str)
@@ -367,13 +374,13 @@ if page == "Dashboard":
             st.info(f"📊 Periods served: **{iss_periods_served}** of **{iss_total_required_periods}**")
             
             # Day label or completion message
-            if is_sentence_complete:
-                st.success("✅ **ISS sentence complete**")
+            if is_session_complete:
+                st.success("✅ **ISS Session complete**")
             else:
                 st.markdown(f"📅 **Day {current_day} of {iss_days_assigned}**")
             
-            # Check-in buttons (only for active ISS, not completed sentence)
-            if not is_sentence_complete:
+            # Check-in buttons (only for active ISS, not completed Session)
+            if not is_session_complete:
                 st.markdown("---")
                 st.markdown("**Today's Session**")
                 
@@ -1012,7 +1019,13 @@ if page == "Dashboard":
     
     # Helper function to render enhanced ISS session card
     def render_iss_session_card(iss_session: dict, target_date: date):
-        """Render enhanced ISS session card with full functionality."""
+        """Render enhanced ISS session card with full functionality.
+        
+        Handles three states:
+        - Future (scheduled): Locked card with 'First Check-In Date' label
+        - Active: Fully interactive card
+        - Completed: Shows completion status
+        """
         session_id = iss_session['session_id']
         placement_id = iss_session['placement_id']
         student_id = iss_session['student_id']
@@ -1021,6 +1034,53 @@ if page == "Dashboard":
         periods = iss_session.get('periods', list(range(1, 11)))
         is_full_day = len(periods) == 10 and periods == list(range(1, 11))
         is_past_session = target_date < date.today()
+        
+        # Check if this is a future-dated (scheduled) placement
+        placement_status = iss_session.get('placement_status', 'active')
+        start_date_str = iss_session.get('start_date')
+        is_future_placement = False
+        start_date_obj = None
+        if start_date_str:
+            start_date_obj = datetime.fromisoformat(start_date_str).date()
+            is_future_placement = start_date_obj > date.today()
+        
+        # Also check placement_status for scheduled
+        if placement_status == 'scheduled':
+            is_future_placement = True
+        
+        # If this is a future-dated placement, show locked card
+        if is_future_placement:
+            # Get ISS days for the label
+            placement_data = dm.get_placement(placement_id)
+            iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
+            if iss_total_days is None:
+                iss_total_days = 1
+            
+            # Format start date for display
+            formatted_start_date = start_date_obj.strftime('%B %d, %Y') if start_date_obj else 'Unknown'
+            
+            with st.container():
+                # Grayed-out header
+                st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
+                
+                header_col1, header_col2 = st.columns([3, 1])
+                
+                with header_col1:
+                    days_label = "Day" if iss_total_days == 1 else "Days"
+                    st.markdown(f"**{iss_total_days}-{days_label} ISS Session**")
+                    st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
+                
+                with header_col2:
+                    # Disabled Check In button
+                    st.button("Check In", key=f"iss_checkin_{session_id}", disabled=True)
+                
+                # "First Check-In Date" label - prominent display
+                st.info(f"📅 **First Check-In Date:** {formatted_start_date}")
+                st.caption("This ISS Session has not started yet. Check-in will be available on the start date.")
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            return  # Exit early for future placements
         
         daily_log = dm.get_or_create_daily_log(placement_id, date_str)
         point_events = dm.get_point_events_for_date(placement_id, date_str)
@@ -1228,16 +1288,55 @@ if page == "Dashboard":
     # Five Placement Type Sections with Clickable Student Names
     # 1. In-School Suspension (ISS) - Session-based
     iss_sessions = dm.get_iss_sessions_for_date(selected_date)
+    scheduled_iss_placements = dm.get_scheduled_iss_placements()
+    
     st.markdown("#### In-School Suspension (ISS)")
-    if len(iss_sessions) == 0:
+    
+    # First, show active sessions for the selected date
+    has_active_sessions = len(iss_sessions) > 0
+    has_scheduled_placements = len(scheduled_iss_placements) > 0
+    
+    if not has_active_sessions and not has_scheduled_placements:
         st.caption("No students")
     else:
+        # Show active sessions first
         for iss_session in iss_sessions:
             session_id = iss_session['session_id']
             student_name = iss_session['student_name']
             
             with st.expander(f"{student_name}", expanded=False):
                 render_iss_session_card(iss_session, selected_date)
+        
+        # Then show scheduled (future) placements as locked cards
+        for scheduled_placement in scheduled_iss_placements:
+            placement_id = scheduled_placement['placement_id']
+            student_name = scheduled_placement['student_name']
+            start_date_str = scheduled_placement.get('start_date')
+            iss_days = scheduled_placement.get('iss_days_assigned') or scheduled_placement.get('iss_total_days', 1) or 1
+            
+            # Format the start date for display
+            start_date_obj = datetime.fromisoformat(start_date_str).date() if start_date_str else None
+            formatted_start_date = start_date_obj.strftime('%B %d, %Y') if start_date_obj else 'Unknown'
+            
+            with st.expander(f"🔒 {student_name} (Scheduled)", expanded=False):
+                # Render locked card for scheduled placement
+                with st.container():
+                    st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
+                    
+                    header_col1, header_col2 = st.columns([3, 1])
+                    
+                    with header_col1:
+                        days_label = "Day" if iss_days == 1 else "Days"
+                        st.markdown(f"**{iss_days}-{days_label} ISS Session**")
+                        st.caption(f"Grade {scheduled_placement.get('grade', 'N/A')} · {scheduled_placement.get('homeroom_teacher', 'N/A')}")
+                    
+                    with header_col2:
+                        st.button("Check In", key=f"iss_scheduled_checkin_{placement_id}", disabled=True)
+                    
+                    st.info(f"📅 **First Check-In Date:** {formatted_start_date}")
+                    st.caption("This ISS Session has not started yet. Check-in will be available on the start date.")
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
     
     st.divider()
     
@@ -1850,7 +1949,7 @@ elif page == "Placements":
     
     # Tab 3: ISS History
     with tab3:
-        st.subheader("Completed ISS Sentences")
+        st.subheader("Completed ISS Sessions")
         st.caption("View detailed session logs for all completed ISS placements")
         
         if completed_iss_placements:
@@ -1940,7 +2039,7 @@ elif page == "Placements":
                         st.info("No session logs recorded for this placement.")
         else:
             st.info("No completed ISS placements found.")
-            st.caption("Completed ISS sentences will appear here with full session history.")
+            st.caption("Completed ISS Sessions will appear here with full session history.")
 
 # ISS Detail Page - Hidden page for ISS daily workflow
 elif page == "ISS Detail":

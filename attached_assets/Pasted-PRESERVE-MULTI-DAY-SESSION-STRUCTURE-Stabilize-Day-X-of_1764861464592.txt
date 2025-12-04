@@ -1,0 +1,130 @@
+PRESERVE MULTI-DAY SESSION STRUCTURE
+(Stabilize “Day X of Y Session” Despite Partials, Make-ups, or Skips)
+⭐ PROMPT — Stabilize Day Labels & Multi-Day Session Structure
+
+Please update the ISS Session logic so that multi-day ISS Sessions ALWAYS preserve their original “shape,” such as:
+
+“3-Day ISS Session”
+
+“4-Day ISS Session”
+
+“5-Day ISS Session”
+
+This structure must not change regardless of:
+
+late arrivals
+
+early departures
+
+partial days
+
+converted partial days
+
+skipped calendar days
+
+make-up days after the last scheduled day
+
+This section focuses ONLY on the labeling and counting of ISS days, not the period math (already complete).
+
+🔹 A. Day Labels Must Always Display as “Day X of Y ISS Session”
+
+The Session should always display the assigned number of days:
+
+iss_days_assigned
+Example: if 4 days were assigned → always show “4-Day ISS Session”.
+
+For each day the student is actually checked in:
+
+Day 1 → “Day 1 of 4 ISS Session”
+
+Day 2 → “Day 2 of 4 ISS Session”
+
+Day 3 → “Day 3 of 4 ISS Session”
+
+Day 4 → “Day 4 of 4 ISS Session”
+
+Do not increment the day count based on calendar days.
+
+Only increment when the student is checked in for ISS.
+
+This ensures:
+
+No-show days are skipped (correct behavior).
+
+Weekends naturally don’t count (correct behavior).
+
+Only days with real attendance count.
+
+🔹 B. If a Full Day becomes Partial → The “Day #” stays the same.
+
+Converting a Full Day to Partial (from Section 2) must NOT change:
+
+the day number
+
+the total day count
+
+the “Day X of Y” label
+
+Only periods_covered and remaining_periods are affected.
+
+🔹 C. Make-Up Days (after scheduled days end)
+
+If the student still owes periods after the last scheduled ISS day:
+
+The Session remains:
+“4-Day ISS Session (Active – Needs Make-Up Periods)”
+
+Make-up days:
+
+Do NOT increment the day counter.
+
+Do NOT create “Day 5.”
+
+Instead, treat them as “make-up time attached to Day 4.”
+
+🔹 D. Required Display on Dashboard ISS Card
+
+The ISS card for an active Session must show BOTH:
+
+1. Day Label:
+
+Day {current_day} of {iss_days_assigned} ISS Session
+
+AND
+
+2. Period Progress:
+
+Remaining Periods Needed: {remaining_periods}
+
+Both should update every time a day is checked in or completed.
+
+🔹 E. Ensure Day Count Uses Only ISS Check-In Events
+
+Use this logic to increment the Session day count:
+
+iss_day_number = number of completed ISS calendar days
+
+
+Where a “completed ISS calendar day” is defined as:
+
+A Partial Day completed
+OR
+
+A Full Day completed
+OR
+
+A Converted Partial Day completed
+
+Not:
+
+weekends
+
+skipped days
+
+absences
+
+future scheduled days
+
+make-up partial days
+
+Make-up days should NOT have a day number.

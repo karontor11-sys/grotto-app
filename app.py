@@ -336,9 +336,12 @@ if page == "Dashboard":
         iss_days_assigned = placement.get('issDaysAssigned') or placement.get('issTotalDays') or placement.get('daysAssigned', 1)
         iss_total_required_periods = placement.get('issTotalRequiredPeriods') or (iss_days_assigned * 10)
         iss_periods_served = placement.get('issPeriodsServed', 0) or 0
+        days_completed = placement.get('daysCompleted', 0) or 0
         
-        # Calculate current day: min(floor(issPeriodsServed / 10) + 1, issDaysAssigned)
-        current_day = min(math.floor(iss_periods_served / 10) + 1, iss_days_assigned)
+        # Calculate current day based on completed check-in days (not periods)
+        # Current day = days_completed + 1 (if within scheduled days)
+        # Make-up days do NOT increment the day counter
+        current_day = min(days_completed + 1, iss_days_assigned)
         
         # Check if ISS Session is complete
         is_session_complete = iss_periods_served >= iss_total_required_periods
@@ -380,11 +383,16 @@ if page == "Dashboard":
             placement_status = placement.get('status', 'active')
             needs_makeup = placement_status == 'needs_makeup'
             
+            # Check if this is a make-up session (days_completed >= iss_days_assigned but still needs periods)
+            is_makeup_day = days_completed >= iss_days_assigned and not is_session_complete
+            
             # Day label or completion message
             if is_session_complete:
                 st.success("✅ **ISS Session complete**")
-            elif needs_makeup:
-                st.warning(f"⚠️ **Needs Make-Up Session** — {remaining_periods} periods remaining")
+            elif is_makeup_day or needs_makeup:
+                # Make-up days do NOT show a day number
+                st.warning(f"⚠️ **{iss_days_assigned}-Day ISS Session (Active – Needs Make-Up Periods)**")
+                st.caption(f"🔢 **Remaining Periods Needed:** {remaining_periods}")
             else:
                 st.markdown(f"📅 **Day {current_day} of {iss_days_assigned} ISS Session**")
                 # Show remaining periods needed (for late arrivals and multi-day tracking)
@@ -415,8 +423,12 @@ if page == "Dashboard":
                         st.success(f"✅ Today's session completed (+{periods_added} periods)")
                 elif is_checked_in and day_type == 'full':
                     # Show Full Day ISS Session Panel
-                    st.markdown("### 📋 Full Day ISS Session (10 periods)")
-                    st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
+                    if is_makeup_session or is_makeup_day:
+                        st.markdown("### 📋 Make-Up Full Day Session (10 periods)")
+                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Make-Up Session")
+                    else:
+                        st.markdown("### 📋 Full Day ISS Session (10 periods)")
+                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
                     
                     # Behaviors section
                     col_left, col_right = st.columns([1, 1])
@@ -604,8 +616,14 @@ if page == "Dashboard":
                 
                 elif is_checked_in and day_type == 'partial':
                     # Show Partial Day ISS Session Panel
-                    st.markdown("### 📋 Partial Day ISS Session")
-                    st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
+                    is_makeup_session = daily_log.get('isMakeupSession', False)
+                    
+                    if is_makeup_session or is_makeup_day:
+                        st.markdown("### 📋 Make-Up Partial Day Session")
+                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Make-Up Session")
+                    else:
+                        st.markdown("### 📋 Partial Day ISS Session")
+                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
                     
                     # Get stored period values from daily log (set during check-in)
                     start_period = daily_log.get('startPeriod') or 1

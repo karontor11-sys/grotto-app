@@ -1,0 +1,70 @@
+Move get_or_create_daily_log Out of the Dashboard Loop (Lazy ISS Log Creation)
+
+TO REPLIT DEV:
+This is a refactor for performance, not a feature change. Please keep all existing ISS behaviors the same from the user’s point of view.
+
+Goal: On the Dashboard, stop calling get_or_create_daily_log() for every ISS placement on initial load. Instead, create or load the daily log only when the user clicks “Check In” on a specific ISS card.
+
+Current (problematic) behavior
+
+The Dashboard uses something like get_active_placements_for_date(selected_date) to get all active placements.
+
+Then, in the loop that renders ISS cards, it calls:
+
+get_student(placement.student_id)
+
+get_or_create_daily_log(placement, selected_date)
+
+This means the Dashboard tries to create or fetch a daily log for every ISS placement on every render, which is slow and causes the sections (ISS, LD, CPR) to not render when there are many active placements.
+
+Desired behavior
+
+On initial Dashboard render:
+
+Still show the ISS cards with the existing UI: student name, session info, and a “Check In” button (or equivalent).
+
+Do NOT call get_or_create_daily_log() for all ISS placements during this initial listing step.
+
+Only when the user clicks the ISS “Check In” button for a specific placement:
+
+Call get_or_create_daily_log(placement, selected_date) for that one ISS placement.
+
+Then show the behaviors/points/notes UI for that placement, just like it works now after Check In.
+
+Implementation notes
+
+Update the Dashboard code so that:
+
+The main loop over active placements does not call get_or_create_daily_log() by default.
+
+The ISS card’s Check In handler:
+
+Receives the placement id (and selected date)
+
+Calls get_or_create_daily_log() inside that handler
+
+Uses the returned daily log to render the behavior/points/notes controls.
+
+Make sure:
+
+The ISS user experience does not change:
+
+Before Check In → just shows Check In button.
+
+After Check In → shows behaviors, points, Complete / Override buttons exactly as before.
+
+Only the timing of when get_or_create_daily_log is called changes (on-demand instead of for every ISS placement on load).
+
+QA
+
+After refactoring:
+
+Load the Dashboard with many active placements (ISS, LD, CPR).
+
+Confirm the Dashboard sections render reliably (no hanging).
+
+Click Check In on an ISS card and confirm:
+
+The ISS daily log is created/loaded at that point.
+
+Behaviors/points/Complete logic all still work exactly as before.

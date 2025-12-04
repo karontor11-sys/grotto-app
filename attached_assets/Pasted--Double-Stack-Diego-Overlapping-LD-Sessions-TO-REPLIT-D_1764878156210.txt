@@ -1,0 +1,165 @@
+“Double-Stack Diego” (Overlapping LD Sessions)
+
+TO REPLIT DEV:
+This is a QA-only prompt. Please do not modify Lunch Detention logic or schema yet.
+The goal is to test whether the system can handle two overlapping Lunch Detention placements for the same student, and keep them separate from Create → Dashboard → Completion.
+
+🧪 Scenario: Double-Stack Diego
+
+We will create two different Lunch Detention placements for the same student:
+
+Placement A: 2-day Lunch Detention (Wed start)
+
+Placement B: 1-day Lunch Detention (Fri start)
+
+We want to see if the system can track and complete both correctly, even when they overlap.
+
+1️⃣ Create Placement A — 2-Day LD (Start Wednesday)
+
+Go to Create New Placement.
+
+Enter:
+
+First Name: Diego
+
+Last Name: DoubleStack
+
+Grade: valid (6/7/8)
+
+Placement Type: Lunch Detention
+
+Reason: LD QA – Placement A 2-Day
+
+Start Date: Wednesday (today in your test)
+
+Number of Lunch Detentions / Days: 2
+
+Submit.
+
+📌 Document:
+
+That Placement A is created.
+
+Any LD-specific fields (e.g., days assigned).
+
+2️⃣ Day 1 (Wed) — Serve First Lunch for Placement A
+
+On Wednesday, go to the Dashboard.
+
+Locate Placement A for Diego.
+
+Confirm it is active (Start Date = today).
+
+Check In Diego for Lunch Detention.
+
+Optionally log behavior/points.
+
+Click Complete for today’s lunch.
+
+📌 After this:
+
+For Placement A:
+
+Days served should be 1 of 2.
+
+Remaining should be 1 (if tracked).
+
+3️⃣ Day 2 (Thu) — No-Show for Placement A
+
+On Thursday:
+
+Do NOT check Diego in for Lunch Detention at all.
+
+📌 Confirm:
+
+Placement A still shows as:
+
+1 of 2 lunches served.
+
+Still active / not completed.
+
+No “phantom” progress was added.
+
+4️⃣ Create Placement B — 1-Day LD (Start Friday)
+
+On Friday morning (before lunch):
+
+Go to Create New Placement again.
+
+Enter:
+
+First Name: Diego
+
+Last Name: DoubleStack
+
+Grade: same as before
+
+Placement Type: Lunch Detention
+
+Reason: LD QA – Placement B 1-Day
+
+Start Date: Friday (today in your test)
+
+Number of Days: 1
+
+Submit.
+
+📌 Confirm:
+
+Placement B is created as a separate LD placement.
+
+Now there should be two Lunch Detention records for Diego:
+
+Placement A (2-day, 1 served)
+
+Placement B (1-day, 0 served)
+
+5️⃣ Day 3 (Fri lunch) — Serve BOTH Placements in One Lunch
+
+On Friday lunch, simulate staff deciding to count this one lunch for both LDs:
+
+For Placement A:
+
+Check In → Complete the lunch.
+
+For Placement B:
+
+Check In → Complete the lunch.
+
+📌 After Friday lunch:
+
+Placement A:
+
+Should show 2 of 2 lunches served.
+
+Status: Completed.
+
+Placement B:
+
+Should show 1 of 1 lunches served.
+
+Status: Completed.
+
+6️⃣ Completed Section
+
+Check the Completed area.
+
+📌 Confirm:
+
+There are two distinct Lunch Detention records:
+
+One labeled as a 2-Day Lunch Detention for Diego (Placement A).
+
+One labeled as a 1-Day Lunch Detention for Diego (Placement B).
+
+Nothing got merged or overwritten.
+
+✅ QA Summary Request
+
+Please summarize:
+
+Did the system allow two overlapping LD placements for the same student?
+
+Did each placement track its own days served and completion correctly?
+
+Any weirdness with how the Dashboard displays multiple LD cards for the same student?

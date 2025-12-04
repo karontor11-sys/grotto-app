@@ -1326,15 +1326,25 @@ if page == "Dashboard":
             
             return  # Exit early for future placements
         
-        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
-        point_events = dm.get_point_events_for_date(placement_id, date_str)
-        positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
-        negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
-        total_points = positive_points + negative_points
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        daily_log = dm.get_daily_log(placement_id, date_str)
+        
+        # Only fetch point events if student is checked in (lazy loading)
+        is_checked_in = (daily_log.get('checkedIn', False) if daily_log else False)
+        if is_checked_in:
+            point_events = dm.get_point_events_for_date(placement_id, date_str)
+            positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
+            negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
+            total_points = positive_points + negative_points
+        else:
+            point_events = []
+            positive_points = 0
+            negative_points = 0
+            total_points = 0
         
         session_status = iss_session.get('status', 'scheduled')
-        fulfillment = daily_log.get('dailyFulfillment') or ''
-        override_used = daily_log.get('overrideUsed', False)
+        fulfillment = (daily_log.get('dailyFulfillment') or '') if daily_log else ''
+        override_used = (daily_log.get('overrideUsed', False) if daily_log else False)
         is_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
         is_no_show = session_status == 'no_show'
         
@@ -1359,9 +1369,6 @@ if page == "Dashboard":
         if iss_total_days is None:
             iss_total_days = 1
         is_multi_day_iss = iss_total_days > 1
-        
-        # Check if student is checked in for today
-        is_checked_in = daily_log.get('checkedIn', False)
         
         # Calculate check-in based progress (Day X advances when Check In is pressed)
         checkin_progress = dm.calculate_iss_checkin_progress(placement_id, target_date)
@@ -1586,11 +1593,11 @@ if page == "Dashboard":
                             st.session_state[f"show_close_early_final_{placement_id}"] = False
                             st.rerun()
             
-            # Notes (always visible with auto-save)
+            # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
             render_auto_save_notes(
                 f"isssession_{session_id}_{date_str}",
-                daily_log.get('notes', '') or '',
+                (daily_log.get('notes', '') if daily_log else '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
             

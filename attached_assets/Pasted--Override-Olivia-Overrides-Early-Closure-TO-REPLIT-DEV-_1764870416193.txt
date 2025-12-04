@@ -1,0 +1,137 @@
+“Override Olivia” Overrides + Early Closure
+
+TO REPLIT DEV:
+This is a QA-only test of overrides and early closure. Please do not change any ISS logic, just use the existing “Override & Count Full” and early-close behavior.
+
+🧪 Scenario: Override Olivia
+
+Student: Override Olivia
+Session: 4-Day ISS, Start Date = Monday
+Expected totals:
+
+iss_days_assigned = 4
+
+iss_total_required_periods = 40
+
+1️⃣ Day 1 (Mon) — Full Day, Under Points, Override
+
+Check In Full Day
+
+Give 6 points (less than 10)
+
+Click Override & Count Full
+
+📌 After Day 1:
+
+Day label
+
+iss_periods_served
+
+Remaining
+
+Expected:
+
+“Day 1 of 4 ISS Session”
+
+iss_periods_served = 10
+
+Remaining = 30
+
+2️⃣ Day 2 (Tue) — Partial Day, Under Points, Override
+
+Check In Partial Day
+
+Start = 3
+
+End = 7 → periods_covered = 5
+
+Required points = 5
+
+Give only 3 points
+
+Click Override & Count Full
+
+📌 After Day 2:
+
+Day label
+
+iss_periods_served
+
+Remaining
+
+Expected:
+
+“Day 2 of 4”
+
+iss_periods_served = 15 (10 + 5)
+
+Remaining = 25
+
+3️⃣ Day 3 (Wed) — No-Show
+
+No Check-In.
+
+📌 Confirm:
+
+iss_periods_served = 15
+
+Remaining = 25
+
+Next time she attends should present as Day 3 of 4.
+
+4️⃣ Day 3 (Thu functionally) — Clean Full Day
+
+Check In Full Day
+
+10 points, Complete
+
+📌 After this day:
+
+“Day 3 of 4 ISS Session”
+
+iss_periods_served = 25
+
+Remaining = 15
+
+5️⃣ Day 4 (Fri) — Clean Full Day
+
+Check In Full Day
+
+10 points, Complete
+
+📌 At end of Day 4 (Final Scheduled Day):
+
+“Day 4 of 4 ISS Session”
+
+iss_periods_served = 35
+
+Remaining = 5
+
+System should prompt:
+
+“This student still needs 5 more periods to complete this ISS Session.
+Keep the case open for a make-up Session?”
+
+This time, staff chooses:
+
+❌ NO — Close Case Anyway
+
+📌 Final Expected State:
+
+Session marked Completed: 4-Day ISS Session
+
+iss_periods_served = 35
+
+Remaining 5 periods are waived
+
+A note is stored such as:
+
+“Session closed early — remaining periods waived by staff judgment.”
+
+📋 Please Report
+
+Day labels, iss_periods_served, and remaining after each day
+
+That overrides count the proper periods (10 for full, 5 for partial) even when points are under target
+
+That early-close option worked correctly and Session is completed with waived periods noted

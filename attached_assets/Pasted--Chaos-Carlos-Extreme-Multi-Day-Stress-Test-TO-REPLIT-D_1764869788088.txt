@@ -1,0 +1,284 @@
+“Chaos Carlos” Extreme Multi-Day Stress Test
+
+TO REPLIT DEV:
+This is a QA-only prompt. Please do not modify core ISS logic or database structure.
+
+The goal is to run a stress-test scenario for a 5-day ISS Session with:
+
+Mixed partial days
+
+Late arrival
+
+Converted full→partial
+
+No-show day
+
+Weekend gap
+
+Multiple make-up days
+
+Please follow the steps below and report the key values and labels at each stage.
+
+🧪 Scenario: Chaos Carlos
+
+Student: Chaos Carlos
+Session: 5-Day ISS, Start Date = Monday (or any Monday)
+Expected totals:
+
+iss_days_assigned = 5
+
+iss_total_required_periods = 50
+
+1️⃣ Day 1 (Mon) — Late Arrival, Partial Afternoon
+
+Create New Placement:
+
+Type: ISS
+
+Start Date: Monday (today in your test)
+
+Days Assigned: 5
+
+On Dashboard:
+
+Click Check In Partial Day
+
+Start Period = 5
+
+End Period = 10 → periods_covered = 6
+
+Required points = 6
+
+Give Carlos 6 points and Complete the day.
+
+📌 After Day 1, please log:
+
+Day label
+
+iss_periods_served
+
+Remaining periods
+
+Expected:
+
+Day label: “Day 1 of 5 ISS Session”
+
+iss_periods_served = 6
+
+Remaining = 44
+
+2️⃣ Day 2 (Tue) — Full Day
+
+Check In Full Day
+
+Give 10 points
+
+Complete
+
+📌 After Day 2:
+
+Day label
+
+iss_periods_served
+
+Remaining
+
+Expected:
+
+“Day 2 of 5”
+
+iss_periods_served = 16
+
+Remaining = 34
+
+3️⃣ Day 3 (Wed) — No-Show
+
+Do NOT check Carlos in at all.
+
+📌 After the no-show day:
+
+Confirm:
+
+Day count does not advance.
+
+iss_periods_served remains 16.
+
+Remaining stays 34.
+
+Next time he is checked in should appear as Day 3 of 5.
+
+4️⃣ Day 3 (Thu functionally) — Start Full, Leave Early → Convert to Partial
+
+On Dashboard:
+
+Click Check In Full Day
+
+Add a few points (e.g., 3–4 points).
+
+Midday, he “leaves early”:
+
+Click Convert to Partial Day.
+
+Set:
+
+Start = 1
+
+End = 6 → periods_covered = 6
+
+Required points = 6
+
+Make sure he ends the day with at least 6 points and Complete.
+
+📌 After this “third actual day”:
+
+Day label
+
+iss_periods_served
+
+Remaining
+
+Expected:
+
+“Day 3 of 5 ISS Session”
+
+iss_periods_served = 22 (16 + 6)
+
+Remaining = 28
+
+5️⃣ Day 4 (Fri) — Full Day
+
+Check In Full Day
+
+10 points
+
+Complete
+
+📌 After Day 4:
+
+Day label
+
+iss_periods_served
+
+Remaining
+
+Expected:
+
+“Day 4 of 5”
+
+iss_periods_served = 32
+
+Remaining = 18
+
+6️⃣ Weekend (Sat/Sun)
+
+No ISS activity.
+
+📌 Confirm:
+
+iss_periods_served still 32
+
+Remaining still 18
+
+No change to day count.
+
+7️⃣ Day 5 (Mon) — Partial Morning
+
+Check In Partial Day
+
+Start = 1
+
+End = 4 → periods_covered = 4
+
+Required points = 4
+
+Give 4 points, Complete
+
+📌 At end of scheduled Session (Day 5 of 5):
+
+Day label
+
+iss_periods_served
+
+Remaining
+
+Whether a “needs make-up periods” prompt appears
+
+Expected:
+
+“Day 5 of 5 ISS Session”
+
+iss_periods_served = 36
+
+Remaining = 14
+
+System should not mark the Session as done, but should indicate need for make-up.
+
+8️⃣ Make-Up Day 1 (Tue)
+
+Check In Partial Day
+
+Start = 1
+
+End = 7 → periods_covered = 7
+
+Required points = 7
+
+Give 7 points, Complete
+
+📌 After Make-Up Day 1:
+
+iss_periods_served
+
+Remaining
+
+Expected:
+
+iss_periods_served = 43
+
+Remaining = 7
+
+9️⃣ Make-Up Day 2 (Wed)
+
+Check In Partial Day
+
+Start = 1
+
+End = 7 → periods_covered = 7
+
+Required points = 7
+
+Give 7 points, Complete
+
+📌 Final Expected State:
+
+iss_periods_served = 50
+
+Remaining = 0
+
+Session status: Completed: 5-Day ISS Session
+
+History reflects:
+
+Mixed partials
+
+Converted full→partial
+
+No-show
+
+Weekend gap
+
+Multiple make-up partials
+
+📋 Please Report
+
+Day label + iss_periods_served + remaining after each step
+
+Whether any unexpected behavior occurs in:
+
+Day counting
+
+Weekend handling
+
+No-show handling
+
+Make-up calculations

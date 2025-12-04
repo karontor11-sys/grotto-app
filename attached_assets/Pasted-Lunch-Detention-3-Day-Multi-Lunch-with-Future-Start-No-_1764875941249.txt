@@ -1,0 +1,195 @@
+Lunch Detention: 3-Day Multi-Lunch with Future Start, No-Show, and Weekend
+
+TO REPLIT DEV:
+This is also a QA-only prompt.
+Again, please do not change Lunch Detention logic yet.
+We want to see how a multi-day Lunch Detention behaves when:
+
+The Start Date is tomorrow (future start),
+
+The student has 3 lunches to serve,
+
+We must handle no-shows and weekends.
+
+🧪 Scenario: 3-Day Lunch Detention Starting Tomorrow
+
+Student: Liam LD ThreeDay
+Scenario: Liam gets in trouble after lunch today, so his Lunch Detention starts tomorrow and lasts 3 lunches.
+
+1️⃣ Create New Placement: 3-Day Lunch Detention (Future Start)
+
+Go to Create New Placement.
+
+Enter:
+
+First Name: Liam
+
+Last Name: ThreeDay
+
+Grade: 6, 7, or 8
+
+Placement Type: Lunch Detention
+
+Reason: LD QA Test – 3 Day
+
+Start Date: tomorrow
+
+Number of Lunch Detentions / Days: 3
+
+Submit the form.
+
+📌 Document:
+
+Whether the placement creates successfully.
+
+Any LD-specific fields in the database (days assigned, etc.).
+
+2️⃣ Dashboard Behavior BEFORE Start Date
+
+Go to the Dashboard today (before the LD Start Date).
+
+📌 Please check:
+
+Does the card for Liam LD ThreeDay appear?
+
+Is it:
+
+Locked / grayed out?
+
+Showing a message like: “First Lunch Detention: [tomorrow’s date]”?
+
+Are check-in controls disabled today (before Start Date)?
+
+3️⃣ Day 1 – First Real Lunch Detention (Start Date)
+
+On the actual Start Date (tomorrow in your test):
+
+Go to Dashboard.
+
+Confirm that Liam’s card is now active and can be checked in.
+
+Click the relevant Check-In control for Lunch Detention.
+
+Simulate serving one lunch:
+
+Optionally log behavior/points.
+
+Click Complete for today’s lunch.
+
+📌 Document after Day 1:
+
+How is the day labeled?
+
+Example: “Day 1 of 3 Lunch Detentions” (if such labeling exists).
+
+Does the system show:
+
+1 of 3 days served?
+
+Any remaining count?
+
+Does the card remain active for future days?
+
+4️⃣ Day 2 – No-Show Day
+
+On the next school day, simulate a no-show:
+
+Do not check Liam in at all for Lunch Detention.
+
+📌 After this no-show:
+
+Confirm that:
+
+No additional “day served” is recorded.
+
+If any counters exist (days served / remaining), they do not change.
+
+The next time you do check him in, it should represent Day 2 of 3, not Day 3.
+
+5️⃣ Day 2 – Actual Second Lunch (Following Day)
+
+On the next school day after the no-show:
+
+Go to Dashboard.
+
+Check Liam in for Lunch Detention.
+
+Simulate serving lunch, then Complete for that day.
+
+📌 After this second served lunch:
+
+How is the day labeled?
+
+It should be something like “Day 2 of 3” if day labels exist.
+
+Does the system indicate that 2 of 3 lunches have now been served?
+
+6️⃣ Weekend Gap
+
+If your test schedule can hit a weekend (e.g., Start Date on a Thursday or Friday), observe:
+
+Over Saturday and Sunday:
+
+There should be no changes to days served or remaining.
+
+The card should simply wait for the next school day’s Check-In.
+
+If you can’t easily align with a real weekend, just confirm by date/logic inspection that nothing runs automatically on non-school days.
+
+7️⃣ Day 3 – Final Lunch
+
+On the next school day where you choose to serve the final lunch:
+
+Check Liam in for Lunch Detention.
+
+Complete that lunch.
+
+📌 After Day 3 (third lunch served):
+
+Does the system:
+
+Mark the Lunch Detention as completed?
+
+Move the record to the Completed list or equivalent?
+
+Does it show something like:
+
+“Completed: 3-Day Lunch Detention”
+
+Or at least clearly indicate 3 lunches were served?
+
+8️⃣ Completed Section / Summary
+
+Now check the Completed area.
+
+📌 Please document:
+
+How Liam’s Lunch Detention is labeled there:
+
+Type = Lunch Detention
+
+Total days / lunches served = 3
+
+Start and end dates (if displayed)
+
+Whether any underlying counters (e.g., days served / days remaining) look accurate.
+
+✅ Final QA Summary Request
+
+For this 3-day Lunch Detention scenario, please summarize:
+
+Does the system:
+
+Respect future Start Dates and lock/unlock appropriately?
+
+Properly handle no-shows (no phantom progress)?
+
+Ignore weekends (no auto-advance)?
+
+Correctly complete and archive after 3 served lunches?
+
+Any places where:
+
+ISS-specific logic (periods/partials) appears where it doesn’t belong?
+
+The LD experience feels incomplete, confusing, or inconsistent with ISS?

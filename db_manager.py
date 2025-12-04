@@ -1067,8 +1067,8 @@ class DatabaseManager:
             date_str = date_obj.isoformat()
             
             # Get current arrays (handle None)
-            served_dates = placement.served_dates if placement.served_dates else []
-            scheduled_lunch_dates = placement.scheduled_lunch_dates if placement.scheduled_lunch_dates else []
+            served_dates = list(placement.served_dates) if placement.served_dates else []
+            scheduled_lunch_dates = list(placement.scheduled_lunch_dates) if placement.scheduled_lunch_dates else []
             
             if is_present:
                 # Add date to served_dates if not already there
@@ -1076,11 +1076,9 @@ class DatabaseManager:
                     served_dates.append(date_str)
                     placement.served_dates = served_dates
                 
-                # Check if placement should be completed
-                total_required = placement.days_assigned
-                if len(served_dates) >= total_required:
-                    placement.status = PlacementStatus.completed
-                    placement.end_date = date_obj
+                # Transition from scheduled to active on first check-in
+                if placement.status == PlacementStatus.scheduled:
+                    placement.status = PlacementStatus.active
             else:
                 # Student was absent - extend schedule by one school day with lunch
                 if not scheduled_lunch_dates:
@@ -2229,6 +2227,18 @@ class DatabaseManager:
                     override_used=is_override
                 )
                 session.add(log)
+                
+                # Increment days_completed when creating new completed log
+                placement = session.query(Placement).filter(Placement.id == placement_id).first()
+                if placement:
+                    placement.days_completed = (placement.days_completed or 0) + 1
+                    
+                    # Auto-complete Lunch Detention when all days are completed
+                    if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+                        days_assigned = placement.days_assigned or 1
+                        if placement.days_completed >= days_assigned:
+                            placement.status = PlacementStatus.completed
+                            placement.end_date = date_obj
             else:
                 old_fulfillment = log.daily_fulfillment
                 log.daily_fulfillment = 'yes'

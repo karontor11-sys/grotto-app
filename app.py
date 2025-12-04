@@ -325,8 +325,13 @@ if page == "Dashboard":
     
     # Helper function to render ISS Full Day student card with period-based tracking
     def render_iss_full_card(placement: dict, target_date: date):
-        """Render ISS Full Day card with period-based tracking, Check In workflow, and behaviors."""
+        """Render ISS Full Day card with period-based tracking, Check In workflow, and behaviors.
+        
+        Uses lazy loading: only fetches daily log when student is checked in or has existing log.
+        """
         import math
+        from utils import get_daily_status_color
+        
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
@@ -346,24 +351,33 @@ if page == "Dashboard":
         # Check if ISS Session is complete
         is_session_complete = iss_periods_served >= iss_total_required_periods
         
-        # Get or create daily log
-        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        # This prevents creating logs on initial Dashboard load
+        daily_log = dm.get_daily_log(placement_id, date_str)
         
-        # Determine status color
-        from utils import get_daily_status_color
-        fulfillment = daily_log.get('dailyFulfillment') or ''
-        status_color = get_daily_status_color(fulfillment, date_str)
+        # Determine if student is checked in (from existing log, if any)
+        is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+        is_day_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+        
+        # Determine status: only fetch from log if it exists
+        if daily_log:
+            fulfillment = daily_log.get('dailyFulfillment') or ''
+            status_color = get_daily_status_color(fulfillment, date_str)
+        else:
+            status_color = 'yellow'  # Default to yellow (pending) for no log
         status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
         
-        # Get point events
-        point_events = dm.get_point_events_for_date(placement_id, date_str)
-        positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
-        negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
-        total_points = positive_points + negative_points
-        
-        # Check if student is checked in for today
-        is_checked_in = daily_log.get('checkedIn', False)
-        is_day_completed = daily_log.get('dailyFulfillment') == 'yes'
+        # Only fetch point events if student is checked in (lazy loading)
+        if is_checked_in:
+            point_events = dm.get_point_events_for_date(placement_id, date_str)
+            positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
+            negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
+            total_points = positive_points + negative_points
+        else:
+            point_events = []
+            positive_points = 0
+            negative_points = 0
+            total_points = 0
         
         with st.container():
             # Header row: Student name with status
@@ -411,9 +425,9 @@ if page == "Dashboard":
                 else:
                     st.markdown("**Today's Session**")
                 
-                # Get day_type from daily log
-                day_type = daily_log.get('dayType', None)
-                is_makeup_session = daily_log.get('isMakeupSession', False)
+                # Get day_type from daily log (safe access - daily_log may be None)
+                day_type = daily_log.get('dayType', None) if daily_log else None
+                is_makeup_session = daily_log.get('isMakeupSession', False) if daily_log else False
                 
                 if is_day_completed:
                     periods_added = daily_log.get('periodsAdded', 10)
@@ -905,11 +919,11 @@ if page == "Dashboard":
                             st.session_state[f"show_close_early_main_{placement_id}"] = False
                             st.rerun()
             
-            # Notes (always visible with auto-save)
+            # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
             render_auto_save_notes(
                 f"fullday_{placement_id}_{date_str}",
-                daily_log.get('notes', '') or '',
+                (daily_log.get('notes', '') if daily_log else '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
             
@@ -917,16 +931,26 @@ if page == "Dashboard":
     
     # Helper function to render ISS Partial Day student card
     def render_iss_partial_card(placement: dict, target_date: date):
-        """Render ISS Partial Day card with periods, points, and behaviors."""
+        """Render ISS Partial Day card with periods, points, and behaviors.
+        
+        Uses lazy loading for daily logs.
+        """
+        from utils import get_daily_status_color
+        
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
-        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
-        from utils import get_daily_status_color
-        fulfillment = daily_log.get('dailyFulfillment') or ''
-        status_color = get_daily_status_color(fulfillment, date_str)
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        daily_log = dm.get_daily_log(placement_id, date_str)
+        
+        if daily_log:
+            fulfillment = daily_log.get('dailyFulfillment') or ''
+            status_color = get_daily_status_color(fulfillment, date_str)
+        else:
+            fulfillment = ''
+            status_color = 'yellow'  # Default to yellow (pending)
         status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
         
         # Get periods
@@ -937,9 +961,12 @@ if page == "Dashboard":
         else:
             period_label = f"Periods {start_period}–{end_period}"
         
-        # Get points
+        # Get points (lazy loading - only fetch if needed for display)
         point_events = dm.get_point_events_for_date(placement_id, date_str)
         total_points = sum([e['value'] for e in point_events])
+        
+        # Check completion status (safe access - daily_log may be None)
+        is_completed = fulfillment == 'yes'
         
         with st.container():
             col1, col2, col3 = st.columns([3, 1, 1])
@@ -951,7 +978,7 @@ if page == "Dashboard":
                 st.caption(f"Grade {student.get('grade', 'N/A')}")
             
             with col3:
-                if daily_log.get('dailyFulfillment') != 'yes':
+                if not is_completed:
                     if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         st.rerun()
@@ -961,11 +988,11 @@ if page == "Dashboard":
             st.caption(f"📚 {period_label}")
             st.caption(f"Points: {total_points}")
             
-            # Notes (always visible with auto-save)
+            # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
             render_auto_save_notes(
                 f"partial_{placement_id}_{date_str}",
-                daily_log.get('notes', '') or '',
+                (daily_log.get('notes', '') if daily_log else '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
             
@@ -973,16 +1000,25 @@ if page == "Dashboard":
     
     # Helper function to render Lunch Detention student card
     def render_lunch_detention_card(placement: dict, target_date: date):
-        """Render Lunch Detention card with attendance and Day X of Y."""
+        """Render Lunch Detention card with attendance and Day X of Y.
+        
+        Uses lazy loading for daily logs.
+        """
+        from utils import get_daily_status_color, calculate_school_day_number
+        
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
-        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
-        from utils import get_daily_status_color, calculate_school_day_number
-        fulfillment = daily_log.get('dailyFulfillment') or ''
-        status_color = get_daily_status_color(fulfillment, date_str)
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        daily_log = dm.get_daily_log(placement_id, date_str)
+        
+        if daily_log:
+            fulfillment = daily_log.get('dailyFulfillment') or ''
+            status_color = get_daily_status_color(fulfillment, date_str)
+        else:
+            status_color = 'yellow'  # Default to yellow (pending)
         status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
         
         # Day X of Y for multi-day lunch detention
@@ -1026,19 +1062,20 @@ if page == "Dashboard":
             if total_days > 1 and day_number > 0:
                 st.caption(f"📅 Day {day_number} of {total_days}")
             
-            # Complete button
-            if daily_log.get('dailyFulfillment') != 'yes':
+            # Complete button (safe access - daily_log may be None)
+            is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+            if not is_completed:
                 if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
                     dm.complete_placement_day(placement_id, date_str, "Admin")
                     st.rerun()
             else:
                 st.success("Completed")
             
-            # Notes (always visible with auto-save)
+            # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
             render_auto_save_notes(
                 f"lunch_{placement_id}_{date_str}",
-                daily_log.get('notes', '') or '',
+                (daily_log.get('notes', '') if daily_log else '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
             
@@ -1046,16 +1083,26 @@ if page == "Dashboard":
     
     # Unified helper function to render Class Period Referral student card (all subtypes)
     def render_unified_class_referral_card(placement: dict, target_date: date):
-        """Render unified Class Period Referral card for all subtypes (Behavior, Cool-Down, Pre-Planned)."""
+        """Render unified Class Period Referral card for all subtypes (Behavior, Cool-Down, Pre-Planned).
+        
+        Uses lazy loading for daily logs.
+        """
+        from utils import get_daily_status_color
+        
         student = placement['student']
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
-        daily_log = dm.get_or_create_daily_log(placement_id, date_str)
-        from utils import get_daily_status_color
-        fulfillment = daily_log.get('dailyFulfillment') or ''
-        status_color = get_daily_status_color(fulfillment, date_str)
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        daily_log = dm.get_daily_log(placement_id, date_str)
+        
+        if daily_log:
+            fulfillment = daily_log.get('dailyFulfillment') or ''
+            status_color = get_daily_status_color(fulfillment, date_str)
+        else:
+            fulfillment = ''
+            status_color = 'yellow'  # Default to yellow (pending)
         
         # Determine subtype from placement data
         placement_type = placement.get('placementType', '').upper()
@@ -1078,8 +1125,8 @@ if page == "Dashboard":
             subtype_display = "Behavior Referral"
             subtype_key = "behavior"
         
-        # Check if no-show is set (for Pre-Planned only)
-        is_no_show = daily_log.get('noShow', False)
+        # Check if no-show is set (for Pre-Planned only, safe access - daily_log may be None)
+        is_no_show = daily_log.get('noShow', False) if daily_log else False
         is_completed = fulfillment == 'yes'
         
         # Determine status icon
@@ -1183,7 +1230,7 @@ if page == "Dashboard":
                     # No Show note field (only shown if No Show is checked)
                     if no_show_checked:
                         st.caption("No Show Note")
-                        no_show_note = daily_log.get('noShowNote', '') or ''
+                        no_show_note = (daily_log.get('noShowNote', '') if daily_log else '') or ''
                         render_auto_save_notes(
                             f"noshow_note_{placement_id}_{date_str}",
                             no_show_note,

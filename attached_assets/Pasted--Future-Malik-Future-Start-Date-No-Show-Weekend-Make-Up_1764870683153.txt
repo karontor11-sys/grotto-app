@@ -1,0 +1,166 @@
+“Future Malik” Future Start Date + No-Show + Weekend + Make-Up
+
+TO REPLIT DEV:
+This is a QA-only scenario to verify behavior with future Start Date, no-show on Start Date, weekend gap, mixed partial/full, and make-up after the last scheduled day.
+
+🧪 Scenario: Future Malik
+
+Student: Future Malik
+Session: 3-Day ISS
+
+Start Date = a future Thursday
+
+iss_days_assigned = 3
+
+iss_total_required_periods = 30
+
+1️⃣ Create Placement (Future Start Date)
+
+Create New Placement:
+
+Type: ISS
+
+Start Date: A future Thursday
+
+Days Assigned: 3
+
+On Dashboard, immediately after creation, confirm:
+
+Card appears locked / grayed out.
+
+Shows: “First Check-In Date: [that Thursday’s date]”
+
+No active Check-In buttons until that date.
+
+2️⃣ Scheduled Start Date (Thu) — No-Show
+
+On the actual Start Date:
+
+Malik does not come to ISS.
+
+Do not Check In.
+
+📌 Confirm:
+
+iss_periods_served = 0
+
+No day label like “Day 1 of 3” yet (he hasn’t actually served time).
+
+Placement remains active and ready for future Check-Ins.
+
+3️⃣ First Actual ISS Day (Fri) — Partial Afternoon
+
+The day after the scheduled Start Date, Malik finally shows.
+
+On Dashboard:
+
+Card should now be active.
+
+Click Check In Partial Day:
+
+Start = 6
+
+End = 10 → periods_covered = 5
+
+Required points = 5
+
+Give 5 points and Complete.
+
+📌 After this day:
+
+Day label: “Day 1 of 3 ISS Session”
+
+iss_periods_served = 5
+
+Remaining = 25
+
+4️⃣ Weekend (Sat/Sun)
+
+No ISS activity.
+
+📌 Confirm:
+
+iss_periods_served remains 5
+
+Remaining = 25
+
+No new days counted.
+
+5️⃣ Second ISS Day (Mon) — Full Day
+
+Check In Full Day
+
+10 points, Complete
+
+📌 After Day 2:
+
+“Day 2 of 3 ISS Session”
+
+iss_periods_served = 15
+
+Remaining = 15
+
+6️⃣ Third ISS Day (Tue) — Partial Morning
+
+Check In Partial Day
+
+Start = 1
+
+End = 5 → periods_covered = 5
+
+Required points = 5
+
+5 points, Complete
+
+📌 At end of 3rd scheduled ISS day:
+
+“Day 3 of 3 ISS Session”
+
+iss_periods_served = 20
+
+Remaining = 10
+
+System should prompt:
+
+“This student still needs 10 more periods to complete this 3-Day ISS Session.
+Keep the case open for make-up?”
+
+Staff chooses YES.
+
+7️⃣ Make-Up Day (Wed) — Full Day
+
+Check In Full Day
+
+10 points, Complete
+
+📌 Final Expected State:
+
+iss_periods_served = 30
+
+Remaining = 0
+
+Session marked Completed: 3-Day ISS Session
+
+History shows:
+
+Future Start Date
+
+No-show on Start Date
+
+Partial, weekend gap, full, partial, full make-up
+
+📋 Please Report
+
+Card lock/unlock behavior for the future Start Date
+
+Day labels at each step
+
+iss_periods_served and remaining after each day
+
+Correct handling of:
+
+No-show on the planned Start Date
+
+Weekend gap
+
+Make-up full day after scheduled days

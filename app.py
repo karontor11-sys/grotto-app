@@ -1251,11 +1251,11 @@ if page == "Dashboard":
                 else:
                     st.success("Completed")
             
-            # Notes (always visible with auto-save)
+            # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
             render_auto_save_notes(
                 f"classref_{placement_id}_{date_str}",
-                daily_log.get('notes', '') or '',
+                (daily_log.get('notes', '') if daily_log else '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
             

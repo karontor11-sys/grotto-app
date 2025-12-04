@@ -1,0 +1,115 @@
+Lunch Detention: Simple Same-Day, Single Lunch (Julia)
+
+TO REPLIT DEV:
+This is a QA-only prompt.
+Please do not change any Lunch Detention logic or database structure yet.
+The goal is to observe and document how a single-day, same-day Lunch Detention currently behaves, from Create Placement → Dashboard → Check-In → Completion → Completed list.
+
+🧪 Scenario: Julia – Same-Day Single Lunch Detention
+
+Student: Julia LD SameDay
+Scenario: Julia gets in trouble before lunch and is assigned one Lunch Detention to be served today.
+
+1️⃣ Create New Placement: Lunch Detention (Same Day)
+
+Navigate to Create New Placement.
+
+Enter:
+
+First Name: Julia
+
+Last Name: SameDay
+
+Grade: choose 6, 7, or 8 (required so the correct lunch block applies)
+
+Placement Type: Lunch Detention
+
+Reason: something like LD QA Test – Same Day
+
+Start Date: today
+
+Number of Lunch Detentions / Days (if applicable): 1
+
+Submit the form to create the placement.
+
+📌 Please document:
+
+Does the form submit successfully with no errors?
+
+Does a Lunch Detention record appear in the database (if you can see it)?
+
+If there are LD-specific fields (e.g., ld_days_assigned), note their values.
+
+2️⃣ Dashboard: Card Visibility & State
+
+Now go to the Dashboard.
+
+📌 Please check and document:
+
+Does a card for Julia LD SameDay appear under a Lunch Detention section (or equivalent)?
+
+Is it active and clickable on the same day the placement is created (Start Date = today)?
+
+Is there a clear button or control like:
+
+“Check In Lunch Detention” or similar?
+
+If the UI distinguishes “Day 1 of X” for Lunch Detention, note what is displayed.
+
+3️⃣ Check-In & Completion for Today’s Lunch
+
+Simulate serving the lunch detention today:
+
+On Julia’s LD card, click the relevant Check-In control.
+
+If there is a check-in button specific to lunch, use that.
+
+If there are any behavior/point fields:
+
+Add at least one positive entry to simulate participation.
+
+At the end of lunch, click the appropriate Complete button for that Lunch Detention.
+
+📌 Please document:
+
+After Check-In:
+
+Does the card reflect that today’s lunch is “in progress” or checked in?
+
+After clicking Complete:
+
+Does the card show that the Lunch Detention for today is finished?
+
+Does the session appear as fully completed (if it’s just a 1-day LD)?
+
+Is there any label like “Completed: 1-Day Lunch Detention” or similar?
+
+4️⃣ Completed Section / History
+
+Now check wherever the app displays completed placements (Completed list / archive / history).
+
+📌 Please document:
+
+Does Julia LD SameDay appear in the Completed area?
+
+How is it labeled?
+
+Does it clearly indicate:
+
+Placement Type = Lunch Detention
+
+That it was for 1 day / 1 lunch?
+
+The date it was served?
+
+If the system stores any structured LD fields (e.g., ld_days_served, ld_remaining_days), please report those values if you can see them.
+
+5️⃣ Summary
+
+Please provide a brief summary:
+
+Did same-day, single-lunch Lunch Detention work end-to-end?
+
+Any confusing behavior, missing buttons, or unclear labels?
+
+Any signs the system is reusing ISS concepts (periods/partials) in ways that don’t make sense for Lunch Detention?

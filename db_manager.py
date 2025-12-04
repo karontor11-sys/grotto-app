@@ -105,6 +105,7 @@ class Placement(Base):
     scheduled_iss_dates = Column(JSON, default=list)  # Array of scheduled ISS dates (ISO format strings) for full-day ISS
     scheduled_iss_sessions = Column(JSON, default=list)  # Array of scheduled ISS sessions with date, periods, and session type
     served_dates = Column(JSON, default=list)  # Array of dates when student was present (ISO format strings)
+    scheduled_lunch_dates = Column(JSON, default=list)  # Array of scheduled Lunch Detention dates (ISO format strings)
     referral_subtype = Column(String, nullable=True)  # For CLASS_REFERRAL: 'behavior', 'cool_down', or 'pre_planned'
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
     created_by = Column(String)
@@ -283,7 +284,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'scheduled_lunch_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -314,6 +315,11 @@ class DatabaseManager:
             # Add served_dates column if it doesn't exist
             if 'served_dates' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN served_dates JSON DEFAULT '[]'::json")
+                session.commit()
+            
+            # Add scheduled_lunch_dates column for Lunch Detention
+            if 'scheduled_lunch_dates' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN scheduled_lunch_dates JSON DEFAULT '[]'::json")
                 session.commit()
             
             # Add total_iss_periods column if it doesn't exist
@@ -593,6 +599,7 @@ class DatabaseManager:
                 scheduled_iss_dates=scheduled_iss_dates,
                 scheduled_iss_sessions=placement_data.get('scheduledIssSessions', []),
                 served_dates=served_dates,
+                scheduled_lunch_dates=placement_data.get('scheduledLunchDates', []),
                 referral_subtype=placement_data.get('referralSubtype'),
                 status=initial_status,
                 created_by=placement_data.get('createdBy'),
@@ -2233,6 +2240,13 @@ class DatabaseManager:
                 placement = session.query(Placement).filter(Placement.id == placement_id).first()
                 if placement and old_fulfillment != 'yes':
                     placement.days_completed = (placement.days_completed or 0) + 1
+                    
+                    # Auto-complete Lunch Detention when all days are completed
+                    if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+                        days_assigned = placement.days_assigned or 1
+                        if placement.days_completed >= days_assigned:
+                            placement.status = PlacementStatus.completed
+                            placement.end_date = date_obj
             
             session.commit()
             return True
@@ -3271,6 +3285,7 @@ class DatabaseManager:
             'scheduledIssDates': placement.scheduled_iss_dates or [],
             'scheduledIssSessions': placement.scheduled_iss_sessions or [],
             'servedDates': placement.served_dates or [],
+            'scheduledLunchDates': placement.scheduled_lunch_dates or [],
             'referralSubtype': placement.referral_subtype,
             'status': placement.status.value,
             'createdBy': placement.created_by,

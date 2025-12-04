@@ -373,6 +373,9 @@ if page == "Dashboard":
             # Progress line: "Periods served: X of Y"
             st.info(f"📊 Periods served: **{iss_periods_served}** of **{iss_total_required_periods}**")
             
+            # Calculate remaining periods needed
+            remaining_periods = iss_total_required_periods - iss_periods_served
+            
             # Check if placement needs make-up
             placement_status = placement.get('status', 'active')
             needs_makeup = placement_status == 'needs_makeup'
@@ -381,10 +384,12 @@ if page == "Dashboard":
             if is_session_complete:
                 st.success("✅ **ISS Session complete**")
             elif needs_makeup:
-                periods_remaining = iss_total_required_periods - iss_periods_served
-                st.warning(f"⚠️ **Needs Make-Up Session** — {periods_remaining} periods remaining")
+                st.warning(f"⚠️ **Needs Make-Up Session** — {remaining_periods} periods remaining")
             else:
                 st.markdown(f"📅 **Day {current_day} of {iss_days_assigned} ISS Session**")
+                # Show remaining periods needed (for late arrivals and multi-day tracking)
+                if remaining_periods > 0:
+                    st.caption(f"🔢 **Remaining Periods Needed:** {remaining_periods}")
             
             # Check-in buttons (only for active ISS or needs_makeup, not completed Session)
             if not is_session_complete or needs_makeup:
@@ -553,6 +558,11 @@ if page == "Dashboard":
                     # Display period info (read-only since already checked in)
                     periods_count = end_period - start_period + 1
                     st.markdown(f"**Periods:** {start_period} to {end_period} ({periods_count} periods)")
+                    
+                    # Show remaining periods after this session
+                    periods_after_this_session = remaining_periods - periods_count
+                    if periods_after_this_session > 0:
+                        st.warning(f"🔢 **After this session, {periods_after_this_session} periods will still be needed**")
                     
                     # Prominently display required points
                     st.success(f"**Required Points for this Session: {required_points}**")

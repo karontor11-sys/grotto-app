@@ -1,0 +1,100 @@
+Add Late Arrival Logic for Multi-Day ISS Sessions
+
+Please add the following logic to the Grotto ISS system to properly handle late arrivals during a multi-day ISS Session. Note: This logic builds on the new period-based structure already established.
+
+⭐ A. When a student is scheduled for a Full ISS Day but arrives late
+
+When a staff member clicks Check In Partial Day on any day of a multi-day ISS Session — whether it is Day 1, Day 2, Day 3, etc. — the system must:
+
+1. Use the existing Partial Day UI:
+
+Show Start Period and End Period fields.
+
+Auto-calculate:
+
+periods_covered = end_period - start_period + 1
+
+required_points = periods_covered
+
+2. Properly update backend period tracking:
+
+When the staff clicks Complete for this Partial Day:
+
+Add the correct periods_covered to:
+
+iss_periods_served
+
+Do NOT increment lapsed days; instead:
+
+The session remains on whatever “Day X of Y” structure it is currently on.
+
+Update the remaining period count:
+
+remaining_periods = iss_total_required_periods - iss_periods_served
+
+
+Store the partial day just like any other day (full consistency).
+
+⭐ B. Carry remaining periods forward automatically
+
+If a student arrived late and therefore did not complete the full 10 periods for that calendar day:
+
+Automatically carry the missing periods forward.
+
+The next time the student is checked in (partial or full day), the remaining deficit still appears.
+
+No additional staff input is required.
+
+This ensures:
+
+Period math stays accurate.
+
+Multi-day ISS Sessions remain perfectly tracked.
+
+Staff can see accumulated missing periods upon each Check-In.
+
+⭐ C. Update the Dashboard ISS Session Card Display
+
+On the next Check-In day after a late arrival, the Dashboard card should include:
+
+A label such as:
+
+“Remaining Periods Needed: {remaining_periods}”
+
+This label should appear:
+
+At every daily Check-In
+
+Until the period total reaches the required amount
+
+Even across multiple partial and full days
+
+This ensures transparency and clarity for staff.
+
+⭐ D. Preserve Multi-Day Session Structure
+
+Even after late arrivals:
+
+The Session remains labeled as:
+
+“3-Day ISS Session”
+
+“4-Day ISS Session”
+
+Day count continues normally:
+
+Day 1
+
+Day 2
+
+Day 3
+
+etc.
+
+Only period math determines full completion.
+
+⭐ E. No changes to full-day logic
+
+If a student arrives on time and staff presses Check In Full Day, all currently implemented behaviors should remain unchanged.
+
+🔵 Please implement all of the above logic.

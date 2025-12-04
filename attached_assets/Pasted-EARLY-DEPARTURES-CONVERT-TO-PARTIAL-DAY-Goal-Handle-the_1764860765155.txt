@@ -1,0 +1,121 @@
+EARLY DEPARTURES & “CONVERT TO PARTIAL DAY”
+Goal
+
+Handle the case where a student starts the day as a Full ISS Day, but then leaves early (illness, appointment, behavior, etc.), by allowing staff to convert that active full-day Session into a Partial Day and properly recalculate periods and remaining time.
+
+This should work cleanly with the period-based system and multi-day ISS Sessions you already implemented.
+
+🔹 A. Add a “Convert to Partial Day” Action for Active Full-Day ISS
+
+When a staff member clicks “Check In Full Day” for an ISS placement:
+
+The system currently:
+
+Treats the Session as a full day (1–10).
+
+Sets periods_covered = 10.
+
+Sets required points = 10.
+
+After a Full Day Check-In is active (i.e., the student is “in ISS” for that day but the Session is not yet completed or overridden), add a new button on that day’s ISS Session panel:
+
+Convert to Partial Day
+
+This button should only be visible when:
+
+The current day’s ISS Session was started as a Full Day, AND
+
+The Session is not yet completed (no “Complete” or “Override & Count Full” already applied).
+
+🔹 B. What Happens When “Convert to Partial Day” Is Clicked
+
+When staff click Convert to Partial Day:
+
+Show a confirmation message, e.g.:
+
+“Convert today’s Full ISS Day into a Partial Day?
+You’ll specify which periods the student actually served.”
+
+On confirmation:
+
+Change this day’s Session type from “Full” to “Partial” internally.
+
+Reveal the Start Period and End Period fields for the current day, just like a normal Partial Day check-in:
+
+Start Period: dropdown 1–10
+
+End Period: dropdown 1–10
+
+Validation: end_period >= start_period
+
+Pre-fill Start/End Periods with sensible defaults (for now, simple is okay):
+
+start_period = 1
+
+end_period = 10
+
+Staff can adjust both values to accurately reflect the periods actually served before the student left.
+
+🔹 C. Recalculate Periods and Daily Point Target
+
+Once Start/End Periods are set for the converted day:
+
+Recalculate:
+
+periods_covered = end_period - start_period + 1
+
+
+Update that day’s required points to:
+
+required_points = periods_covered
+
+
+Ensure that:
+
+periods_covered and required_points for this day now reflect the partial day, not a full 10-period day.
+
+Points already earned for that day still count toward the new target:
+
+Example: If they had 6 points before converting and new required_points = 5, the staff can immediately complete the Session for that day.
+
+Very important:
+
+Do not update iss_periods_served until the day is completed (Complete or Override) — that logic is already in place from prior work.
+
+The only thing changing when converting is the planned periods for that day, not total served yet.
+
+🔹 D. Integration with Multi-Day ISS & Remaining Periods
+
+When the converted Partial Day is eventually completed:
+
+Use the existing logic you implemented in Section 1 / Prompt 5:
+
+iss_periods_served += periods_covered
+remaining_periods = iss_total_required_periods - iss_periods_served
+
+
+The day should still be counted as “Day X of Y ISS Session” in labels.
+
+The Dashboard card should continue to show:
+
+“Remaining Periods Needed: {remaining_periods}”
+
+This must behave exactly the same as late arrivals, just with a different starting path (Full → converted to Partial).
+
+Ensure:
+
+The original Session “shape” (3-day, 4-day, etc.) is preserved.
+
+Only the period math and “Remaining Periods” change due to this conversion.
+
+🔹 E. Safety Conditions
+
+“Convert to Partial Day” must not:
+
+Be shown once the day is completed.
+
+Be allowed to change an already completed/overridden Session.
+
+Affect any other day in the Session; it only impacts the current calendar day’s Session.
+
+Existing Full Day-only flow (where the student stays all day and the button is never used) should remain unchanged.

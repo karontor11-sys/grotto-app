@@ -544,6 +544,63 @@ if page == "Dashboard":
                             if st.button("Cancel", key=f"cancel_override_{placement_id}_{date_str}", use_container_width=True):
                                 st.session_state[f"show_override_{placement_id}_{date_str}"] = False
                                 st.rerun()
+                    
+                    # Convert to Partial Day section (for early departures)
+                    st.markdown("---")
+                    convert_key = f"show_convert_partial_{placement_id}_{date_str}"
+                    if convert_key not in st.session_state:
+                        st.session_state[convert_key] = False
+                    
+                    if not st.session_state.get(convert_key, False):
+                        if st.button("🔄 Convert to Partial Day", key=f"convert_btn_{placement_id}_{date_str}", 
+                                    use_container_width=True, help="Use if student leaves early"):
+                            st.session_state[convert_key] = True
+                            st.rerun()
+                    else:
+                        st.warning("**Convert to Partial Day**")
+                        st.caption("Convert today's Full ISS Day into a Partial Day. Specify which periods the student actually served.")
+                        
+                        col_start, col_end = st.columns(2)
+                        with col_start:
+                            convert_start = st.selectbox(
+                                "Start Period",
+                                options=list(range(1, 11)),
+                                index=0,
+                                key=f"convert_start_{placement_id}_{date_str}"
+                            )
+                        with col_end:
+                            convert_end = st.selectbox(
+                                "End Period",
+                                options=list(range(1, 11)),
+                                index=min(convert_start - 1, 9) if convert_start else 0,
+                                key=f"convert_end_{placement_id}_{date_str}"
+                            )
+                        
+                        # Validate end >= start
+                        valid_range = convert_end >= convert_start
+                        if not valid_range:
+                            st.error("End period must be >= start period")
+                        
+                        convert_periods = convert_end - convert_start + 1 if valid_range else 0
+                        st.info(f"This will set the session to **{convert_periods} periods** (periods {convert_start}-{convert_end})")
+                        st.caption(f"Points earned so far: {total_points} · New target: {convert_periods} points")
+                        
+                        col_confirm_conv, col_cancel_conv = st.columns(2)
+                        with col_confirm_conv:
+                            if st.button("Confirm Conversion", key=f"confirm_convert_{placement_id}_{date_str}",
+                                        type="primary", use_container_width=True, disabled=not valid_range):
+                                success = dm.convert_full_day_to_partial(
+                                    placement_id, date_str, 
+                                    start_period=convert_start, 
+                                    end_period=convert_end
+                                )
+                                if success:
+                                    st.session_state[convert_key] = False
+                                    st.rerun()
+                        with col_cancel_conv:
+                            if st.button("Cancel", key=f"cancel_convert_{placement_id}_{date_str}", use_container_width=True):
+                                st.session_state[convert_key] = False
+                                st.rerun()
                 
                 elif is_checked_in and day_type == 'partial':
                     # Show Partial Day ISS Session Panel

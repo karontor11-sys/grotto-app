@@ -2387,6 +2387,64 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def convert_full_day_to_partial(self, placement_id: str, log_date: str, 
+                                     start_period: int, end_period: int) -> bool:
+        """Convert an active Full Day ISS session to a Partial Day (for early departures).
+        
+        This converts the day type from 'full' to 'partial' and updates the period info.
+        Does NOT update iss_periods_served - that happens when the session is completed.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            start_period: Starting period (1-10)
+            end_period: Ending period (1-10)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            # Validate period range
+            if end_period < start_period:
+                return False
+            
+            # Get the daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                return False
+            
+            # Only convert if not already completed
+            if log.daily_fulfillment == 'yes':
+                return False
+            
+            # Only convert if currently a full day
+            if log.day_type != 'full':
+                return False
+            
+            # Calculate new periods
+            periods_count = end_period - start_period + 1
+            periods_covered = list(range(start_period, end_period + 1))
+            required_points = periods_count
+            
+            # Update the daily log
+            log.day_type = 'partial'
+            log.start_period = start_period
+            log.end_period = end_period
+            log.periods_covered = periods_covered
+            log.required_points = required_points
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def complete_iss_partial_day_session(self, placement_id: str, log_date: str, completed_by: str,
                                           start_period: int = None, end_period: int = None, 
                                           periods_covered_list: list = None,

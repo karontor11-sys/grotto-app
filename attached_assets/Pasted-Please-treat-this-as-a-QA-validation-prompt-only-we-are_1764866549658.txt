@@ -1,0 +1,147 @@
+Please treat this as a QA / validation prompt only — we are not adding new features here. We are verifying that the existing ISS functionality works as intended. 
+
+JOHN (PARTIAL-FIRST + PARTIAL-LAST)
+Goal: Confirm that multiple partial days in one Session (first and last) work correctly and produce exact total periods.
+Setup
+Student: John BookendPartial
+
+
+New Placement:
+
+
+ISS
+
+
+Start Date: today
+
+
+Days Assigned: 4
+
+
+Expected:
+
+
+iss_total_required_periods = 40
+
+
+Day 1 (Partial)
+Check In Partial Day
+
+
+Start = 4
+
+
+End = 10 → periods_covered = 7
+
+
+Required points = 7
+
+
+Add 7 points
+
+
+Complete
+
+
+Expected:
+Label: “Day 1 of 4 ISS Session”
+
+
+iss_periods_served = 7
+
+
+Remaining = 33
+
+
+Day 2 (Full)
+Full Day, 10 points, Complete
+
+
+Expected:
+“Day 2 of 4 ISS Session”
+
+
+iss_periods_served = 17
+
+
+Remaining = 23
+
+
+Day 3 (Full)
+Full Day, 10 points, Complete
+
+
+Expected:
+“Day 3 of 4 ISS Session”
+
+
+iss_periods_served = 27
+
+
+Remaining = 13
+
+
+Day 4 (Partial Last Day)
+Check In Partial Day
+
+
+Start = 1
+
+
+End = 13 periods remaining? No— we want 13 periods, but we only have 10 in a day.
+ Let’s do:
+
+
+Start = 1
+
+
+End = 10 → periods_covered = 10
+
+
+That gets us to 37, still owing 3 periods.
+
+
+Complete Day 4
+
+
+Then add a final mini partial (make-up) for the last 3 periods:
+
+
+Check In Partial Day
+
+
+Start = 1
+
+
+End = 3 → periods_covered = 3
+
+
+Complete
+
+
+Final Expected:
+iss_periods_served = 40
+
+
+Remaining = 0
+
+
+Session labeled Completed: 4-Day ISS Session
+
+
+History shows: Partial → Full → Full → Full → Partial make-up (or a similar pattern you document clearly).
+
+
+(If you prefer John to be exactly “partial-first + partial-last” with no extra make-up day, you can adjust: 7 + 10 + 10 + 13 isn’t possible in one day, so your implementation choice should be documented — either allow an overshoot or split last day + make-up.)
+ Just clearly explain your implementation.
+
+
+
+Please report:
+Key field values (iss_days_assigned, iss_total_required_periods, iss_periods_served, remaining periods)
+
+
+Day labels (“Day X of Y ISS Session”)
+
+
+Final completion status and labels in the Completed section

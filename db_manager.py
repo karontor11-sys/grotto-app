@@ -753,9 +753,9 @@ class DatabaseManager:
                     days_completed = placement.get('daysCompleted') or 0
                     iss_remaining_days = (placement.get('issDaysAssigned') or 0) - days_completed
                 
-                # Check if placement has been overridden (check most recent daily log)
-                daily_log = self.get_or_create_daily_log(placement['_id'], target_date.isoformat())
-                override_used = daily_log.get('overrideUsed', False)
+                # Check if placement has been overridden (read-only check, no log creation)
+                daily_log = self.get_daily_log(placement['_id'], target_date.isoformat())
+                override_used = daily_log.get('overrideUsed', False) if daily_log else False
                 
                 # Check if placement needs make-up (completed all days but has remaining periods)
                 iss_periods_served = placement.get('issPeriodsServed') or 0
@@ -1951,6 +1951,27 @@ class DatabaseManager:
             db_session.close()
     
     # Daily Log operations
+    def get_daily_log(self, placement_id: str, log_date: str) -> Optional[Dict[str, Any]]:
+        """Get a daily log for a placement on a specific date (read-only, no create).
+        
+        Returns None if no log exists for this date.
+        Use this for checking if a student is checked in without creating logs.
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if log:
+                return self._daily_log_to_dict(log)
+            return None
+        finally:
+            session.close()
+    
     def get_or_create_daily_log(self, placement_id: str, log_date: str) -> Dict[str, Any]:
         """Get or create a daily log for a placement on a specific date."""
         session = self.get_session()

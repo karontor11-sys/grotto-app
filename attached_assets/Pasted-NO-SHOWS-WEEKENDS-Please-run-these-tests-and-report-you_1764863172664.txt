@@ -1,0 +1,135 @@
+NO-SHOWS & WEEKENDS
+
+Please run these tests and report your observations and key values.
+
+🧪 Test 1: No-Show Gap on a School Day
+
+Student: NoShow Test Student
+Session: 3-Day ISS, Start Date = today
+iss_total_required_periods = 30
+
+Day 1:
+
+Check In Full Day
+
+Add 10 points
+
+Complete
+
+Confirm after Day 1:
+
+Label: “Day 1 of 3 ISS Session”
+
+iss_periods_served = 10
+
+Remaining = 20
+
+Day 2 (No-Show):
+
+Do NOT check the student in at all.
+
+Simply simulate that a school day passes with no ISS activity.
+
+No code change should be needed; just don’t perform a check-in for that day.
+
+Next Day — Student returns:
+
+Now, Check In Full Day (this is their second actual day in ISS).
+
+Add 10 points.
+
+Complete.
+
+Confirm:
+
+Label shows: “Day 2 of 3 ISS Session” (NOT Day 3).
+
+iss_periods_served = 20
+
+Remaining = 10
+
+This confirms that no-show days do not increment the Session day count.
+
+🧪 Test 2: Weekend Gap (Friday to Monday)
+
+Student: Weekend Gap Test Student
+Session: 3-Day ISS
+Assume Start Date is a Friday (or just simulate it in the system with dates).
+
+Day 1 (Friday):
+
+Check In Full Day.
+
+Complete.
+
+Confirm:
+
+“Day 1 of 3 ISS Session”
+
+iss_periods_served = 10
+
+Remaining = 20
+
+Weekend (Saturday & Sunday):
+
+No check-ins.
+
+Day 2 (Monday):
+
+Check In Full Day.
+
+Complete.
+
+Confirm:
+
+Label: “Day 2 of 3 ISS Session”
+
+iss_periods_served = 20
+
+Remaining = 10
+
+Finally, complete Day 3 (Tuesday or another school day):
+
+Check In Full Day.
+
+Complete.
+
+Confirm:
+
+Label: “Completed: 3-Day ISS Session”
+
+iss_periods_served = 30
+
+Remaining = 0
+
+🧪 Test 3 (Optional, if helpful): Mixed Gaps + Partial Day
+
+You may also optionally test:
+
+Day 1: Partial Day (4–10 → 7 periods)
+
+Gap day: no check-in
+
+Day 2: Full Day (10 periods)
+
+Day 3: Full Day (10 periods)
+
+Confirm:
+
+Days increment only when completed days exist.
+
+Periods add up correctly (7 + 10 + 10 = 27 of 30).
+
+Session remains active until periods reach 30.
+
+📝 Please Report:
+
+For each test:
+
+Day labels shown
+
+iss_periods_served and Remaining at each step
+
+Whether any date-based/day-based auto-advance is happening without check-ins
+
+Any unexpected behavior

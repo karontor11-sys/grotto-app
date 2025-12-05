@@ -848,11 +848,30 @@ class DatabaseManager:
                     
                     result.append(placement_dict)
                 
-                # Class Period Referral filtering (same-day only)
+                # Class Period Referral filtering
                 elif placement_type == 'CLASS_REFERRAL':
-                    # Class referrals are single-day: only show on their start_date
-                    if placement.start_date == target_date:
-                        result.append(placement_dict)
+                    # For Pre-Planned referrals with multiple sessions, check if any session matches target_date
+                    referral_subtype = placement.referral_subtype or ''
+                    
+                    if referral_subtype == 'pre_planned':
+                        # Pre-Planned: Check for session on this date
+                        session_for_date = session.query(PartialDaySession).filter(
+                            PartialDaySession.placement_id == placement.id,
+                            PartialDaySession.date == target_date,
+                            PartialDaySession.status != SessionStatus.fulfilled
+                        ).first()
+                        if session_for_date:
+                            # Include session periods in placement dict for display
+                            session_periods = session_for_date.periods or []
+                            placement_dict['scheduledSlots'] = [
+                                {'date': target_date.isoformat(), 'period': p} 
+                                for p in session_periods
+                            ]
+                            result.append(placement_dict)
+                    else:
+                        # Behavior/Cool-Down: Single-day, show on start_date
+                        if placement.start_date == target_date:
+                            result.append(placement_dict)
                 
                 # Cool-Down filtering (same-day only, like referrals)
                 elif placement_type == 'COOL_DOWN':

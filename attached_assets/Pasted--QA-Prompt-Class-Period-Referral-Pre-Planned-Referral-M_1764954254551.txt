@@ -1,0 +1,220 @@
+🟦 QA Prompt — Class Period Referral: Pre-Planned Referral (Multi-Day, Future Schedule)
+
+TO REPLIT DEV:
+This is a QA-only test for the Pre-Planned Referral subtype under the umbrella Class Period Referral.
+Please do not change any code or database logic — just run the scenario and report what the system currently does.
+
+I want to verify that a multi-day Pre-Planned Referral, built with the existing schedule builder, behaves correctly:
+
+Created via the builder
+
+Locked until the appropriate future dates
+
+Activates on each scheduled date
+
+Completes only after all scheduled days are served
+
+Appears correctly in Completed placements.
+
+🧪 Scenario: Mia MultiPlan — 3-Day Pre-Planned Referral (Future Dates)
+
+Student: Mia MultiPlan
+Subtype: Class Period Referral → Pre-Planned Referral
+Plan: 3 specific future dates, same period each time (for simplicity).
+
+1️⃣ Create New Placement — Pre-Planned Referral with 3 Future Dates
+
+Go to Create New Placement.
+
+Under Placement Type, select:
+Class Period Referral
+
+In the subtype dropdown/menu, select:
+Pre-Planned Referral
+
+Fill in the student info:
+
+First Name: Mia
+
+Last Name: MultiPlan
+
+Grade: 7
+
+Reason: CPR QA – Pre-Planned 3-Date Schedule
+
+Created By: any valid staff
+
+Now use the existing Pre-Planned scheduling builder to create a plan like:
+
+3 specific future school dates (e.g., three different days next week)
+
+Same period each time for simplicity:
+
+Start Period: 3
+
+End Period: 3
+
+So the final plan is:
+
+Date A: Period 3
+
+Date B: Period 3
+
+Date C: Period 3
+
+Save/submit the Pre-Planned Referral.
+
+📌 Please report from the database:
+
+How this Pre-Planned Referral is stored:
+
+Is it one placement with a list of scheduled sessions?
+
+Or multiple placements, one per date?
+
+Key fields:
+
+Umbrella placement type: should be Class Period Referral
+
+Subtype: Pre-Planned Referral
+
+List of scheduled dates/periods (however your model stores them)
+
+Status: should initially be something like scheduled / active but not completed.
+
+2️⃣ Dashboard BEFORE the First Scheduled Date
+
+Set the Dashboard selected date to a day before the first scheduled Pre-Planned date.
+
+📌 Please check and report:
+
+Does Mia MultiPlan appear anywhere on the Dashboard before the first scheduled date?
+
+If yes, how? (e.g., as “Scheduled for [date]” and locked, or not visible at all)
+
+Confirm that:
+
+You cannot start/serve the referral early before the first scheduled date.
+
+(If your app doesn’t show Pre-Planned items on the Dashboard until their actual date, note that too.)
+
+3️⃣ First Scheduled Date — Serve Day 1
+
+On the first scheduled date for Mia’s Pre-Planned Referral:
+
+Set the Dashboard date to that first scheduled date.
+
+Confirm that a card for Mia MultiPlan now appears.
+
+📌 Verify:
+
+The card shows:
+
+Subtype: Pre-Planned Referral (if displayed)
+
+Period info: “Period 3” (or equivalent)
+
+The card is active, not locked.
+
+There is a Check-In / Complete Referral flow similar to Behavior/Cool-Down.
+
+Now:
+
+Check Mia in for that session.
+
+Optionally log a note or behavior entry.
+
+Click Complete Referral for that day.
+
+After completing the first scheduled day:
+
+Confirm whether:
+
+The overall Pre-Planned placement is still active, since there are remaining scheduled days.
+
+The system shows that 1 of 3 (or equivalent) has been served.
+
+If the app instead creates distinct placements per date, describe how the first one is marked completed and what remains for the other dates.
+
+4️⃣ Second Scheduled Date — Serve Day 2
+
+On the second scheduled date:
+
+Set Dashboard date to that second date.
+
+Confirm Mia’s card appears again (for Day 2).
+
+Repeat the process:
+
+Check In
+
+(Optional) log a note
+
+Complete the referral for that day
+
+After serving the second date:
+
+📌 Confirm:
+
+There is still at least one remaining scheduled day (1 of 3 completed vs 2 of 3, etc.)
+
+The overall Pre-Planned plan is not yet fully completed.
+
+5️⃣ Third Scheduled Date — Serve Final Day, Trigger Completion
+
+On the third and final scheduled date:
+
+Set Dashboard date to that final date.
+
+Confirm Mia’s card appears as an active Pre-Planned session for that date.
+
+Check In and Complete the referral for that last scheduled day.
+
+📌 After completing the final scheduled day:
+
+Confirm that:
+
+All scheduled Pre-Planned sessions for Mia have been served.
+
+The system now marks the overall placement as Completed.
+
+The placement is removed from active Dashboard views for future dates.
+
+6️⃣ Completed Placements — Verify Archive Record
+
+Now go to the Completed Placements section.
+
+Verify that there is a record for Mia MultiPlan with:
+
+Placement Type: Class Period Referral
+
+Subtype: Pre-Planned Referral
+
+Schedule details:
+
+Either a summary saying something like:
+Pre-Planned Referral – 3 scheduled days served
+
+Or a list of each served date/period (depending on how your app stores it)
+
+Status: clearly completed.
+
+If your data model stores each scheduled date as a separate record, confirm that:
+
+All of Mia’s scheduled pre-planned sessions have a completed status.
+
+There is no leftover “active” or “pending” session for Mia after the third one is served.
+
+7️⃣ QA Summary to Return
+
+Please answer clearly:
+
+Was the Pre-Planned Referral created successfully under the Class Period Referral umbrella using the schedule builder?
+
+How is the schedule stored (single placement with multiple sessions vs multiple placements)?
+
+Do sessions only become active on their scheduled dates (not early)?
+
+After each day is served, does the system keep the overall placement open until all scheduled days are completed?
+
+After the final scheduled day is completed, does the system mark the Pre-Planned Referral as Completed and move it to the Completed placements section with accurate schedule info?

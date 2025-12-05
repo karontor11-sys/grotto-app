@@ -1,0 +1,74 @@
+Tighten get_active_placements_for_date to Only Return Relevant Records
+
+TO REPLIT DEV:
+This is a query optimization. We want the Dashboard to fetch only placements that are actually relevant for the selected date.
+
+Goal: Update get_active_placements_for_date(selected_date) (or equivalent) so it does not return a huge list of barely-related placements. It should return only placements that:
+
+Are not completed, and
+
+Are eligible to be active on the selected date.
+
+Desired filtering rules
+
+For get_active_placements_for_date(selected_date):
+
+General rules:
+
+status != "completed"
+
+start_date <= selected_date
+
+Type-specific rules (use if these fields exist):
+
+ISS:
+
+iss_periods_served < iss_total_required_periods
+
+Lunch Detention:
+
+ld_days_served < ld_days_assigned
+
+Class Period Referral:
+
+Referral date == selected_date and not completed.
+
+If those exact fields do not exist, apply the closest equivalent with existing fields that indicate:
+
+“This placement still has required time to serve and is not finished yet.”
+
+Implementation detail
+
+Focus on the data access layer:
+
+Update the DB query for get_active_placements_for_date to add appropriate filters instead of pulling all “active” placements across all dates.
+
+The Dashboard should then:
+
+Only receive placements that matter for the date the user has selected.
+
+Constraints
+
+Do not change per-type business logic or math.
+
+Only adjust which placements are returned for a given selected_date so that:
+
+Future-only placements (with start_date > selected_date) are not treated as active for that day.
+
+Fully completed placements are not returned.
+
+QA
+
+Choose a specific selected_date in the app (today is fine).
+
+Note how many placements are returned in the active list (you can log this in the console).
+
+Confirm:
+
+Only current or relevant ISS / LD / CPR placements show up.
+
+Obvious future placements (far ahead with no connection to selected_date) are not counted.
+
+Completed placements do not appear in the active Dashboard.
+
+Confirm the Dashboard renders more quickly and still shows the correct set of active students for that date.

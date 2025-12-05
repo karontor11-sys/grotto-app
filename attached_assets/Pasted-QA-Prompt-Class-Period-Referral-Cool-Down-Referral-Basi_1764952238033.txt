@@ -1,0 +1,122 @@
+QA Prompt — Class Period Referral: Cool-Down Referral (Basic Same-Day Test)
+
+TO REPLIT DEV:
+This is a QA-only test for the Cool-Down Referral subtype under the umbrella Class Period Referral.
+Please do no code changes — only run this scenario and report results.
+
+🧪 Scenario: Carter Cooldown — Same-Day Cool-Down Referral
+
+Student: Carter Cooldown
+Subtype: Class Period Referral → Cool-Down Referral
+Goal: Verify a simple, same-day cool-down referral through creation → dashboard → completion → storage.
+
+1️⃣ Create New Placement — Cool-Down Referral for Today
+
+Navigate to Create New Placement.
+
+Under Placement Type, select:
+Class Period Referral
+
+In the subtype dropdown/menu that appears, select:
+Cool-Down Referral
+
+Fill out the fields:
+
+Field	Value
+First Name	Carter
+Last Name	Cooldown
+Grade	7
+Reason	CPR QA – Basic Cool-Down Referral
+Date	today
+Start Period	5
+End Period	6
+Created By	any valid staff
+
+Submit the form.
+
+Please verify:
+
+Placement record creates without error.
+
+Database shows:
+
+Umbrella type: Class Period Referral
+
+Subtype: Cool-Down Referral
+
+Correct date and periods 5–6
+
+Status = active (since it starts today)
+
+2️⃣ Dashboard — Confirm Visibility and Activation
+
+Go to Dashboard for today’s date.
+
+Look for a card displaying:
+
+Student: Carter Cooldown
+
+Subtype: Cool-Down Referral
+
+Period Range: “Periods 5–6”
+
+Confirm:
+
+The card is active (not scheduled or disabled).
+
+A Check-In or Open Referral control is present.
+
+The Cool-Down card behaves as its own mini-session with:
+
+Attendance
+
+Behavior/note fields (if applicable)
+
+A Complete Referral button
+
+3️⃣ Process & Complete the Cool-Down Referral
+
+Click the Check-In/Open button for Carter.
+
+Add one note or behavior entry (if available).
+
+Click Complete Referral.
+
+Verify:
+
+Carter’s card disappears from today’s active Dashboard.
+
+Status updates to completed.
+
+4️⃣ Completed Placements — Confirm the Record
+
+Navigate to the Completed section.
+
+Verify that:
+
+Carter Cooldown appears with:
+
+Placement Type: Class Period Referral
+
+Subtype: Cool-Down Referral
+
+Date = today
+
+Periods = 5–6
+
+Status shows Completed.
+
+If a label is generated, record what it displays (e.g.
+Completed: Cool-Down Referral – Periods 5–6 on [date]).
+
+5️⃣ QA Summary to Return
+
+Please answer:
+
+Did creation succeed for Cool-Down Referral under CPR?
+
+Did the Dashboard display Carter with correct subtype + periods?
+
+Did the referral process and complete correctly?
+
+Did Carter appear in Completed placements with correct metadata?

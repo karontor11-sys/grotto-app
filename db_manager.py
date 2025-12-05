@@ -2357,6 +2357,13 @@ class DatabaseManager:
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed
                             placement.end_date = date_obj
+                    
+                    # Auto-complete Class Period Referral (Behavior, Cool-Down, Pre-Planned single day)
+                    elif placement.placement_type == PlacementCategory.CLASS_REFERRAL:
+                        days_assigned = placement.days_assigned or 1
+                        if placement.days_completed >= days_assigned:
+                            placement.status = PlacementStatus.completed
+                            placement.end_date = date_obj
             else:
                 old_fulfillment = log.daily_fulfillment
                 log.daily_fulfillment = 'yes'
@@ -2371,6 +2378,13 @@ class DatabaseManager:
                     
                     # Auto-complete Lunch Detention when all days are completed
                     if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+                        days_assigned = placement.days_assigned or 1
+                        if placement.days_completed >= days_assigned:
+                            placement.status = PlacementStatus.completed
+                            placement.end_date = date_obj
+                    
+                    # Auto-complete Class Period Referral (Behavior, Cool-Down, Pre-Planned single day)
+                    elif placement.placement_type == PlacementCategory.CLASS_REFERRAL:
                         days_assigned = placement.days_assigned or 1
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed

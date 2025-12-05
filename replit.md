@@ -32,7 +32,7 @@ The UI features a **Dashboard** with:
 - **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry and featuring a streamlined single-selector interface for three main placement types:
     - **In-School Suspension (ISS)**: Simplified placement with period-based tracking, displaying progress and two check-in options ("Full Day" and "Partial Day").
     - **Lunch Detention**: Multi-day lunch detention placement.
-    - **Class Period Referral**: Umbrella category with sub-types (Behavior, Cool-Down, Pre-Planned) selected via dropdown. **Simplified Creation Forms**: Behavior and Cool-Down referrals use a streamlined 2-field scheduling interface (Date + single Period), while Pre-Planned retains its full multi-day/multi-period schedule builder.
+    - **Class Period Referral**: Umbrella category with sub-types (Behavior, Cool-Down, Pre-Planned) selected via dropdown. **Simplified Creation Forms**: Behavior and Cool-Down referrals use a streamlined 2-field scheduling interface (Date + single Period), while Pre-Planned retains its full multi-day/multi-period schedule builder. **Add Periods Feature**: Behavior and Cool-Down referral cards on the Dashboard include an "Add Periods" control allowing staff to add additional periods to same-day referrals via a form-based multiselect showing only available (unassigned) periods.
 - **Daily Logs**: Interface for point tracking with "Session-Scoped View" and "Placement-Wide View".
 - **Assignments**: Manages academic tasks.
 - **Notes**: For general documentation.

@@ -1628,6 +1628,102 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def get_referral_periods_for_date(self, placement_id: str, target_date: date) -> List[int]:
+        """Get all scheduled periods for a Behavior/Cool-Down referral on a specific date.
+        
+        Args:
+            placement_id: The placement ID
+            target_date: The date to check
+            
+        Returns:
+            Sorted list of period numbers scheduled for that date
+        """
+        db_session = self.get_session()
+        try:
+            # Query all sessions for this placement on the target date
+            sessions = db_session.query(PartialDaySession).filter(
+                PartialDaySession.placement_id == placement_id,
+                PartialDaySession.date == target_date
+            ).all()
+            
+            # Collect all periods from all sessions
+            all_periods = set()
+            for sess in sessions:
+                if sess.periods:
+                    all_periods.update(sess.periods)
+            
+            return sorted(list(all_periods))
+        finally:
+            db_session.close()
+    
+    def add_periods_to_referral(self, placement_id: str, target_date: date, new_periods: List[int]) -> bool:
+        """Add additional periods to a Behavior/Cool-Down referral for a specific date.
+        
+        Args:
+            placement_id: The placement ID
+            target_date: The date to add periods to (must match placement start_date)
+            new_periods: List of new period numbers to add
+            
+        Returns:
+            True if periods were added successfully
+        """
+        db_session = self.get_session()
+        try:
+            # Get the placement to verify type and get current periods
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            # Only allow for Behavior and Cool-Down referrals
+            referral_subtype = placement.referral_subtype or ''
+            if referral_subtype not in ['behavior', 'cool_down']:
+                return False
+            
+            # Get existing session for this date
+            existing_session = db_session.query(PartialDaySession).filter(
+                PartialDaySession.placement_id == placement_id,
+                PartialDaySession.date == target_date
+            ).first()
+            
+            if existing_session:
+                # Update existing session by adding new periods
+                current_periods = set(existing_session.periods or [])
+                updated_periods = sorted(list(current_periods.union(set(new_periods))))
+                existing_session.periods = updated_periods
+                
+                # Update placement start_period and end_period to reflect the full range
+                placement.start_period = min(updated_periods)
+                placement.end_period = max(updated_periods)
+            else:
+                # Create a new session with the new periods (shouldn't happen for same-day referrals, but handle it)
+                session_type = SessionType.referral if referral_subtype == 'behavior' else SessionType.cool_down
+                location = 'Classroom' if referral_subtype == 'behavior' else 'Cool-Down Room'
+                
+                new_session = PartialDaySession(
+                    id=self.generate_id(),
+                    placement_id=placement_id,
+                    date=target_date,
+                    type=session_type,
+                    periods=sorted(new_periods),
+                    location=location,
+                    status=SessionStatus.scheduled
+                )
+                db_session.add(new_session)
+                
+                # Update placement start_period and end_period
+                all_periods = sorted(new_periods)
+                placement.start_period = min(all_periods)
+                placement.end_period = max(all_periods)
+            
+            db_session.commit()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            print(f"[ERROR] Failed to add periods to referral: {str(e)}")
+            return False
+        finally:
+            db_session.close()
+    
     def get_todays_sessions(self) -> List[Dict[str, Any]]:
         """Get all sessions scheduled for today with student and placement info."""
         db_session = self.get_session()

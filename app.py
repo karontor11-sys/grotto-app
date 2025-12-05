@@ -1184,7 +1184,7 @@ if page == "Dashboard":
         else:
             status_icon = '🟡'  # In Progress
         
-        # Get periods (different logic for Pre-Planned vs others)
+        # Get periods (different logic for Pre-Planned vs Behavior/Cool-Down)
         if subtype_key == 'pre_planned':
             # For Pre-Planned, get periods from scheduled slots for this date
             scheduled_slots = placement.get('scheduledSlots', [])
@@ -1203,13 +1203,26 @@ if page == "Dashboard":
             else:
                 period_label = "No periods scheduled"
         else:
-            # For Behavior and Cool-Down, use startPeriod/endPeriod
-            start_period = placement.get('startPeriod', 'N/A')
-            end_period = placement.get('endPeriod', 'N/A')
-            if start_period == end_period:
-                period_label = f"Period {start_period}"
+            # For Behavior and Cool-Down, get periods from sessions table
+            periods_today = dm.get_referral_periods_for_date(placement_id, target_date)
+            if periods_today:
+                if len(periods_today) == 1:
+                    period_label = f"Period {periods_today[0]}"
+                else:
+                    # Check if consecutive
+                    if periods_today == list(range(periods_today[0], periods_today[-1] + 1)):
+                        period_label = f"Periods {periods_today[0]}–{periods_today[-1]}"
+                    else:
+                        period_label = f"Periods {', '.join(map(str, periods_today))}"
             else:
-                period_label = f"Periods {start_period}–{end_period}"
+                # Fallback to startPeriod/endPeriod for backward compatibility
+                start_period = placement.get('startPeriod', 'N/A')
+                end_period = placement.get('endPeriod', 'N/A')
+                if start_period == end_period:
+                    period_label = f"Period {start_period}"
+                else:
+                    period_label = f"Periods {start_period}–{end_period}"
+                periods_today = list(range(start_period, end_period + 1)) if isinstance(start_period, int) else []
         
         # Get reason
         reason = placement.get('reason', 'No reason provided')
@@ -1237,6 +1250,42 @@ if page == "Dashboard":
             
             # Periods (show for all subtypes)
             st.caption(f"📚 {period_label}")
+            
+            # Add Periods control (only for Behavior and Cool-Down, not completed)
+            if subtype_key in ['behavior', 'cool_down'] and not is_completed:
+                # Calculate available periods (periods not already assigned)
+                all_periods = list(range(1, 11))  # P1-P10
+                assigned_periods = periods_today if periods_today else []
+                available_periods = [p for p in all_periods if p not in assigned_periods]
+                
+                if available_periods:
+                    with st.expander("➕ Add Periods", expanded=False):
+                        with st.form(key=f"add_periods_form_{placement_id}_{date_str}"):
+                            st.caption("Select additional periods to add to this referral:")
+                            
+                            # Multi-select for available periods
+                            selected_new_periods = st.multiselect(
+                                "Available Periods",
+                                options=available_periods,
+                                format_func=lambda x: f"Period {x}",
+                                label_visibility="collapsed"
+                            )
+                            
+                            # Submit button for the form
+                            submitted = st.form_submit_button("Add Selected Periods", type="secondary")
+                            
+                            if submitted:
+                                if selected_new_periods:
+                                    success = dm.add_periods_to_referral(placement_id, target_date, selected_new_periods)
+                                    if success:
+                                        # Clear caches and refresh
+                                        clear_dashboard_caches()
+                                        st.success(f"Added {len(selected_new_periods)} period(s)")
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to add periods")
+                                else:
+                                    st.warning("Please select at least one period to add")
             
             st.markdown("---")
             

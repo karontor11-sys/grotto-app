@@ -1,0 +1,129 @@
+Prompt B1 — Add “Add Periods” Control on Dashboard for Behavior & Cool-Down Class Period Referrals
+
+Title: Add “Add Periods” control on Dashboard for Behavior & Cool-Down Class Period Referrals
+
+In the Grotto App, please update the Dashboard for Class Period Referral placements of type Behavior and Cool-Down so that staff can add additional class periods for the same day after the placement has been created.
+
+Please keep all existing logic and functionality exactly the same aside from what is described below.
+
+1. Scope
+
+Apply this change only to:
+
+Placement Type: Class Period Referral
+
+Subtypes: Behavior Referral and Cool-Down Referral
+
+Do NOT change:
+
+Pre-Planned Class Period Referrals
+
+ISS
+
+Lunch Detention
+
+Any other placement types
+
+Any Check In, Complete, or midnight rollover logic
+
+This feature is strictly for adding more periods to same-day Behavior and Cool-Down referrals.
+
+2. Display current scheduled periods on Dashboard cards
+
+For each Behavior or Cool-Down Class Period Referral card shown on the Dashboard:
+
+Display the current list of scheduled periods for that day.
+
+Example formats:
+
+“3rd”
+
+“3rd–5th”
+
+or “3rd, 4th, 5th”
+
+Follow whichever formatting style the app already uses.
+
+This is purely a display requirement, not a logic change.
+
+3. Add an “Add Periods” control to these cards
+
+On each Behavior/Cool-Down Class Period Referral card:
+
+Add a clearly labeled control, e.g., “Add Periods”.
+
+When the user clicks this control, open a UI element (modal, dropdown, menu—your choice) that:
+
+Shows only the remaining periods for that same date
+
+If the student currently has 3rd period assigned, the UI should show:
+
+4th, 5th, 6th, etc., up to the last period of the day
+
+Do not show:
+
+Periods already assigned
+
+Periods from different dates
+
+Periods from other placement types
+
+Allow selecting one OR multiple periods
+
+Multi-select should be supported if the UI allows it.
+
+Example use cases:
+
+Add just 4th
+
+Add 4th and 5th
+
+Add 4th–8th
+
+4. Saving added periods
+
+When the user confirms:
+
+Append the selected periods to the placement’s schedule.
+
+Enforce rules:
+
+No duplicates
+
+Keep internal list sorted by period number
+
+Must stay within the same date
+
+Update the Dashboard card immediately to reflect the new schedule.
+
+The underlying data model should treat the updated schedule exactly as if it had been created that way originally.
+
+5. Compatibility with existing logic
+
+Ensure the updated schedule integrates cleanly with all existing logic, including:
+
+The Check In process
+
+The Complete button
+
+Daily Log behavior
+
+Midnight rollover rules
+
+Any scoring or tracking views already present
+
+Do not modify the behavior of these systems—simply ensure they use the updated period list.
+
+6. Summary
+
+After implementing this prompt:
+
+Behavior and Cool-Down Class Period Referrals will start with one period (from Prompt A1).
+
+Staff will be able to extend the referral by adding periods directly from the Dashboard.
+
+All other placement types remain unchanged.
+
+All existing Check In / Complete / rollover systems should work normally with the expanded schedules.
+
+Please implement these changes while preserving all existing functionality.

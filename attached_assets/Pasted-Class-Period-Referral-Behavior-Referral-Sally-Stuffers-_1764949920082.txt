@@ -1,0 +1,142 @@
+Class Period Referral: Behavior Referral (Sally Stuffers, Simple Same-Day)
+
+TO REPLIT DEV:
+This is a QA-only test for the Behavior Referral subtype under the umbrella Class Period Referral.
+Please do not change any logic or database structure yet.
+I just want to confirm that a basic same-day Behavior Referral works end-to-end:
+Create New Placement → Dashboard tracking → Completion → Completed placements.
+
+🧪 Scenario: Sally Stuffers — Same-Day Behavior Referral
+
+Student: Sally Stuffers
+Subtype: Class Period Referral → Behavior Referral
+Goal: Verify a simple single-day, single-period behavior referral.
+
+1️⃣ Create New Placement – Behavior Referral for Today
+
+Go to Create New Placement.
+
+In the Placement Type section:
+
+Select: Class Period Referral
+
+In the subtype control that appears (dropdown or radio buttons):
+
+Select: Behavior Referral
+
+Fill out the rest as:
+
+First Name: Sally
+
+Last Name: Stuffers
+
+Grade: 7
+
+Reason: CPR QA – Simple Behavior Referral
+
+Date: today in the app
+
+Start Period: 4
+
+End Period: 4
+
+Created By: pick any valid staff name (e.g., Matthew Christie)
+
+Submit the form.
+
+📌 Please confirm:
+
+The placement is created successfully (no form errors).
+
+In the database, the record:
+
+Has placement_type (or similar) set to the umbrella Class Period Referral.
+
+Has a subtype or equivalent marker indicating Behavior Referral.
+
+Correct date and periods (4–4).
+
+2️⃣ Dashboard – Verify Sally’s Behavior Referral Appears for Today
+
+Navigate to the Dashboard page.
+
+Make sure the selected date on the Dashboard is set to today.
+
+📌 Please check and report:
+
+Does a card/expander appear for Sally Stuffers under the Class Period Referral / Behavior Referral area?
+
+How is it labeled?
+
+Student name: Sally Stuffers
+
+Placement type/subtype visible? (e.g., “Behavior Referral”)
+
+Period info: something like “Period 4” or “4–4”.
+
+Also confirm:
+
+That the card is active (not grayed out), since this is a same-day referral.
+
+That there is some kind of Check-In / process / Complete control for handling the referral.
+
+3️⃣ Process and Complete the Behavior Referral
+
+Now simulate handling the Behavior Referral:
+
+On Sally’s card, click the appropriate Check-In / Start / Open button for the referral.
+
+If the UI supports behaviors/notes:
+
+Add at least one behavior entry (e.g., a brief note or point) to simulate processing.
+
+Then click the appropriate Complete button for this referral.
+
+📌 Please report:
+
+After completion:
+
+Does Sally’s referral card disappear from the active Dashboard for today?
+
+Is there any confirmation text indicating the referral is completed?
+
+4️⃣ Completed Placements – Verify Storage
+
+Now check wherever the app shows Completed placements (Completed tab, archive, or similar).
+
+📌 Confirm for Sally Stuffers:
+
+A record exists for:
+
+First Name: Sally
+
+Last Name: Stuffers
+
+Placement Type: Class Period Referral
+
+Subtype: Behavior Referral (if displayed)
+
+It clearly indicates:
+
+Date: today’s date
+
+Periods: Start Period = 4, End Period = 4
+
+Status is marked as completed.
+
+If there is a label or summary string, include it (e.g.,
+Completed: Behavior Referral – Period 4 on [date]).
+
+5️⃣ QA Summary
+
+Please provide a short summary answering:
+
+Did a Behavior Referral under the Class Period Referral umbrella create successfully for Sally?
+
+Did it appear correctly on the Dashboard for today with the right period info?
+
+Could it be processed and completed from the Dashboard?
+
+Did it move into the Completed placements section with accurate subtype, date, and period info?
+
+That’s all for this test.

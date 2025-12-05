@@ -1999,7 +1999,10 @@ elif page == "Placements":
                             homeroom_teacher = student_homeroom
                             reason = placement_reason
                             
+                            print(f"[DEBUG] Behavior Referral Form submitted - First: '{first_name}', Last: '{last_name}', Homeroom: '{homeroom_teacher}', Reason: '{reason}', CreatedBy: '{created_by}'")
+                            
                             if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                                print(f"[DEBUG] Behavior Referral validation failed - Missing required fields")
                                 st.error("❌ Please fill in all required fields marked with *")
                             elif selected_end_period < selected_start_period:
                                 st.error("❌ End period must be equal to or after start period")

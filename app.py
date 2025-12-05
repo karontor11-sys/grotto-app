@@ -34,33 +34,36 @@ notifications = st.session_state.notification_manager
 # ===== CACHING LAYER =====
 # Cached wrappers for expensive read-only operations to improve Dashboard performance.
 # TTL of 60 seconds balances responsiveness with data freshness.
+# Uses closure pattern to access 'dm' without including it in cache key.
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_active_placements_for_date_cached(_dm, selected_date: date):
+def get_active_placements_for_date_cached(selected_date_str: str):
     """Cached wrapper for get_active_placements_for_date.
     
-    Caches results keyed by selected_date for 60 seconds.
-    The _dm parameter is prefixed with underscore to exclude it from cache key.
+    Caches results keyed by selected_date string for 60 seconds.
+    Uses closure to access dm instance without including in cache key.
     """
-    return _dm.get_active_placements_for_date(selected_date)
+    selected_date = date.fromisoformat(selected_date_str)
+    return dm.get_active_placements_for_date(selected_date)
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_students_by_ids_cached(_dm, student_ids: tuple):
+def get_students_by_ids_cached(student_ids: tuple):
     """Cached wrapper for batch student lookup.
     
     Note: student_ids must be a tuple (hashable) for caching.
     """
-    return _dm.get_students_by_ids(list(student_ids))
+    return dm.get_students_by_ids(list(student_ids))
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_iss_sessions_for_date_cached(_dm, target_date: date):
+def get_iss_sessions_for_date_cached(target_date_str: str):
     """Cached wrapper for ISS sessions lookup."""
-    return _dm.get_iss_sessions_for_date(target_date)
+    target_date = date.fromisoformat(target_date_str)
+    return dm.get_iss_sessions_for_date(target_date)
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_scheduled_iss_placements_cached(_dm):
+def get_scheduled_iss_placements_cached():
     """Cached wrapper for scheduled ISS placements lookup."""
-    return _dm.get_scheduled_iss_placements()
+    return dm.get_scheduled_iss_placements()
 
 # ===== END CACHING LAYER =====
 
@@ -334,7 +337,7 @@ if page == "Dashboard":
     
     # Get all active placements for selected date (used by placement sections below)
     # CACHED: Results cached for 60 seconds to improve Dashboard responsiveness
-    placements_for_date = get_active_placements_for_date_cached(dm, selected_date)
+    placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat())
     
     # Date display
     st.subheader(f"{selected_date.strftime('%B %d, %Y')}")
@@ -1640,8 +1643,8 @@ if page == "Dashboard":
     # Five Placement Type Sections with Clickable Student Names
     # 1. In-School Suspension (ISS) - Session-based
     # CACHED: Results cached for 60 seconds to improve Dashboard responsiveness
-    iss_sessions = get_iss_sessions_for_date_cached(dm, selected_date)
-    scheduled_iss_placements = get_scheduled_iss_placements_cached(dm)
+    iss_sessions = get_iss_sessions_for_date_cached(selected_date.isoformat())
+    scheduled_iss_placements = get_scheduled_iss_placements_cached()
     
     st.markdown("#### In-School Suspension (ISS)")
     

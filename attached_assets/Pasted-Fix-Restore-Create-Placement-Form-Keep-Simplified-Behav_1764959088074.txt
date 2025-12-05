@@ -1,0 +1,82 @@
+Fix — Restore Create Placement Form + Keep Simplified Behavior/Cool-Down Logic
+
+Title: Fix Create Placement form not rendering after Behavior/Cool-Down scheduling change
+
+The recent changes for Prompt A1 (simplifying Behavior and Cool-Down Class Period Referral scheduling) introduced a regression:
+
+The Create Placement form for placements is no longer appearing at all, so the user cannot enter student info or choose referral types.
+
+Please do the following:
+
+1. Diagnose why the Create Placement form disappeared
+
+Inspect the code responsible for rendering the Create Placement view (likely a Streamlit page or route).
+
+Look for:
+
+New conditionals that prevent the form from rendering.
+
+Early return statements or branches that skip the form when certain placement types are selected.
+
+Any refactoring around the Class Period Referral / Behavior / Cool-Down logic that might be blocking the default form.
+
+2. Restore the Create Placement form for all placement types
+
+Ensure that when the user navigates to Placements → Create Placement, the full Create Placement form (student info + placement type selection + subtype selection + scheduling card) is rendered normally.
+
+All placement types should be selectable again:
+
+ISS
+
+Lunch Detention
+
+Class Period Referral (Behavior / Cool-Down / Pre-Planned)
+
+Any others that existed before
+
+Do not remove or redesign the overall Create Placement layout. Just fix whatever is preventing it from showing.
+
+3. Preserve the intended A1 behavior
+
+While restoring the form, please keep the intended A1 scheduling behavior:
+
+When Placement Type = Class Period Referral and subtype = Pre-Planned:
+
+Show the full, original schedule builder (multi-day, multi-period), unchanged.
+
+When Placement Type = Class Period Referral and subtype = Behavior or Cool-Down:
+
+Show the simplified scheduling card with:
+
+Date (default today, editable)
+
+Period dropdown (single-select: P1–P10 or equivalent)
+
+When the placement is created, both startPeriod and endPeriod for that referral should be set to this single selected period.
+
+All other placement types and their logic should remain unchanged.
+
+4. Quick verification (minimal smoke test)
+
+After fixing the rendering issue, please perform a brief check and include the results in your summary:
+
+Navigate to Create Placement
+
+Confirm the Create Placement form renders correctly.
+
+You can see student info fields, placement type selection, etc.
+
+Select Class Period Referral → Behavior Referral
+
+Confirm you see only Date + Period scheduling fields (no full schedule builder).
+
+Select Class Period Referral → Cool-Down Referral
+
+Confirm same simple Date + Period scheduling fields.
+
+Select Class Period Referral → Pre-Planned Referral
+
+Confirm the original full schedule builder appears and is unchanged.
+
+Do not implement any Dashboard “Add Periods” changes yet.
+This prompt is only to fix the Create Placement form regression and confirm the A1 behavior is working as intended.

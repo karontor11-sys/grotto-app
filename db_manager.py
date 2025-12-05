@@ -502,6 +502,21 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_students_by_ids(self, student_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Batch lookup: Get multiple students by their IDs in a single query.
+        
+        Returns a dictionary mapping student_id -> student_dict for fast lookups.
+        """
+        if not student_ids:
+            return {}
+        
+        session = self.get_session()
+        try:
+            students = session.query(Student).filter(Student.id.in_(student_ids)).all()
+            return {s.id: self._student_to_dict(s) for s in students}
+        finally:
+            session.close()
+    
     def delete_student(self, student_id: str) -> bool:
         """Soft delete a student."""
         session = self.get_session()
@@ -634,13 +649,20 @@ class DatabaseManager:
             session.close()
     
     def get_active_placements_with_students(self) -> List[Dict[str, Any]]:
-        """Get active placements with student information, sorted by placement type."""
+        """Get active placements with student information, sorted by placement type.
+        
+        Uses batch student lookup to minimize database calls.
+        """
         active_placements = self.get_active_placements()
         result = []
         today = date.today()
         
+        # BATCH OPTIMIZATION: Collect all student IDs and fetch in one query
+        student_ids = list({p['studentId'] for p in active_placements if p.get('studentId')})
+        students_by_id = self.get_students_by_ids(student_ids)
+        
         for placement in active_placements:
-            student = self.get_student(placement['studentId'])
+            student = students_by_id.get(placement['studentId'])
             if student:
                 placement_with_student = placement.copy()
                 placement_with_student['student'] = student

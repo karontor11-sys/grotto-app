@@ -1,0 +1,104 @@
+Please run the following smoke test to verify that the Prompt A1 changes are functioning correctly before we proceed to implementing Prompt B1. Do NOT make new feature changes yet—this prompt is only for testing and confirming correct current behavior.
+
+🔹 TEST STEP 1 — Behavior Referral Creation
+
+Navigate to Placements → Create Placement.
+
+Select Class Period Referral as the placement type.
+
+Choose Behavior Referral as the subtype.
+
+Verify the following UI behavior:
+
+Only Date and Period fields appear.
+
+The full schedule builder is NOT visible.
+
+The Date defaults to today.
+
+The Period dropdown allows selecting a single period (P1–P10 or whatever is configured).
+
+Create the placement using any period.
+
+Confirm the placement appears on the Dashboard with exactly one scheduled period.
+
+🔹 TEST STEP 2 — Cool-Down Referral Creation
+
+On the Create Placement page, choose:
+
+Placement Type: Class Period Referral
+
+Subtype: Cool-Down Referral
+
+Confirm identical behavior to Step 1:
+
+Only Date and Period fields appear.
+
+No schedule builder.
+
+Period selector works.
+
+Date defaults correctly.
+
+Create the placement and confirm it appears on the Dashboard with only that one period.
+
+🔹 TEST STEP 3 — Pre-Planned Referral Regression Check
+
+On the same page, choose:
+
+Placement Type: Class Period Referral
+
+Subtype: Pre-Planned Referral
+
+Confirm:
+
+The full schedule builder appears exactly as before.
+
+Multi-day and multi-period selection still works.
+
+No unintended UI changes were introduced.
+
+(Do not create a test record unless needed. Visual confirmation is sufficient.)
+
+🔹 TEST PASS/FAIL CRITERIA
+✅ Pass if ALL are true:
+
+Behavior Referral form shows only Date + Period
+
+Cool-Down Referral form shows only Date + Period
+
+Pre-Planned still shows full schedule builder
+
+Behavior & Cool-Down test placements appear on Dashboard with exactly one period
+
+❌ Fail if ANY of these occur:
+
+Behavior/Cool-Down subtype displays the old multi-period builder
+
+Pre-Planned builder is missing or altered
+
+Dashboard shows wrong periods or empty periods
+
+Any console errors related to schedule generation
+
+🔹 Expected Output
+
+Please provide a brief test summary with these three sections:
+
+Behavior Referral Result:
+
+Form behavior
+
+Dashboard result
+
+Cool-Down Referral Result:
+
+Form behavior
+
+Dashboard result
+
+Pre-Planned Referral Result:
+
+UI status of schedule builder
+
+After reporting results, STOP and wait for further instruction.

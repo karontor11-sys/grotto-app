@@ -65,6 +65,16 @@ def get_scheduled_iss_placements_cached():
     """Cached wrapper for scheduled ISS placements lookup."""
     return dm.get_scheduled_iss_placements()
 
+def clear_dashboard_caches():
+    """Clear all Dashboard-related caches after data mutations.
+    
+    Call this after creating, updating, or completing placements
+    to ensure fresh data is shown on the Dashboard.
+    """
+    get_active_placements_for_date_cached.clear()
+    get_iss_sessions_for_date_cached.clear()
+    get_scheduled_iss_placements_cached.clear()
+
 # ===== END CACHING LAYER =====
 
 # Check and process end-of-day for pending dates (runs once per session)
@@ -1882,6 +1892,10 @@ elif page == "Placements":
                                 
                                 st.session_state.placement_created = True
                                 st.session_state.navigate_to_dashboard = True
+                                
+                                # Clear Dashboard caches so new placement appears immediately
+                                clear_dashboard_caches()
+                                
                                 st.success(f"✅ ISS placement created for {first_name} {last_name}")
                                 print(f"[DEBUG] About to rerun...")
                                 st.rerun()
@@ -1948,6 +1962,9 @@ elif page == "Placements":
                                 
                                 placement_id = dm.add_placement(placement_data)
                                 dm.generate_lunch_detention_sessions_from_scheduled(placement_id, scheduled_lunch_dates)
+                                
+                                # Clear Dashboard caches so new placement appears immediately
+                                clear_dashboard_caches()
                                 
                                 st.success(f"✅ Lunch Detention created for {first_name} {last_name} - {lunch_days} day(s) scheduled through {end_date.strftime('%b %d, %Y')}")
                                 st.rerun()
@@ -2019,6 +2036,9 @@ elif page == "Placements":
                                     
                                     placement_id = dm.add_placement(placement_data)
                                     dm.generate_class_referral_session(placement_id, start_date, selected_start_period, selected_end_period)
+                                    
+                                    # Clear Dashboard caches so new placement appears immediately
+                                    clear_dashboard_caches()
                                     
                                     st.success(f"✅ Behavior Referral created for {first_name} {last_name}")
                                     st.rerun()
@@ -2097,6 +2117,10 @@ elif page == "Placements":
                                     
                                     st.session_state.placement_created = True
                                     st.session_state.navigate_to_dashboard = True
+                                    
+                                    # Clear Dashboard caches so new placement appears immediately
+                                    clear_dashboard_caches()
+                                    
                                     st.success(f"✅ Cool-Down Referral created for {first_name} {last_name}")
                                     st.rerun()
                                 except Exception as e:
@@ -2243,6 +2267,9 @@ elif page == "Placements":
                                     dm.generate_preplanned_sessions(placement_id, scheduled_slots)
                                     
                                     st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
+                                    
+                                    # Clear Dashboard caches so new placement appears immediately
+                                    clear_dashboard_caches()
                                     
                                     st.success(f"✅ Pre-Planned Referral created for {first_name} {last_name} - {len(scheduled_slots)} session(s) scheduled")
                                     st.rerun()

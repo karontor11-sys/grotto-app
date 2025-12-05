@@ -1,0 +1,143 @@
+Dashboard Smoke Test for “Add Periods” (Behavior & Cool-Down Referrals)
+
+Title: Smoke Test for Dashboard “Add Periods” Feature (Behavior & Cool-Down)
+
+Please run the following smoke test to verify that the new Add Periods feature for Behavior and Cool-Down Class Period Referrals is working correctly on the Dashboard. Do not change any code beyond what is needed to execute and report on these tests.
+
+🔹 TEST STEP 1 — Behavior Referral: Add Periods on Dashboard
+
+Locate an existing Class Period Referral → Behavior Referral on the Dashboard
+
+If none exists, briefly create a test placement:
+
+Placement Type: Class Period Referral
+
+Referral Type: Behavior
+
+Date: today
+
+Period: choose any single period (e.g., P3)
+
+On the Dashboard:
+
+Expand the Behavior referral card.
+
+Confirm:
+
+The current scheduled period list is displayed (e.g., “P3”).
+
+An “➕ Add Periods” section/expander is visible.
+
+Click “➕ Add Periods”:
+
+Confirm:
+
+A dropdown (or similar control) appears.
+
+The dropdown shows only periods that are NOT already assigned to this referral.
+
+Select one or more additional periods (e.g., P4 and P5).
+
+Click “Add Selected Periods”.
+
+Verify:
+
+The Dashboard card refreshes.
+
+The period list now includes the newly added periods (e.g., “P3, P4, P5”).
+
+No duplicate periods appear.
+
+🔹 TEST STEP 2 — Cool-Down Referral: Add Periods on Dashboard
+
+Locate an existing Class Period Referral → Cool-Down Referral on the Dashboard
+
+If none exists, briefly create a test placement:
+
+Placement Type: Class Period Referral
+
+Referral Type: Cool-Down
+
+Date: today
+
+Period: choose any single period (e.g., P6)
+
+On the Dashboard:
+
+Expand the Cool-Down referral card.
+
+Confirm:
+
+The current scheduled period list shows the initial period (e.g., “P6”).
+
+The “➕ Add Periods” section is available.
+
+Click “➕ Add Periods”:
+
+Confirm:
+
+The dropdown shows only unassigned periods (e.g., P1–P5, P7–P10 if P6 is already assigned).
+
+Select at least two new periods.
+
+Click “Add Selected Periods”.
+
+Verify:
+
+The updated period list is displayed correctly.
+
+No duplicate periods.
+
+The changes persist if the page is refreshed.
+
+🔹 TEST STEP 3 — Compatibility Check (No Side Effects)
+
+Confirm that Pre-Planned Class Period Referrals on the Dashboard:
+
+Do not show the new “Add Periods” control (unless that was already intended).
+
+Continue to display their periods exactly as before.
+
+Confirm that ISS, Lunch Detention, and any other placement types:
+
+Are unaffected by this change.
+
+Render their cards exactly as before.
+
+🔹 PASS / FAIL CRITERIA
+
+✅ PASS if:
+
+Behavior and Cool-Down referrals:
+
+Show a working “➕ Add Periods” section on the Dashboard.
+
+Only show unassigned periods in the dropdown.
+
+Correctly append new periods with no duplicates.
+
+Refresh the card to show updated periods immediately.
+
+Other placement types (ISS, Lunch Detention, Pre-Planned) are unaffected.
+
+❌ FAIL if:
+
+Add Periods UI doesn’t appear for Behavior/Cool-Down.
+
+Dropdown shows already-assigned periods or periods from other dates.
+
+Added periods don’t show up, or duplicates appear.
+
+Other placement types are visually or functionally altered.
+
+🔹 Expected Output
+
+Please provide a brief Dashboard Smoke Test Summary that includes:
+
+Behavior Referral result (before/after periods, Add Periods behavior)
+
+Cool-Down Referral result (before/after periods, Add Periods behavior)
+
+Confirmation that Pre-Planned, ISS, and Lunch Detention cards are unchanged
+
+Do not implement any new features in this prompt—only run and report on the smoke test.

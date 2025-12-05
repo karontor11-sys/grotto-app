@@ -1977,18 +1977,15 @@ elif page == "Placements":
             elif placement_category == "Class Period Referral":
                 # Show different forms based on the selected sub-type
                 
-                # Behavior Referral - Single-day with period selection (uses original Class Period Referral logic)
+                # Behavior Referral - Single-day with single period selection (simplified)
                 if referral_subtype == "Behavior Referral":
                     with st.form("behavior_referral_form"):
                         st.markdown("#### Scheduling")
-                        col1, col2, col3 = st.columns(3)
+                        col1, col2 = st.columns(2)
                         with col1:
                             start_date = st.date_input("Date*", value=date.today())
                         with col2:
-                            selected_start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}")
-                        with col3:
-                            selected_end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}")
-                        st.info("For a single period, select the same period for both Start and End.")
+                            selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}")
                         
                         created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                         
@@ -2004,8 +2001,6 @@ elif page == "Placements":
                             if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                                 print(f"[DEBUG] Behavior Referral validation failed - Missing required fields")
                                 st.error("❌ Please fill in all required fields marked with *")
-                            elif selected_end_period < selected_start_period:
-                                st.error("❌ End period must be equal to or after start period")
                             else:
                                 try:
                                     new_student_data = {
@@ -2030,15 +2025,15 @@ elif page == "Placements":
                                         "daysAssigned": 1,
                                         "startDate": start_date.isoformat(),
                                         "endDate": start_date.isoformat(),
-                                        "startPeriod": selected_start_period,
-                                        "endPeriod": selected_end_period,
+                                        "startPeriod": selected_period,
+                                        "endPeriod": selected_period,
                                         "status": "active",
                                         "createdBy": created_by,
                                         "createdAt": datetime.now().isoformat()
                                     }
                                     
                                     placement_id = dm.add_placement(placement_data)
-                                    dm.generate_class_referral_session(placement_id, start_date, selected_start_period, selected_end_period)
+                                    dm.generate_class_referral_session(placement_id, start_date, selected_period, selected_period)
                                     
                                     # Clear Dashboard caches so new placement appears immediately
                                     clear_dashboard_caches()
@@ -2050,18 +2045,15 @@ elif page == "Placements":
                                     import traceback
                                     st.error(traceback.format_exc())
                 
-                # Cool-Down Referral - show cool-down form with date and period fields
+                # Cool-Down Referral - Single-day with single period selection (simplified)
                 elif referral_subtype == "Cool-Down Referral":
                     with st.form("cooldown_referral_form"):
                         st.markdown("#### Scheduling")
-                        col3, col4, col5 = st.columns(3)
-                        with col3:
+                        col1, col2 = st.columns(2)
+                        with col1:
                             cooldown_date = st.date_input("Date*", value=date.today(), key="cd_date")
-                        with col4:
-                            start_period = st.selectbox("Start Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_start_period")
-                        with col5:
-                            end_period = st.selectbox("End Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_end_period")
-                        st.info("For a short cool-down, select the same period for both Start and End. For a longer cool-down, select a later period for End.")
+                        with col2:
+                            selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_period")
                         
                         created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="cd_created_by")
                         
@@ -2072,17 +2064,9 @@ elif page == "Placements":
                             homeroom_teacher = student_homeroom
                             reason = placement_reason
                             
-                            validation_error = False
-                            
-                            if end_period < start_period:
-                                st.error("❌ End period must be equal to or after start period")
-                                validation_error = True
-                            
                             if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                                 st.error("❌ Please fill in all required fields marked with *")
-                                validation_error = True
-                            
-                            if not validation_error:
+                            else:
                                 try:
                                     new_student_data = {
                                         "firstName": first_name,
@@ -2094,8 +2078,6 @@ elif page == "Placements":
                                     }
                                     student_id = dm.add_student(new_student_data)
                                     
-                                    days_assigned = 1
-                                    
                                     placement_data = {
                                         "studentId": student_id,
                                         "homeroomTeacherId": homeroom_teacher,
@@ -2105,18 +2087,18 @@ elif page == "Placements":
                                         "referralSubtype": "cool_down",
                                         "completionRule": "all_sessions_fulfilled",
                                         "minSessionsRequired": None,
-                                        "daysAssigned": days_assigned,
+                                        "daysAssigned": 1,
                                         "startDate": cooldown_date.isoformat(),
                                         "endDate": cooldown_date.isoformat(),
-                                        "startPeriod": start_period,
-                                        "endPeriod": end_period,
+                                        "startPeriod": selected_period,
+                                        "endPeriod": selected_period,
                                         "status": "active",
                                         "createdBy": created_by,
                                         "createdAt": datetime.now().isoformat()
                                     }
                                     placement_id = dm.add_placement(placement_data)
                                     
-                                    dm.generate_cooldown_session(placement_id, cooldown_date, start_period, end_period)
+                                    dm.generate_cooldown_session(placement_id, cooldown_date, selected_period, selected_period)
                                     
                                     st.session_state.placement_created = True
                                     st.session_state.navigate_to_dashboard = True

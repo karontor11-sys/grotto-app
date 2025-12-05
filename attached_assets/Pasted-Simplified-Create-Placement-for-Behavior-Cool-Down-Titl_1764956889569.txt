@@ -1,0 +1,66 @@
+Simplified Create Placement for Behavior & Cool-Down
+
+Title: Simplify Class Period Referral scheduling for Behavior & Cool-Down on Create Placement
+
+In the Grotto App, please update the Create New Placement page for Class Period Referral so that Behavior and Cool-Down subtypes use a simplified scheduling UI. Aside from the changes listed here, keep all existing functionality and logic the same.
+
+Requirements
+
+Keep existing structure for Class Period Referral
+
+Parent placement type: Class Period Referral
+
+Subtypes (unchanged):
+
+Behavior
+
+Cool-Down
+
+Pre-Planned
+
+Pre-Planned subtype – no changes
+
+When the subtype is Pre-Planned, keep the existing multi-day / multi-period schedule builder exactly as it is now.
+
+Users should still be able to select multiple days and any combination of periods.
+
+Behavior & Cool-Down – simplified scheduling at creation
+When the user selects:
+
+Placement Type: Class Period Referral
+
+Subtype: Behavior or Cool-Down
+
+Then on the Create New Placement page:
+
+Do NOT show the full schedule builder that allows multiple days and periods.
+
+Instead, show a simplified scheduling card with:
+
+A Date field (default to today, but still editable if needed).
+
+A Start Period dropdown (single-select) using the existing list of periods (e.g., 1st–9th, or whatever is already configured in the app).
+
+On submit for Behavior & Cool-Down referrals
+
+When the user submits a Behavior or Cool-Down Class Period Referral:
+
+Create the placement with:
+
+The selected date, and
+
+A schedule that contains only that single starting period.
+
+The new placement should appear on the Dashboard as an active Class Period Referral with that one scheduled period, using the same display and behavior it currently does for Class Period Referrals.
+
+Do not change anything else
+
+Do not modify:
+
+The Pre-Planned subtype schedule builder.
+
+Any ISS, Lunch Detention, or other placement types.
+
+Any Daily Log, Check In, Complete, or midnight rollover logic.
+
+Only change the Create New Placement UI and creation behavior for Behavior and Cool-Down Class Period Referral subtypes as described above.

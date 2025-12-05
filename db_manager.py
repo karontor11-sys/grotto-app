@@ -751,55 +751,123 @@ class DatabaseManager:
     def get_active_placements_for_date(self, target_date: date) -> List[Dict[str, Any]]:
         """Get placements that are active on a specific date.
         
-        For ISS placements using the new simplified model:
-        - Show if target_date >= iss_start_date
-        - AND iss_remaining_days > 0
-        - AND no override has ended the placement early
+        OPTIMIZED: Filters at database level to reduce data transfer:
+        - status != 'completed'
+        - start_date <= target_date (not future placements)
+        - Type-specific completion checks
         
-        For other placement types, use standard date range logic.
+        For ISS placements:
+        - iss_periods_served < iss_total_required_periods OR status = 'needs_makeup'
+        
+        For Lunch Detention:
+        - Days served < days assigned
+        
+        For Class Period Referrals:
+        - start_date == target_date (same day only)
         """
-        active_placements = self.get_active_placements_with_students()
-        result = []
-        
-        for placement in active_placements:
-            placement_type = placement.get('placementType', '').upper()
+        session = self.get_session()
+        try:
+            from sqlalchemy import or_, and_, func
             
-            # NEW SIMPLIFIED ISS LOGIC
-            if placement_type == 'ISS' and placement.get('issStartDate'):
-                # Use new simplified ISS model
-                iss_start_date = datetime.fromisoformat(placement['issStartDate']).date()
-                iss_remaining_days = placement.get('issRemainingDays') or 0
+            # Base query: Non-completed placements that have started by target_date
+            base_query = session.query(Placement).filter(
+                Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled]),
+                Placement.start_date <= target_date
+            )
+            
+            placements = base_query.all()
+            
+            # BATCH OPTIMIZATION: Collect all student IDs and fetch in one query
+            student_ids = list({p.student_id for p in placements if p.student_id})
+            students_by_id = self.get_students_by_ids(student_ids)
+            
+            result = []
+            
+            for placement in placements:
+                placement_dict = self._placement_to_dict(placement)
+                student = students_by_id.get(placement.student_id)
+                if not student:
+                    continue
+                    
+                placement_dict['student'] = student
+                placement_type = placement.placement_type.value.upper() if placement.placement_type else ''
                 
-                # For placements using iss_days_assigned, calculate remaining days if not set
-                if iss_remaining_days == 0 and placement.get('issDaysAssigned'):
-                    days_completed = placement.get('daysCompleted') or 0
-                    iss_remaining_days = (placement.get('issDaysAssigned') or 0) - days_completed
+                # ISS-specific filtering
+                if placement_type == 'ISS':
+                    iss_start_date = placement.iss_start_date or placement.start_date
+                    
+                    # Skip if target_date is before ISS start
+                    if target_date < iss_start_date:
+                        continue
+                    
+                    # Check completion: periods served vs required
+                    iss_periods_served = placement.iss_periods_served or 0
+                    iss_total_required = placement.iss_total_required_periods or 0
+                    
+                    # Calculate remaining days
+                    iss_remaining_days = placement.iss_remaining_days or 0
+                    if iss_remaining_days == 0 and placement.iss_days_assigned:
+                        days_completed = placement.days_completed or 0
+                        iss_remaining_days = (placement.iss_days_assigned or 0) - days_completed
+                    
+                    # Check if needs make-up
+                    needs_makeup = (iss_remaining_days <= 0 and iss_periods_served < iss_total_required)
+                    is_needs_makeup_status = placement.status == PlacementStatus.needs_makeup
+                    
+                    # Skip completed ISS (all periods served, no remaining days, not needs_makeup)
+                    if iss_periods_served >= iss_total_required and iss_remaining_days <= 0 and not is_needs_makeup_status:
+                        continue
+                    
+                    # Check for override (read-only)
+                    daily_log = self.get_daily_log(placement.id, target_date.isoformat())
+                    override_used = daily_log.get('overrideUsed', False) if daily_log else False
+                    if override_used:
+                        continue
+                    
+                    # Include if has remaining days, needs makeup, or has needs_makeup status
+                    if iss_remaining_days > 0 or needs_makeup or is_needs_makeup_status:
+                        result.append(placement_dict)
                 
-                # Check if placement has been overridden (read-only check, no log creation)
-                daily_log = self.get_daily_log(placement['_id'], target_date.isoformat())
-                override_used = daily_log.get('overrideUsed', False) if daily_log else False
+                # Lunch Detention filtering
+                elif placement_type == 'LUNCH_DETENTION':
+                    # Calculate days served from served_dates array
+                    served_dates = placement.served_dates or []
+                    days_served = len(served_dates)
+                    days_assigned = placement.days_assigned or 0
+                    
+                    # Skip if all lunch detention days are served
+                    if days_served >= days_assigned:
+                        continue
+                    
+                    # Check if target_date is within the placement range
+                    scheduled_dates = placement.scheduled_lunch_dates or []
+                    if scheduled_dates:
+                        last_scheduled = datetime.fromisoformat(scheduled_dates[-1]).date()
+                        if target_date > last_scheduled:
+                            continue
+                    
+                    result.append(placement_dict)
                 
-                # Check if placement needs make-up (completed all days but has remaining periods)
-                iss_periods_served = placement.get('issPeriodsServed') or 0
-                iss_total_required = placement.get('issTotalRequiredPeriods') or 0
-                needs_makeup = (iss_remaining_days <= 0 and iss_periods_served < iss_total_required)
-                is_needs_makeup_status = placement.get('status') == 'needs_makeup'
+                # Class Period Referral filtering (same-day only)
+                elif placement_type == 'CLASS_REFERRAL':
+                    # Class referrals are single-day: only show on their start_date
+                    if placement.start_date == target_date:
+                        result.append(placement_dict)
                 
-                # Show on dashboard if:
-                # 1. Today is on or after start date
-                # 2. Still has remaining days OR needs make-up periods OR has needs_makeup status
-                # 3. No override has ended it early
-                if target_date >= iss_start_date and (iss_remaining_days > 0 or needs_makeup or is_needs_makeup_status) and not override_used:
-                    result.append(placement)
-            else:
-                # LEGACY LOGIC for non-ISS or old ISS placements
-                start_date = datetime.fromisoformat(placement['startDate']).date() if isinstance(placement['startDate'], str) else placement['startDate']
-                end_date = start_date + timedelta(days=placement['daysAssigned'])
+                # Cool-Down filtering (same-day only, like referrals)
+                elif placement_type == 'COOL_DOWN':
+                    if placement.start_date == target_date:
+                        result.append(placement_dict)
                 
-                if start_date <= target_date <= end_date:
-                    result.append(placement)
-        
-        return result
+                # Legacy/other placement types - use date range logic
+                else:
+                    end_date = placement.start_date + timedelta(days=placement.days_assigned or 1)
+                    if placement.start_date <= target_date <= end_date:
+                        result.append(placement_dict)
+            
+            return result
+        finally:
+            session.close()
     
     def complete_placement(self, placement_id: str) -> bool:
         """Complete a placement."""

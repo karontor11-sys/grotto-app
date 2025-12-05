@@ -1125,17 +1125,24 @@ class DatabaseManager:
             session.close()
     
     def get_completed_placements_with_students(self) -> List[Dict[str, Any]]:
-        """Get all completed placements with student info."""
+        """Get all completed placements with student info.
+        
+        Uses batch student lookup to minimize database calls.
+        """
         session = self.get_session()
         try:
             placements = session.query(Placement).filter(
                 Placement.status == PlacementStatus.completed
             ).order_by(Placement.end_date.desc()).all()
             
+            # BATCH OPTIMIZATION: Collect all student IDs and fetch in one query
+            student_ids = list({p.student_id for p in placements if p.student_id})
+            students_by_id = self.get_students_by_ids(student_ids)
+            
             result = []
             for placement in placements:
                 placement_dict = self._placement_to_dict(placement)
-                student = self.get_student(placement.student_id)
+                student = students_by_id.get(placement.student_id)
                 if student:
                     placement_dict['student'] = student
                     placement_dict['totalPoints'] = self.get_cumulative_total(placement.id)
@@ -3234,13 +3241,21 @@ class DatabaseManager:
             session.close()
     
     def get_all_assignments_with_students(self) -> List[Dict[str, Any]]:
-        """Get all assignments with student information."""
+        """Get all assignments with student information.
+        
+        Uses batch student lookup to minimize database calls.
+        """
         session = self.get_session()
         try:
             assignments = session.query(Assignment).all()
+            
+            # BATCH OPTIMIZATION: Collect all student IDs and fetch in one query
+            student_ids = list({a.student_id for a in assignments if a.student_id})
+            students_by_id = self.get_students_by_ids(student_ids)
+            
             result = []
             for assignment in assignments:
-                student = self.get_student(assignment.student_id)
+                student = students_by_id.get(assignment.student_id)
                 if student:
                     assignment_dict = self._assignment_to_dict(assignment)
                     assignment_dict['student'] = student
@@ -3283,13 +3298,21 @@ class DatabaseManager:
             session.close()
     
     def get_all_notes_with_students(self) -> List[Dict[str, Any]]:
-        """Get all notes with student information."""
+        """Get all notes with student information.
+        
+        Uses batch student lookup to minimize database calls.
+        """
         session = self.get_session()
         try:
             notes = session.query(Note).order_by(Note.created_at.desc()).all()
+            
+            # BATCH OPTIMIZATION: Collect all student IDs and fetch in one query
+            student_ids = list({n.student_id for n in notes if n.student_id})
+            students_by_id = self.get_students_by_ids(student_ids)
+            
             result = []
             for note in notes:
-                student = self.get_student(note.student_id)
+                student = students_by_id.get(note.student_id)
                 if student:
                     note_dict = self._note_to_dict(note)
                     note_dict['student'] = student

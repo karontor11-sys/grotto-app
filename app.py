@@ -333,7 +333,7 @@ if page == "Dashboard":
     
     # Show success message if placement was just created
     if st.session_state.get('placement_created'):
-        st.success("✅ Placement created successfully! The new placement appears below.")
+        st.success("Placement created successfully!")
         del st.session_state.placement_created
     
     # Date Selector (compact width)

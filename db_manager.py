@@ -749,31 +749,45 @@ class DatabaseManager:
         return result
     
     def get_active_placements_for_date(self, target_date: date) -> List[Dict[str, Any]]:
-        """Get placements that are active on a specific date.
+        """Get placements that are/were/will be active on a specific date.
         
-        OPTIMIZED: Filters at database level to reduce data transfer:
-        - status != 'completed'
-        - start_date <= target_date (not future placements)
-        - Type-specific completion checks
+        Supports viewing past, present, and future dates:
+        - Past dates: Show placements that were active on that day (including now-completed)
+        - Today: Show currently active placements
+        - Future dates: Show placements scheduled for that date
         
         For ISS placements:
-        - iss_periods_served < iss_total_required_periods OR status = 'needs_makeup'
+        - Check if target_date falls within the placement's active period
         
         For Lunch Detention:
-        - Days served < days assigned
+        - Check if target_date is a scheduled lunch detention date
         
         For Class Period Referrals:
-        - start_date == target_date (same day only)
+        - Behavior/Cool-Down: Single-day, show on start_date
+        - Pre-Planned: Check for sessions scheduled on target_date
         """
         session = self.get_session()
         try:
             from sqlalchemy import or_, and_, func
             
-            # Base query: Non-completed placements that have started by target_date
-            base_query = session.query(Placement).filter(
-                Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled]),
-                Placement.start_date <= target_date
-            )
+            today = date.today()
+            is_past = target_date < today
+            is_future = target_date > today
+            
+            if is_future:
+                base_query = session.query(Placement).filter(
+                    Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled]),
+                    Placement.start_date <= target_date
+                )
+            elif is_past:
+                base_query = session.query(Placement).filter(
+                    Placement.start_date <= target_date
+                )
+            else:
+                base_query = session.query(Placement).filter(
+                    Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled]),
+                    Placement.start_date <= target_date
+                )
             
             placements = base_query.all()
             
@@ -800,7 +814,49 @@ class DatabaseManager:
                     if target_date < iss_start_date:
                         continue
                     
-                    # Check completion: periods served vs required
+                    # Check if placement had ended by target_date (using authoritative end_date)
+                    end_date = placement.end_date
+                    if end_date and target_date > end_date:
+                        continue
+                    
+                    # For past dates: Use authoritative completion signals
+                    if is_past:
+                        # Check served_dates first - most authoritative for actual activity
+                        served_dates = placement.served_dates or []
+                        served_date_objs = set()
+                        for sd in served_dates:
+                            try:
+                                if isinstance(sd, str):
+                                    served_date_objs.add(datetime.fromisoformat(sd).date())
+                                else:
+                                    served_date_objs.add(sd)
+                            except:
+                                pass
+                        
+                        # If target_date is in served_dates, definitely include it
+                        if target_date in served_date_objs:
+                            result.append(placement_dict)
+                            continue
+                        
+                        # If placement is completed, check if target_date was during active period
+                        if placement.status == PlacementStatus.completed:
+                            if end_date:
+                                # Use authoritative end_date
+                                if iss_start_date <= target_date <= end_date:
+                                    result.append(placement_dict)
+                            else:
+                                # Fallback for completed placements without end_date:
+                                # Estimate using days_completed or days_assigned
+                                days_completed = placement.days_completed or placement.iss_days_assigned or 1
+                                estimated_end = iss_start_date + timedelta(days=days_completed + 2)  # Small buffer for weekends
+                                if iss_start_date <= target_date <= estimated_end:
+                                    result.append(placement_dict)
+                        else:
+                            # Still active or needs_makeup - was definitely active on past date within range
+                            result.append(placement_dict)
+                        continue
+                    
+                    # For today/future: Current active logic
                     iss_periods_served = placement.iss_periods_served or 0
                     iss_total_required = placement.iss_total_required_periods or 0
                     
@@ -818,20 +874,48 @@ class DatabaseManager:
                     if iss_periods_served >= iss_total_required and iss_remaining_days <= 0 and not is_needs_makeup_status:
                         continue
                     
-                    # Check for override (read-only)
-                    daily_log = self.get_daily_log(placement.id, target_date.isoformat())
-                    override_used = daily_log.get('overrideUsed', False) if daily_log else False
-                    if override_used:
-                        continue
-                    
                     # Include if has remaining days, needs makeup, or has needs_makeup status
                     if iss_remaining_days > 0 or needs_makeup or is_needs_makeup_status:
                         result.append(placement_dict)
                 
                 # Lunch Detention filtering
                 elif placement_type == 'LUNCH_DETENTION':
-                    # Calculate days served from served_dates array
+                    scheduled_dates = placement.scheduled_lunch_dates or []
                     served_dates = placement.served_dates or []
+                    
+                    # Convert scheduled dates to date objects for comparison
+                    scheduled_date_objs = set()
+                    for sd in scheduled_dates:
+                        try:
+                            if isinstance(sd, str):
+                                scheduled_date_objs.add(datetime.fromisoformat(sd).date())
+                            elif hasattr(sd, 'date'):
+                                scheduled_date_objs.add(sd.date() if callable(getattr(sd, 'date')) else sd)
+                            else:
+                                scheduled_date_objs.add(sd)
+                        except:
+                            pass
+                    
+                    # Convert served dates to date objects for comparison
+                    served_date_objs = set()
+                    for sd in served_dates:
+                        try:
+                            if isinstance(sd, str):
+                                served_date_objs.add(datetime.fromisoformat(sd).date())
+                            elif hasattr(sd, 'date'):
+                                served_date_objs.add(sd.date() if callable(getattr(sd, 'date')) else sd)
+                            else:
+                                served_date_objs.add(sd)
+                        except:
+                            pass
+                    
+                    # For past dates: Show if target_date was scheduled or served
+                    if is_past:
+                        if target_date in scheduled_date_objs or target_date in served_date_objs:
+                            result.append(placement_dict)
+                        continue
+                    
+                    # For today/future: Current active logic
                     days_served = len(served_dates)
                     days_assigned = placement.days_assigned or 0
                     
@@ -839,35 +923,45 @@ class DatabaseManager:
                     if days_served >= days_assigned:
                         continue
                     
-                    # Check if target_date is within the placement range
-                    scheduled_dates = placement.scheduled_lunch_dates or []
-                    if scheduled_dates:
-                        last_scheduled = datetime.fromisoformat(scheduled_dates[-1]).date()
-                        if target_date > last_scheduled:
-                            continue
-                    
-                    result.append(placement_dict)
+                    # Check if target_date is a scheduled date (not yet served)
+                    if target_date in scheduled_date_objs:
+                        result.append(placement_dict)
                 
                 # Class Period Referral filtering
                 elif placement_type == 'CLASS_REFERRAL':
-                    # For Pre-Planned referrals with multiple sessions, check if any session matches target_date
                     referral_subtype = placement.referral_subtype or ''
                     
                     if referral_subtype == 'pre_planned':
                         # Pre-Planned: Check for session on this date
-                        session_for_date = session.query(PartialDaySession).filter(
-                            PartialDaySession.placement_id == placement.id,
-                            PartialDaySession.date == target_date,
-                            PartialDaySession.status != SessionStatus.fulfilled
-                        ).first()
-                        if session_for_date:
-                            # Include session periods in placement dict for display
-                            session_periods = session_for_date.periods or []
-                            placement_dict['scheduledSlots'] = [
-                                {'date': target_date.isoformat(), 'period': p} 
-                                for p in session_periods
-                            ]
-                            result.append(placement_dict)
+                        if is_past:
+                            # For past dates, include all sessions for that date (even fulfilled)
+                            sessions_for_date = session.query(PartialDaySession).filter(
+                                PartialDaySession.placement_id == placement.id,
+                                PartialDaySession.date == target_date
+                            ).all()
+                            if sessions_for_date:
+                                all_periods = []
+                                for s in sessions_for_date:
+                                    all_periods.extend(s.periods or [])
+                                placement_dict['scheduledSlots'] = [
+                                    {'date': target_date.isoformat(), 'period': p} 
+                                    for p in all_periods
+                                ]
+                                result.append(placement_dict)
+                        else:
+                            # For today/future: Only show non-fulfilled sessions
+                            session_for_date = session.query(PartialDaySession).filter(
+                                PartialDaySession.placement_id == placement.id,
+                                PartialDaySession.date == target_date,
+                                PartialDaySession.status != SessionStatus.fulfilled
+                            ).first()
+                            if session_for_date:
+                                session_periods = session_for_date.periods or []
+                                placement_dict['scheduledSlots'] = [
+                                    {'date': target_date.isoformat(), 'period': p} 
+                                    for p in session_periods
+                                ]
+                                result.append(placement_dict)
                     else:
                         # Behavior/Cool-Down: Single-day, show on start_date
                         if placement.start_date == target_date:

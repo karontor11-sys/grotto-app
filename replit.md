@@ -60,6 +60,13 @@ The UI features a **Dashboard** with:
 - **ISS Session Log Storage & History View**: A new `ISSSessionLog` model records details for each completed session within an ISS placement, providing a historical view.
 - **Make-Up Session Support**: When students complete their scheduled ISS days but still have periods remaining (`needs_makeup` status), staff can perform additional check-ins via "Make-Up – Full Day" or "Make-Up – Partial Day" buttons. Make-up sessions are tracked with `is_makeup_session` and `periods_added` fields in daily logs, and recorded in ISSSessionLogs with session types like "Make-Up Full Day" or "Make-Up Partial Day". Placements auto-complete when total periods served meets or exceeds the required periods.
 
+## Recent Changes (December 2025)
+
+### Navigation System Fix
+- Fixed Streamlit sidebar navigation synchronization issue
+- Navigation now uses `navigate_to_dashboard` session state flag that's processed before sidebar widget renders
+- All placement creation handlers (ISS, Lunch Detention, Behavior Referral, Cool-Down Referral, Pre-Planned Referral) redirect to Dashboard with success message after creation
+
 ## External Dependencies
 
 ### Core Framework

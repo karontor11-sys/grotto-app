@@ -1,0 +1,59 @@
+Show All Scheduled Periods for Pre-Planned Referrals on Dashboard
+
+Title: Fix Dashboard period display for Pre-Planned Class Period Referrals
+
+Please update the Dashboard so that Class Period Referrals with the Pre-Planned subtype display all scheduled periods for the selected date, not just the first one.
+
+1. Current Issue
+
+On the Dashboard, Pre-Planned referrals currently only display the first period assigned for that date.
+
+However, in the Schedule Builder on the Create Placement page, a Pre-Planned day may contain:
+
+Only one period, or
+
+Multiple periods (e.g., P2, P3, P5).
+
+All of these periods are stored correctly in the data, but the Dashboard is only showing the first period in the list.
+
+2. Desired Behavior
+
+For Class Period Referral → Pre-Planned entries on the Dashboard:
+
+For each scheduled day of a Pre-Planned referral, display every period the student is scheduled to be in the Grotto/ISS area on that date.
+
+The displayed list must match exactly what was entered in the Schedule Builder for that date.
+
+Examples:
+
+If a student is scheduled for P2, P3, and P5 on that day, the Dashboard should show something like:
+Periods: 2, 3, 5
+
+If a student is scheduled for only P4 on that day, the Dashboard should show:
+Period: 4 (or Periods: 4, depending on your existing style).
+
+Use whatever wording/formatting is consistent with the rest of the app, but make sure all periods for that day are shown, not just the first.
+
+3. Scope
+
+Apply this change only to Pre-Planned Class Period Referrals on the Dashboard.
+
+Do not change:
+
+Behavior or Cool-Down Class Period Referrals (their period handling is already correct).
+
+ISS, Lunch Detention, or any other placement types.
+
+How periods are stored in the database or created in the Schedule Builder.
+
+This is a Dashboard display fix only.
+
+4. Verification
+
+In your summary, please confirm:
+
+That for a Pre-Planned referral day with multiple periods, the Dashboard shows all periods.
+
+That for a Pre-Planned referral day with one period, that period still displays correctly.
+
+That Behavior, Cool-Down, ISS, and Lunch Detention Dashboard cards were not affected.

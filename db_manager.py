@@ -950,16 +950,19 @@ class DatabaseManager:
                                 result.append(placement_dict)
                         else:
                             # For today/future: Only show non-fulfilled sessions
-                            session_for_date = session.query(PartialDaySession).filter(
+                            # Use .all() to get ALL sessions for this date (Pre-Planned can have multiple periods)
+                            sessions_for_date = session.query(PartialDaySession).filter(
                                 PartialDaySession.placement_id == placement.id,
                                 PartialDaySession.date == target_date,
                                 PartialDaySession.status != SessionStatus.fulfilled
-                            ).first()
-                            if session_for_date:
-                                session_periods = session_for_date.periods or []
+                            ).all()
+                            if sessions_for_date:
+                                all_periods = []
+                                for s in sessions_for_date:
+                                    all_periods.extend(s.periods or [])
                                 placement_dict['scheduledSlots'] = [
                                     {'date': target_date.isoformat(), 'period': p} 
-                                    for p in session_periods
+                                    for p in all_periods
                                 ]
                                 result.append(placement_dict)
                     else:

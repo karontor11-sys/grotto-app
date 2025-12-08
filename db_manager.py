@@ -3175,11 +3175,13 @@ class DatabaseManager:
                          day_type: str = "Full Day", start_period: int = 1, end_period: int = 10,
                          points_earned: int = None, is_override: bool = False, 
                          override_note: str = None) -> Dict[str, Any]:
-        """Complete an ISS day with period tracking and auto-complete logic.
+        """Complete or edit an ISS day with period tracking and auto-complete logic.
         
         This is the main entry point for the "Complete Day" button on the Dashboard.
-        It routes to either complete_iss_full_day_session or complete_iss_partial_day_session
-        based on the day_type parameter, updates period totals, and auto-completes when done.
+        Supports both new completions and edits to existing entries.
+        
+        For edits: Updates the daily log with new values and recalculates placement
+        totals by summing all daily logs (prevents double-counting).
         
         Args:
             placement_id: ID of the placement
@@ -3201,73 +3203,151 @@ class DatabaseManager:
             - isCompleted: True if placement is now complete
             - message: Success/error message
         """
+        session = self.get_session()
         try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            # Get placement
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'success': False, 'message': 'Placement not found'}
+            
+            # Get student for logging
+            student = session.query(Student).filter(Student.id == placement.student_id).first()
+            student_name = f"{student.first_name} {student.last_name}" if student else "Unknown"
+            
             # Calculate periods for this day
             if day_type == "Full Day":
                 served_periods_for_day = 10
-                # Call full day completion
-                success = self.complete_iss_full_day_session(
-                    placement_id=placement_id,
-                    log_date=log_date,
-                    completed_by=completed_by,
-                    is_override=is_override,
-                    override_note=override_note,
-                    points_earned=points_earned
-                )
+                db_day_type = 'full'
+                actual_start = 1
+                actual_end = 10
+                periods_covered = list(range(1, 11))
             else:
-                # Partial Day
                 served_periods_for_day = end_period - start_period + 1
-                # Call partial day completion
-                success = self.complete_iss_partial_day_session(
+                db_day_type = 'partial'
+                actual_start = start_period
+                actual_end = end_period
+                periods_covered = list(range(start_period, end_period + 1))
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            is_edit = log is not None and log.daily_fulfillment == 'yes'
+            was_first_completion = log is None or log.daily_fulfillment != 'yes'
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
                     placement_id=placement_id,
-                    log_date=log_date,
-                    completed_by=completed_by,
-                    start_period=start_period,
-                    end_period=end_period,
-                    required_points=served_periods_for_day,
-                    is_override=is_override,
-                    override_note=override_note,
-                    points_earned=points_earned
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue'
                 )
+                session.add(log)
             
-            if not success:
-                return {
-                    'success': False,
-                    'message': 'Failed to complete ISS day'
-                }
+            # Update daily log with new values
+            log.day_type = db_day_type
+            log.start_period = actual_start
+            log.end_period = actual_end
+            log.periods_covered = periods_covered
+            log.periods_added = served_periods_for_day
+            log.required_points = served_periods_for_day
+            log.daily_fulfillment = 'yes'
+            log.finalized_by = completed_by
+            log.finalized_at = datetime.now()
             
-            # Get updated placement data
-            session = self.get_session()
-            try:
-                placement = session.query(Placement).filter(Placement.id == placement_id).first()
-                if not placement:
-                    return {
-                        'success': False,
-                        'message': 'Placement not found'
-                    }
+            if is_override:
+                log.override_used = True
+                log.override_comment = override_note
+            
+            # Flush to ensure this log is included in the sum query
+            session.flush()
+            
+            # Recalculate total periods served by summing ALL daily logs for this placement
+            # This ensures edits don't double-count and totals are always accurate
+            from sqlalchemy import func
+            total_periods = session.query(func.coalesce(func.sum(DailyLog.periods_added), 0)).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.daily_fulfillment == 'yes',
+                DailyLog.periods_added.isnot(None)
+            ).scalar()
+            
+            # Update placement totals
+            placement.iss_periods_served = total_periods
+            
+            # Count completed days
+            days_completed = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.daily_fulfillment == 'yes'
+            ).count()
+            placement.days_completed = days_completed
+            
+            # Calculate required and remaining
+            required_total = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
+            remaining = max(0, required_total - total_periods)
+            
+            # Check for auto-complete
+            was_completed = placement.status == PlacementStatus.completed
+            if total_periods >= required_total and not was_completed:
+                placement.status = PlacementStatus.completed
+                placement.end_date = date_obj
+                iss_days = placement.iss_days_assigned or 0
+                placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
+            
+            # Create ISS Session Log entry (only for new completions, not edits)
+            if was_first_completion:
+                session_type = 'Full Day' if day_type == "Full Day" else 'Partial Day'
+                if is_override:
+                    session_type = f"{session_type} (Override)"
                 
-                required_total = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
-                served_total = placement.iss_periods_served or 0
-                remaining = max(0, required_total - served_total)
-                is_completed = placement.status == PlacementStatus.completed
-                
-                return {
-                    'success': True,
-                    'servedPeriodsForThisDay': served_periods_for_day,
-                    'servedPeriodsTotal': served_total,
-                    'periodsRemaining': remaining,
-                    'requiredTotalPeriods': required_total,
-                    'isCompleted': is_completed,
-                    'message': 'ISS day completed successfully!'
-                }
-            finally:
-                session.close()
+                session_log = ISSSessionLog(
+                    id=self.generate_id(),
+                    placement_id=placement_id,
+                    session_date=date_obj,
+                    session_type=session_type,
+                    start_period=actual_start,
+                    end_period=actual_end,
+                    periods_covered=periods_covered,
+                    periods_credited=served_periods_for_day,
+                    points_target=served_periods_for_day,
+                    points_earned=points_earned,
+                    completion_method='Override' if is_override else 'Complete',
+                    notes=log.notes if log else None,
+                    override_reason=override_note if is_override else None,
+                    completed_by=completed_by
+                )
+                session.add(session_log)
+            
+            session.commit()
+            
+            is_now_completed = placement.status == PlacementStatus.completed
+            
+            return {
+                'success': True,
+                'servedPeriodsForThisDay': served_periods_for_day,
+                'servedPeriodsTotal': total_periods,
+                'periodsRemaining': remaining,
+                'requiredTotalPeriods': required_total,
+                'isCompleted': is_now_completed,
+                'isEdit': is_edit,
+                'message': 'ISS day updated successfully!' if is_edit else 'ISS day completed successfully!'
+            }
                 
         except Exception as e:
+            session.rollback()
             return {
                 'success': False,
                 'message': f'Error completing ISS day: {str(e)}'
             }
+        finally:
+            session.close()
     
     def keep_iss_session_open_for_makeup(self, placement_id: str) -> bool:
         """Keep the ISS session open for make-up periods.

@@ -1,0 +1,108 @@
+Enable Editing of ISS Days on the Dashboard
+
+Prompt 4 – Allow editing of ISS Dashboard entries while keeping totals correct
+
+The ISS Dashboard now:
+
+Calculates servedPeriodsForThisDay for Full vs Partial days,
+
+Updates the cumulative iss_periods_served / servedPeriodsTotal,
+
+Recomputes periodsRemaining,
+
+And auto-completes ISS when servedPeriodsTotal >= requiredTotalPeriods.
+
+Now please ensure staff can edit an existing ISS day entry (for late arrivals, early checkouts, or corrections) directly from the Dashboard, and that all totals remain accurate.
+
+1. Preload existing ISS day values into the Dashboard row
+
+When rendering the Dashboard for a given date:
+
+If there is already a saved ISS day entry for that placement_id + date, preload its values into the UI:
+
+Set the Day Type radio (Full Day vs Partial Day) based on the stored value.
+
+If the stored day is Partial:
+
+Prepopulate the Start Period and End Period dropdowns with the stored startPeriod and endPeriod.
+
+Prepopulate the Points field with the stored points for that day.
+
+The goal is: when staff revisit the Dashboard for a date that already has an ISS entry, they should see the current saved state reflected in the controls, not default/blank values.
+
+2. Support Full ↔ Partial conversions with recalculation
+
+If a staff member changes the Day Type or period range and clicks “Complete Day” again:
+
+Treat this as an update to the existing daily ISS record for that placement + date:
+
+Re-run the same logic already implemented for “Complete Day”:
+
+If Full Day:
+
+servedPeriodsForThisDay = 10
+
+Points must be 10.
+
+If Partial Day:
+
+servedPeriodsForThisDay = endPeriod - startPeriod + 1
+
+Points must equal servedPeriodsForThisDay.
+
+Overwrite the existing daily ISS record with the new values (do not create a duplicate for the same date).
+
+This must work in both directions:
+
+Full → Partial (e.g., early checkout discovered later).
+
+Partial → Full (e.g., correction if the student did serve all 10 periods).
+
+3. Recalculate iss_periods_served / servedPeriodsTotal after edits
+
+After any edit/save for an ISS day:
+
+Recalculate the placement’s total periods served by summing all servedPeriodsForThisDay values across all saved ISS days for that placement:
+
+iss_periods_served = sum(servedPeriodsForThisDay for all days in this placement)
+
+
+Update the placement’s stored total (iss_periods_served / servedPeriodsTotal) with this sum.
+
+Recompute:
+
+periodsRemaining = max(requiredTotalPeriods - iss_periods_served, 0)
+
+
+Re-run the auto-complete logic:
+
+If iss_periods_served >= requiredTotalPeriods, ensure the placement remains or becomes Completed.
+
+Note: use the existing field names you already implemented for totals and remaining periods.
+
+4. Guardrails for completed ISS placements
+
+For ISS placements that are already marked Completed:
+
+Do not allow edits that would increase iss_periods_served further.
+
+Simplest behavior:
+
+Do not show these placements in the active ISS section of the Dashboard at all, OR
+
+If they must be shown, render them as read-only (no Day Type / period controls and no “Complete Day” button).
+
+Once completed, ISS placements do not need to be re-opened.
+
+5. Keep the summary banner in sync
+
+After any edit and successful “Complete Day” save:
+
+Refresh the ISS summary banner for that placement on the Dashboard to show:
+
+ISS: Required {requiredTotalPeriods} periods | Served {iss_periods_served} | Remaining {periodsRemaining}
+
+
+Continue to show the existing success messages (“ISS day updated successfully”, or the completion message when the sentence is fully served).
+
+The objective is that staff can safely correct prior days (late arrival, early checkout, etc.), and the ISS period totals and completion status always stay accurate.

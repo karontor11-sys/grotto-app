@@ -1522,14 +1522,30 @@ if page == "Dashboard":
             
             # Day Type selector and controls (only show when checked in and not completed)
             if is_checked_in and not is_completed:
-                # Initialize session state for day type if not set
+                # Initialize session state for day type - preload from daily log if available
                 day_type_key = f"iss_day_type_{session_id}"
                 start_period_key = f"iss_start_period_{session_id}"
                 end_period_key = f"iss_end_period_{session_id}"
                 
+                # Preload existing values from daily log if they exist
+                stored_day_type = daily_log.get('dayType') if daily_log else None
+                stored_start_period = daily_log.get('startPeriod') if daily_log else None
+                stored_end_period = daily_log.get('endPeriod') if daily_log else None
+                
                 if day_type_key not in st.session_state:
-                    # Default to Full Day if current session has all 10 periods
-                    st.session_state[day_type_key] = "Full Day" if is_full_day else "Partial Day"
+                    # Use stored value if available, else default based on is_full_day
+                    if stored_day_type == 'full':
+                        st.session_state[day_type_key] = "Full Day"
+                    elif stored_day_type == 'partial':
+                        st.session_state[day_type_key] = "Partial Day"
+                    else:
+                        st.session_state[day_type_key] = "Full Day" if is_full_day else "Partial Day"
+                
+                # Preload start/end periods if stored
+                if start_period_key not in st.session_state and stored_start_period:
+                    st.session_state[start_period_key] = stored_start_period
+                if end_period_key not in st.session_state and stored_end_period:
+                    st.session_state[end_period_key] = stored_end_period
                 
                 # Day Type selector
                 st.markdown("**Day Type**")
@@ -1553,20 +1569,24 @@ if page == "Dashboard":
                         # Show Start and End Period dropdowns
                         period_options = list(range(1, 11))  # 1-10
                         
+                        # Determine default index from stored values or defaults
+                        default_start_idx = (stored_start_period - 1) if stored_start_period else 0
+                        default_end_idx = (stored_end_period - 1) if stored_end_period else (len(period_options) - 1)
+                        
                         period_col1, period_col2 = st.columns(2)
                         with period_col1:
                             selected_start_period = st.selectbox(
                                 "Start Period*",
                                 options=period_options,
                                 key=start_period_key,
-                                index=0
+                                index=default_start_idx if start_period_key not in st.session_state else None
                             )
                         with period_col2:
                             selected_end_period = st.selectbox(
                                 "End Period*",
                                 options=period_options,
                                 key=end_period_key,
-                                index=len(period_options) - 1  # Default to period 10
+                                index=default_end_idx if end_period_key not in st.session_state else None
                             )
                         
                         # Validate Start/End Period

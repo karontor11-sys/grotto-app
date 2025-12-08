@@ -72,6 +72,18 @@ The UI features a **Dashboard** with:
 - Updated "Complete" button to "Complete Day" with day type settings stored in session state
 - Complete Day button respects period validation and disables if errors present
 
+### ISS Period Tracking & Auto-Complete (December 2025)
+- Added `complete_iss_day` method in DatabaseManager as the main entry point for "Complete Day"
+- Method computes `servedPeriodsForThisDay` based on day type:
+  - Full Day = 10 periods
+  - Partial Day = endPeriod - startPeriod + 1
+- Updates placement's `iss_periods_served` field with cumulative total
+- Calculates `periodsRemaining = max(requiredTotalPeriods - servedPeriodsTotal, 0)`
+- Auto-completes ISS placement when `servedPeriodsTotal >= requiredTotalPeriods`
+- Dashboard refreshes with updated totals after completion
+- Override button also uses `complete_iss_day` with `is_override=True`
+- Retroactive completion buttons (for no-show sessions) also integrated
+
 ### ISS Period-Based Model Enhancement
 - Added `PERIODS_PER_FULL_DAY = 10` constant for ISS period calculations
 - Enhanced placement dictionary output with computed fields:

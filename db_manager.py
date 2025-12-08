@@ -1902,8 +1902,9 @@ class DatabaseManager:
             result = []
             for sess in sessions:
                 placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
-                # Include active, scheduled, and needs_makeup placements
-                if placement and placement.status in [PlacementStatus.active, PlacementStatus.scheduled, PlacementStatus.needs_makeup]:
+                # Include active, scheduled, needs_makeup, AND completed placements
+                # Completed placements should still show on dates within their scheduled range
+                if placement and placement.status in [PlacementStatus.active, PlacementStatus.scheduled, PlacementStatus.needs_makeup, PlacementStatus.completed]:
                     student = db_session.query(Student).filter(Student.id == placement.student_id).first()
                     if student:
                         periods = sess.periods if sess.periods else list(range(1, 11))
@@ -1913,6 +1914,17 @@ class DatabaseManager:
                             period_display = f"Period {periods[0]}"
                         else:
                             period_display = f"Periods {min(periods)}–{max(periods)}"
+                        
+                        # Derive ISS status based on periods served
+                        iss_total_required = placement.iss_total_required_periods or 0
+                        iss_periods_served = placement.iss_periods_served or 0
+                        is_placement_completed = placement.status == PlacementStatus.completed
+                        if is_placement_completed or (iss_total_required > 0 and iss_periods_served >= iss_total_required):
+                            iss_status = "Completed"
+                        elif iss_periods_served > 0:
+                            iss_status = "In Progress"
+                        else:
+                            iss_status = "Not Started"
                         
                         result.append({
                             'session_id': sess.id,
@@ -1935,7 +1947,8 @@ class DatabaseManager:
                             'iss_days_assigned': placement.iss_days_assigned,
                             'iss_total_required_periods': placement.iss_total_required_periods,
                             'iss_periods_served': placement.iss_periods_served or 0,
-                            'days_completed': placement.days_completed or 0
+                            'days_completed': placement.days_completed or 0,
+                            'issStatus': iss_status  # Derived status field
                         })
             
             return result

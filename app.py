@@ -1952,8 +1952,17 @@ if page == "Dashboard":
         for iss_session in iss_sessions:
             session_id = iss_session['session_id']
             student_name = iss_session['student_name']
+            iss_status = iss_session.get('issStatus', 'Not Started')
             
-            with st.expander(f"{student_name}", expanded=False):
+            # Create status badge with color coding
+            if iss_status == "Completed":
+                status_badge = "✅ Completed"
+            elif iss_status == "In Progress":
+                status_badge = "🔵 In Progress"
+            else:
+                status_badge = "⚪ Not Started"
+            
+            with st.expander(f"{student_name} — {status_badge}", expanded=False):
                 render_iss_session_card(iss_session, selected_date)
         
         # Then show scheduled (future) placements as locked cards
@@ -1967,7 +1976,8 @@ if page == "Dashboard":
             start_date_obj = datetime.fromisoformat(start_date_str).date() if start_date_str else None
             formatted_start_date = start_date_obj.strftime('%B %d, %Y') if start_date_obj else 'Unknown'
             
-            with st.expander(f"🔒 {student_name} (Scheduled)", expanded=False):
+            # Scheduled placements are always "Not Started"
+            with st.expander(f"🔒 {student_name} — ⚪ Not Started", expanded=False):
                 # Render locked card for scheduled placement
                 with st.container():
                     st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)

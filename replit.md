@@ -27,6 +27,7 @@ A consistent date handling strategy uses ISO format for storage, date objects fo
 
 ### UI Components
 The UI features a **Dashboard** with:
+- **Date Selector**: Allows viewing placements for any date (past, present, or future). Defaults to today. Past dates show historical activity including completed placements; future dates show scheduled placements.
 - **Today's Sessions**: Horizontal chip strip.
 - **Active Placements**: Card-based student overviews for active placements, sorted by a 5-level hierarchy. Cards display placement type, progress indicator, student details, today's points, and quick action buttons. The "Class Period Referral" section unifies all referral subtypes under one display.
 - **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry and featuring a streamlined single-selector interface for three main placement types:

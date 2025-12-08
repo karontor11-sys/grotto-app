@@ -10,6 +10,9 @@ from utils import add_business_days, get_school_days
 
 Base = declarative_base()
 
+# ISS Period-based tracking constant
+PERIODS_PER_FULL_DAY = 10  # Standard 10-period school day for ISS calculations
+
 # Define enums
 class StudentStatus(enum.Enum):
     active = "active"
@@ -577,8 +580,17 @@ class DatabaseManager:
             
             # Calculate period-based ISS tracking fields
             iss_days_assigned = placement_data.get('issTotalDays') or placement_data.get('daysAssigned', 1)
-            iss_total_required_periods = iss_days_assigned * 10 if placement_category == PlacementCategory.ISS else None
+            iss_total_required_periods = iss_days_assigned * PERIODS_PER_FULL_DAY if placement_category == PlacementCategory.ISS else None
             iss_periods_served = 0
+            
+            # Debug output for ISS period-based model verification
+            if placement_category == PlacementCategory.ISS:
+                print(f"[DEBUG ISS MODEL] Creating ISS placement:")
+                print(f"  - num_days (iss_days_assigned): {iss_days_assigned}")
+                print(f"  - periods_per_full_day: {PERIODS_PER_FULL_DAY}")
+                print(f"  - required_total_periods: {iss_total_required_periods}")
+                print(f"  - served_periods_total: {iss_periods_served}")
+                print(f"  - periods_remaining: {iss_total_required_periods - iss_periods_served}")
             
             # Determine placement status based on start date
             # If start date is in the future, set status to 'scheduled'
@@ -3792,6 +3804,21 @@ class DatabaseManager:
     
     def _placement_to_dict(self, placement: Placement) -> Dict[str, Any]:
         """Convert Placement ORM object to dictionary."""
+        # Calculate periods remaining dynamically for ISS placements
+        iss_total_required = placement.iss_total_required_periods or 0
+        iss_periods_served = placement.iss_periods_served or 0
+        periods_remaining = max(0, iss_total_required - iss_periods_served)
+        num_days = placement.iss_days_assigned or placement.iss_total_days or placement.days_assigned
+        
+        # Debug output for ISS period-based model verification (temporary)
+        if placement.placement_type == PlacementCategory.ISS:
+            print(f"[DEBUG ISS MODEL] Loading ISS placement {placement.id[:8]}...:")
+            print(f"  - num_days: {num_days}")
+            print(f"  - periods_per_full_day: {PERIODS_PER_FULL_DAY}")
+            print(f"  - required_total_periods: {iss_total_required}")
+            print(f"  - served_periods_total: {iss_periods_served}")
+            print(f"  - periods_remaining: {periods_remaining}")
+        
         return {
             '_id': placement.id,
             'studentId': placement.student_id,
@@ -3807,9 +3834,15 @@ class DatabaseManager:
             'issStartDate': placement.iss_start_date.isoformat() if placement.iss_start_date else None,
             'issTotalDays': placement.iss_total_days,
             'issRemainingDays': placement.iss_remaining_days,
+            # Period-based ISS tracking (new standard fields)
+            'periodsPerFullDay': PERIODS_PER_FULL_DAY,  # Constant: 10 periods per school day
+            'numDays': num_days,  # Alias for clarity
             'issDaysAssigned': placement.iss_days_assigned,
             'issTotalRequiredPeriods': placement.iss_total_required_periods,
-            'issPeriodsServed': placement.iss_periods_served or 0,
+            'requiredTotalPeriods': iss_total_required,  # Alias for clarity
+            'issPeriodsServed': iss_periods_served,
+            'servedPeriodsTotal': iss_periods_served,  # Alias for clarity
+            'periodsRemaining': periods_remaining,  # Dynamically computed
             'startDate': placement.start_date.isoformat(),
             'endDate': placement.end_date.isoformat() if placement.end_date else None,
             'startPeriod': placement.start_period,

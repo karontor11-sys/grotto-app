@@ -1,0 +1,70 @@
+ISS placement model with period-based sentence (no changes to existing ISS radio button setup)
+
+Prompt 1 – ISS placement model: period-based sentence
+
+The Create New Placement page already correctly shows one ISS placement type, so please leave that as-is.
+Now update the data model and backend logic for ISS placements so each ISS “sentence” is calculated in periods, using a standard 10-period school day.
+
+1. Add or confirm ISS placement fields
+
+For any placement whose selected type is ISS, ensure the following fields exist (as stored attributes or dictionary keys):
+
+periods_per_full_day → set this to 10 for our school.
+
+num_days → already provided by the Create New Placement page.
+
+required_total_periods → compute this as num_days * periods_per_full_day and store it.
+
+served_periods_total → initialize this to 0 when the placement is created.
+
+And ensure:
+
+periods_remaining is always computed dynamically as:
+periods_remaining = max(required_total_periods - served_periods_total, 0)
+
+(This can be a property/getter, not a stored column.)
+
+2. Create New Placement behavior
+
+When the user creates an ISS placement:
+
+Leave the UI exactly as it already exists (single ISS option).
+
+After the placement is saved:
+
+Set periods_per_full_day = 10
+
+Compute and store required_total_periods = num_days * 10
+
+Set served_periods_total = 0
+
+No UI changes are required here — only backend updates.
+
+3. Backwards compatibility for older ISS placements
+
+If you load any existing ISS placements that are missing these fields:
+
+Set periods_per_full_day = 10
+
+Compute required_total_periods = num_days * 10
+
+If served_periods_total is missing, initialize it to 0.
+
+4. Temporary debug output
+
+For now (can be removed later), please print or log for each ISS placement:
+
+num_days
+
+periods_per_full_day
+
+required_total_periods
+
+served_periods_total
+
+periods_remaining
+
+This is to verify that the model is wired correctly before moving on to Prompts 2–4.
+
+Do not modify the Create New Placement UI or the number of ISS options — they are already correct.
+This prompt is only about ensuring the backend period-based ISS model is fully implemented and initialized.

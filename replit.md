@@ -62,6 +62,16 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes (December 2025)
 
+### ISS Dashboard Controls (Full Day vs Partial Day UI)
+- Added ISS session summary display: `ISS: Required X periods | Served Y | Remaining Z`
+- Added Day Type selector with "Full Day" and "Partial Day" options for active ISS placements
+- **Full Day UI**: Hides period controls, shows points field with 10-point requirement
+- **Partial Day UI**: Shows Start/End Period dropdowns (1-10) with validation
+  - Error if End Period < Start Period
+  - Points requirement adjusts based on periods selected (1 point per period)
+- Updated "Complete" button to "Complete Day" with day type settings stored in session state
+- Complete Day button respects period validation and disables if errors present
+
 ### ISS Period-Based Model Enhancement
 - Added `PERIODS_PER_FULL_DAY = 10` constant for ISS period calculations
 - Enhanced placement dictionary output with computed fields:

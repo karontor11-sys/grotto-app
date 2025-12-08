@@ -107,6 +107,13 @@ The UI features a **Dashboard** with:
 - **Completed Placement Guardrails**: Placements with status "completed" are rendered as read-only with a clear "ISS Session Complete" message, preventing further edits
 - **Full ↔ Partial Conversions**: Supports changing a day from Full Day to Partial Day (or vice versa) with automatic period recalculation
 
+### ISS Status Field (December 2025)
+- **Derived Status**: Added `issStatus` computed field to ISS placements based on periods served:
+  - **Not Started**: `iss_periods_served == 0`
+  - **In Progress**: `iss_periods_served > 0` AND `iss_periods_served < requiredTotalPeriods`
+  - **Completed**: `iss_periods_served >= requiredTotalPeriods` OR placement status is completed
+- Field is available in placement dictionary as `issStatus` for UI display
+
 ## External Dependencies
 
 ### Core Framework

@@ -3988,6 +3988,18 @@ class DatabaseManager:
         periods_remaining = max(0, iss_total_required - iss_periods_served)
         num_days = placement.iss_days_assigned or placement.iss_total_days or placement.days_assigned
         
+        # Derive ISS status based on periods served
+        # - Not Started: periods served == 0
+        # - In Progress: periods served > 0 AND periods served < required
+        # - Completed: periods served >= required OR placement status is completed
+        is_placement_completed = placement.status == PlacementStatus.completed
+        if is_placement_completed or (iss_total_required > 0 and iss_periods_served >= iss_total_required):
+            iss_status = "Completed"
+        elif iss_periods_served > 0:
+            iss_status = "In Progress"
+        else:
+            iss_status = "Not Started"
+        
         # Debug output for ISS period-based model verification (temporary)
         if placement.placement_type == PlacementCategory.ISS:
             print(f"[DEBUG ISS MODEL] Loading ISS placement {placement.id[:8]}...:")
@@ -3996,6 +4008,7 @@ class DatabaseManager:
             print(f"  - required_total_periods: {iss_total_required}")
             print(f"  - served_periods_total: {iss_periods_served}")
             print(f"  - periods_remaining: {periods_remaining}")
+            print(f"  - iss_status: {iss_status}")
         
         return {
             '_id': placement.id,
@@ -4021,6 +4034,7 @@ class DatabaseManager:
             'issPeriodsServed': iss_periods_served,
             'servedPeriodsTotal': iss_periods_served,  # Alias for clarity
             'periodsRemaining': periods_remaining,  # Dynamically computed
+            'issStatus': iss_status,  # Derived: "Not Started" / "In Progress" / "Completed"
             'startDate': placement.start_date.isoformat(),
             'endDate': placement.end_date.isoformat() if placement.end_date else None,
             'startPeriod': placement.start_period,

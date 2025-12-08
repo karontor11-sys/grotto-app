@@ -1450,8 +1450,15 @@ if page == "Dashboard":
         session_status = iss_session.get('status', 'scheduled')
         fulfillment = (daily_log.get('dailyFulfillment') or '') if daily_log else ''
         override_used = (daily_log.get('overrideUsed', False) if daily_log else False)
-        is_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
+        is_day_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
         is_no_show = session_status == 'no_show'
+        
+        # Check if placement itself is completed (prevents further edits)
+        placement_status = iss_session.get('placement_status', 'active')
+        is_placement_completed = placement_status == 'completed'
+        
+        # is_completed = True if either the day is completed OR the entire placement is completed
+        is_completed = is_day_completed or is_placement_completed
         
         if is_completed:
             status_icon = '🟢'
@@ -1519,6 +1526,10 @@ if page == "Dashboard":
                 Remaining <strong>{periods_remaining}</strong>
             </div>
             """, unsafe_allow_html=True)
+            
+            # Show completion message for fully completed placements
+            if is_placement_completed:
+                st.success("ISS Session Complete - All required periods served. No further edits allowed.")
             
             # Day Type selector and controls (only show when checked in and not completed)
             if is_checked_in and not is_completed:

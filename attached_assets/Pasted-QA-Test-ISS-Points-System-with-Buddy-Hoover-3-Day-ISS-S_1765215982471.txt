@@ -1,0 +1,108 @@
+QA Test – ISS Points System with Buddy Hoover (3-Day ISS Starting 12/8/2025)
+Title: QA – Test ISS points workflow using Buddy Hoover
+Please run a simple, manual-style QA test of the ISS points system using the student Buddy Holly.
+Do not change any underlying logic or code in this prompt—this is a behavior/QA check only.
+
+1. Create a 3-day ISS placement for Buddy Hoover
+Go to Placements → Create Placement.
+
+
+Enter a new placement with:
+
+
+Student: Buddy Hoover
+
+
+Placement Type: In-School Suspension (ISS)
+
+
+Start Date: 12/08/2025
+
+
+Number of Days: 3 (3 days of ISS starting today)
+
+
+Submit the form to create the placement.
+
+
+Confirm:
+
+
+The placement is created successfully.
+
+
+Buddy Holly appears on the Dashboard for 12/08/2025 as an ISS student.
+
+
+
+2. Test ISS points for today (Day 1)
+Navigate to the Daily Log / ISS Log view for today (12/08/2025).
+
+
+Locate Buddy Hoover’s ISS entry.
+
+
+Check the student in for today:
+
+
+Use the existing Check In / Present / attendance control so the system treats today as an active ISS day.
+
+
+Award ISS points:
+
+
+Using the ISS points UI, click up to 10 points total for Buddy Holly today.
+
+
+Keep the test simple and straightforward:
+
+
+Award positive points in the standard way (no need to test edge cases or deductions in this pass).
+
+
+Complete the day:
+
+
+Use the appropriate Complete / Finish control for today’s ISS session for Buddy Hoover.
+
+
+Confirm that:
+
+
+Today’s ISS day is marked complete for Buddy Hoover.
+
+
+The points total for today is recorded correctly (up to 10 points as awarded).
+
+
+
+3. Verification checklist
+Please include a brief summary confirming:
+ISS placement:
+
+
+Buddy Hoover has a 3-day ISS placement starting on 12/08/2025.
+
+
+Day 1 behavior:
+
+
+Buddy Hoover was successfully checked in for ISS on 12/08/2025.
+
+
+Up to 10 points were awarded without errors.
+
+
+The day was completed for Buddy Hoover.
+
+
+Points record:
+
+
+The final points total for today is correctly stored and visible wherever ISS day points are normally displayed.
+
+
+No errors:
+
+
+No UI or logic errors occurred during this simple workflow.

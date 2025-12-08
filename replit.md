@@ -114,6 +114,14 @@ The UI features a **Dashboard** with:
   - **Completed**: `iss_periods_served >= requiredTotalPeriods` OR placement status is completed
 - Field is available in placement dictionary as `issStatus` for UI display
 
+### ISS Status Badge on Dashboard (December 2025)
+- **Calendar-Based View**: ISS placements now show on all dates within their scheduled date range, including completed placements
+- **Status Badge**: Each ISS card expander shows a color-coded status badge:
+  - ⚪ Not Started (gray) - No periods served yet
+  - 🔵 In Progress (blue) - Some periods served, not complete
+  - ✅ Completed (green) - All required periods served
+- **Scheduled Placements**: Future placements show with 🔒 lock icon and ⚪ Not Started badge
+
 ## External Dependencies
 
 ### Core Framework

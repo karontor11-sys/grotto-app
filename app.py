@@ -1684,24 +1684,48 @@ if page == "Dashboard":
                     complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
                     if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary", 
                                  use_container_width=True, disabled=not can_complete, help=complete_help):
-                        # Store day type settings for the complete action
-                        # (Full save logic will be implemented in next prompt)
-                        st.session_state[f"iss_complete_day_type_{placement_id}_{date_str}"] = current_day_type
-                        if current_day_type == "Partial Day":
-                            st.session_state[f"iss_complete_start_period_{placement_id}_{date_str}"] = st.session_state.get(f"iss_start_period_{session_id}", 1)
-                            st.session_state[f"iss_complete_end_period_{placement_id}_{date_str}"] = st.session_state.get(f"iss_end_period_{session_id}", 10)
+                        # Get day type and period settings from session state
+                        selected_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
+                        selected_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
+                        selected_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
                         
-                        dm.mark_session_completed(session_id, "Admin")
-                        if not is_present:
-                            dm.update_iss_attendance(placement_id, date_str, True)
-                        # Check if make-up is needed after completing
-                        makeup_check = dm.check_iss_session_needs_makeup(placement_id)
-                        if makeup_check.get('needsMakeup', False):
-                            st.session_state[f"show_makeup_prompt_{placement_id}"] = True
-                            st.session_state[f"makeup_info_{placement_id}"] = makeup_check
-                        success_msg = "Day completed retroactively!" if is_past_session else "Day completed!"
-                        st.success(success_msg)
-                        st.rerun()
+                        # Call the complete_iss_day method which handles:
+                        # - Computing servedPeriodsForThisDay (10 for Full, end-start+1 for Partial)
+                        # - Updating iss_periods_served on the placement
+                        # - Auto-completing when servedPeriodsTotal >= requiredTotalPeriods
+                        result = dm.complete_iss_day(
+                            placement_id=placement_id,
+                            log_date=date_str,
+                            completed_by="Admin",
+                            day_type=selected_day_type,
+                            start_period=selected_start,
+                            end_period=selected_end,
+                            points_earned=total_points
+                        )
+                        
+                        if result.get('success'):
+                            # Also mark the session as completed
+                            dm.mark_session_completed(session_id, "Admin")
+                            if not is_present:
+                                dm.update_iss_attendance(placement_id, date_str, True)
+                            
+                            # Check if placement is now complete
+                            if result.get('isCompleted'):
+                                st.success("ISS Session complete! All required periods served.")
+                            else:
+                                # Check if make-up is needed
+                                makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                                if makeup_check.get('needsMakeup', False):
+                                    st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                    st.session_state[f"makeup_info_{placement_id}"] = makeup_check
+                                st.success("ISS day completed successfully!")
+                            
+                            # Clear dashboard caches to refresh data
+                            if hasattr(st, 'cache_data'):
+                                st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(result.get('message', 'Failed to complete ISS day'))
                 
                 with action_col2:
                     override_key = f"iss_override_expand_{session_id}"
@@ -1719,17 +1743,42 @@ if page == "Dashboard":
                     st.warning(warning_msg)
                     if st.button("Confirm Override", key=f"iss_override_confirm_{session_id}", type="primary"):
                         override_note = "Retroactive override: session marked complete after the fact." if is_past_session else "Supervisor override: student released early due to positive behavior; remaining periods waived."
-                        dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
-                        if not is_present:
-                            dm.update_iss_attendance(placement_id, date_str, True)
-                        # Check if make-up is needed after completing
-                        makeup_check = dm.check_iss_session_needs_makeup(placement_id)
-                        if makeup_check.get('needsMakeup', False):
-                            st.session_state[f"show_makeup_prompt_{placement_id}"] = True
-                            st.session_state[f"makeup_info_{placement_id}"] = makeup_check
-                        st.success("✅ Override applied retroactively!" if is_past_session else "✅ Override applied!")
-                        st.session_state[f"iss_override_expand_{session_id}"] = False
-                        st.rerun()
+                        
+                        # Use complete_iss_day with override flag - always use Full Day for override
+                        result = dm.complete_iss_day(
+                            placement_id=placement_id,
+                            log_date=date_str,
+                            completed_by="Admin",
+                            day_type="Full Day",  # Override always credits full day
+                            start_period=1,
+                            end_period=10,
+                            points_earned=total_points,
+                            is_override=True,
+                            override_note=override_note
+                        )
+                        
+                        if result.get('success'):
+                            dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
+                            if not is_present:
+                                dm.update_iss_attendance(placement_id, date_str, True)
+                            
+                            # Check if placement is now complete
+                            if result.get('isCompleted'):
+                                st.success("✅ Override applied! ISS Session complete.")
+                            else:
+                                # Check if make-up is needed after completing
+                                makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                                if makeup_check.get('needsMakeup', False):
+                                    st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                    st.session_state[f"makeup_info_{placement_id}"] = makeup_check
+                                st.success("✅ Override applied retroactively!" if is_past_session else "✅ Override applied!")
+                            
+                            st.session_state[f"iss_override_expand_{session_id}"] = False
+                            if hasattr(st, 'cache_data'):
+                                st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(result.get('message', 'Failed to apply override'))
             elif not is_checked_in and not is_completed and not is_no_show:
                 st.caption("Check in student to add behaviors and track points")
             elif is_no_show:
@@ -1740,15 +1789,48 @@ if page == "Dashboard":
                 retro_col1, retro_col2 = st.columns(2)
                 with retro_col1:
                     if st.button("Mark Complete (Retroactive)", key=f"iss_retro_complete_{session_id}"):
-                        dm.mark_session_completed(session_id, "Admin")
-                        st.success("Session marked complete!")
-                        st.rerun()
+                        # Use complete_iss_day for retroactive completion
+                        result = dm.complete_iss_day(
+                            placement_id=placement_id,
+                            log_date=date_str,
+                            completed_by="Admin",
+                            day_type="Full Day",
+                            points_earned=total_points
+                        )
+                        if result.get('success'):
+                            dm.mark_session_completed(session_id, "Admin")
+                            if result.get('isCompleted'):
+                                st.success("Session marked complete! ISS Session finished.")
+                            else:
+                                st.success("Session marked complete!")
+                            if hasattr(st, 'cache_data'):
+                                st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(result.get('message', 'Failed to complete session'))
                 with retro_col2:
                     if st.button("Apply Override", key=f"iss_retro_override_{session_id}"):
                         override_note = "Retroactive override: session marked complete after end-of-day processing."
-                        dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
-                        st.success("Override applied!")
-                        st.rerun()
+                        result = dm.complete_iss_day(
+                            placement_id=placement_id,
+                            log_date=date_str,
+                            completed_by="Admin",
+                            day_type="Full Day",
+                            points_earned=total_points,
+                            is_override=True,
+                            override_note=override_note
+                        )
+                        if result.get('success'):
+                            dm.mark_session_completed(session_id, "Admin", is_override=True, override_comment=override_note)
+                            if result.get('isCompleted'):
+                                st.success("Override applied! ISS Session finished.")
+                            else:
+                                st.success("Override applied!")
+                            if hasattr(st, 'cache_data'):
+                                st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(result.get('message', 'Failed to apply override'))
             else:
                 st.success("Session Completed" + (" (Override)" if override_used else ""))
                 st.markdown(f"**Points Total: {total_points}**")

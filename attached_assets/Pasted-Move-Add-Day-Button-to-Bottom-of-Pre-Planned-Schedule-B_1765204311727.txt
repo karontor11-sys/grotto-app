@@ -1,0 +1,61 @@
+Move “Add Day” Button to Bottom of Pre-Planned Schedule Builder
+
+Title: Adjust Pre-Planned Class Period Referral “Add Day” Button Position
+
+In the Grotto App, please update the Pre-Planned Class Period Referral schedule builder on the Create Placement page (after the user selects Class Period Referral and then the Pre-Planned subtype) so that the “Add Day” button always appears directly beneath the most recently added day, instead of staying under the first day.
+
+Current Behavior (Problem)
+
+On the Create Placement → Class Period Referral → Pre-Planned page:
+
+The schedule builder displays Day 1, followed by an “Add Day” button.
+
+When the user adds Day 2, Day 3, etc., those new days appear below Day 1.
+
+However, the “Add Day” button stays underneath Day 1, even after more days are added.
+
+This forces the user to scroll back up to Day 1 to add additional days, which disrupts the natural workflow.
+
+Desired Behavior
+
+For Pre-Planned Class Period Referrals on the Create Placement page only:
+
+The “Add Day” button should always render beneath the last day block in the schedule builder.
+
+Examples:
+
+With only Day 1:
+
+“Add Day” appears below Day 1.
+
+After adding Day 2:
+
+“Add Day” moves below Day 2.
+
+After adding Day 3, Day 4, etc.:
+
+“Add Day” always appears at the bottom, directly below the newest added day.
+
+No functionality of the button changes—only its placement in the UI.
+
+The internal data structure and logic for multiple days should remain exactly the same.
+
+Scope / Constraints
+
+Apply this cosmetic positioning change only within the Create Placement → Class Period Referral → Pre-Planned workflow.
+
+Do not modify:
+
+Behavior or Cool-Down schedule builders
+
+ISS or Lunch Detention scheduling
+
+How days or periods are stored, validated, or processed
+
+This is strictly a UI layout update.
+
+Verification in Summary
+
+After implementing the change, confirm that:
+
+When multiple days are added in a Pre-Planned referral on the Create Placement page, the “Add Day” button always appears at the bottom of the list, directly beneath the most recently added day.

@@ -2198,8 +2198,6 @@ elif page == "Placements":
                             )
                         
                         schedule_data.append({"date": row_date, "periods": row_periods})
-                        
-                        add_row_button = st.form_submit_button("+ Add Day", use_container_width=False)
                         st.divider()
                         
                         for idx in range(1, len(st.session_state.preplanned_schedule)):
@@ -2228,6 +2226,8 @@ elif page == "Placements":
                             
                             schedule_data.append({"date": row_date, "periods": row_periods})
                             st.divider()
+                        
+                        add_row_button = st.form_submit_button("+ Add Day", use_container_width=False)
                         
                         created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="pp_created_by")
                         

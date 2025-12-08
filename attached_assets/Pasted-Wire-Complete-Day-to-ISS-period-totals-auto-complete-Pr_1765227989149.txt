@@ -1,0 +1,89 @@
+Wire “Complete Day” to ISS period totals + auto-complete
+
+Prompt 3 – Hook ISS Dashboard “Complete Day” into period totals and auto-complete
+
+The ISS Dashboard UI is now correct:
+
+Day Type (Full / Partial)
+
+Start/End Periods for Partial
+
+Points (10 for Full Day; 1 point per period for Partial)
+
+“Complete Day” button
+
+Now please connect this to the ISS period totals so each day served updates the ISS “sentence” correctly.
+
+1. Compute servedPeriodsForThisDay when “Complete Day” is clicked
+
+When the user clicks “Complete Day” for an ISS placement on the Dashboard (and validation passes):
+
+Read the stored values for that row for the current date:
+
+dayType ("FULL" or "PARTIAL")
+
+startPeriod and endPeriod (for Partial)
+
+points (which already matches periods based on your existing logic)
+
+Compute:
+
+If dayType == "FULL":
+
+servedPeriodsForThisDay = 10
+
+If dayType == "PARTIAL":
+
+servedPeriodsForThisDay = endPeriod - startPeriod + 1
+
+Save this servedPeriodsForThisDay value in the daily ISS record for that placement + date.
+
+2. Recalculate servedPeriodsTotal and periodsRemaining
+
+After saving the daily entry:
+
+For that ISS placement:
+
+Recalculate servedPeriodsTotal as the sum of all servedPeriodsForThisDay values across all saved days for this placement.
+
+Update the placement’s servedPeriodsTotal field with this sum.
+
+Recompute:
+
+periodsRemaining = max(requiredTotalPeriods - servedPeriodsTotal, 0)
+
+Make sure the Dashboard ISS summary banner uses these updated values:
+
+ISS: Required {requiredTotalPeriods} periods | Served {servedPeriodsTotal} | Remaining {periodsRemaining}
+
+3. Auto-complete ISS placements when sentence is served
+
+After updating totals:
+
+If:
+
+servedPeriodsTotal >= requiredTotalPeriods
+
+
+Then:
+
+Mark this ISS placement as Completed using your existing completion status field / mechanism.
+
+Ensure it no longer appears in the “active ISS” list on the Dashboard for future dates.
+
+Ensure it appears in your existing Completed placements or history view.
+
+4. Refresh Dashboard row and feedback
+
+After a successful “Complete Day”:
+
+Refresh the ISS row for that student:
+
+Update the summary: Required / Served / Remaining.
+
+Show a brief success message like:
+
+ISS day updated successfully.
+
+
+This prompt should not change any of the UI controls (they are already correct), only the data updates and completion logic that run after “Complete Day” is clicked.

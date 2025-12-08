@@ -3171,6 +3171,104 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def complete_iss_day(self, placement_id: str, log_date: str, completed_by: str,
+                         day_type: str = "Full Day", start_period: int = 1, end_period: int = 10,
+                         points_earned: int = None, is_override: bool = False, 
+                         override_note: str = None) -> Dict[str, Any]:
+        """Complete an ISS day with period tracking and auto-complete logic.
+        
+        This is the main entry point for the "Complete Day" button on the Dashboard.
+        It routes to either complete_iss_full_day_session or complete_iss_partial_day_session
+        based on the day_type parameter, updates period totals, and auto-completes when done.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            completed_by: Name/ID of person completing
+            day_type: "Full Day" or "Partial Day"
+            start_period: Starting period (1-10) for Partial Day
+            end_period: Ending period (1-10) for Partial Day
+            points_earned: Points earned for this session
+            is_override: True if using Override
+            override_note: Required note when using override
+            
+        Returns:
+            Dictionary with:
+            - success: True if successful
+            - servedPeriodsForThisDay: Periods credited for this day
+            - servedPeriodsTotal: Updated total periods served
+            - periodsRemaining: Remaining periods needed
+            - isCompleted: True if placement is now complete
+            - message: Success/error message
+        """
+        try:
+            # Calculate periods for this day
+            if day_type == "Full Day":
+                served_periods_for_day = 10
+                # Call full day completion
+                success = self.complete_iss_full_day_session(
+                    placement_id=placement_id,
+                    log_date=log_date,
+                    completed_by=completed_by,
+                    is_override=is_override,
+                    override_note=override_note,
+                    points_earned=points_earned
+                )
+            else:
+                # Partial Day
+                served_periods_for_day = end_period - start_period + 1
+                # Call partial day completion
+                success = self.complete_iss_partial_day_session(
+                    placement_id=placement_id,
+                    log_date=log_date,
+                    completed_by=completed_by,
+                    start_period=start_period,
+                    end_period=end_period,
+                    required_points=served_periods_for_day,
+                    is_override=is_override,
+                    override_note=override_note,
+                    points_earned=points_earned
+                )
+            
+            if not success:
+                return {
+                    'success': False,
+                    'message': 'Failed to complete ISS day'
+                }
+            
+            # Get updated placement data
+            session = self.get_session()
+            try:
+                placement = session.query(Placement).filter(Placement.id == placement_id).first()
+                if not placement:
+                    return {
+                        'success': False,
+                        'message': 'Placement not found'
+                    }
+                
+                required_total = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
+                served_total = placement.iss_periods_served or 0
+                remaining = max(0, required_total - served_total)
+                is_completed = placement.status == PlacementStatus.completed
+                
+                return {
+                    'success': True,
+                    'servedPeriodsForThisDay': served_periods_for_day,
+                    'servedPeriodsTotal': served_total,
+                    'periodsRemaining': remaining,
+                    'requiredTotalPeriods': required_total,
+                    'isCompleted': is_completed,
+                    'message': 'ISS day completed successfully!'
+                }
+            finally:
+                session.close()
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'Error completing ISS day: {str(e)}'
+            }
+    
     def keep_iss_session_open_for_makeup(self, placement_id: str) -> bool:
         """Keep the ISS session open for make-up periods.
         

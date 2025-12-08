@@ -1,0 +1,133 @@
+Make Dashboard Date Selector Show Past, Present, and Future Placements
+Title: Dynamic date-based filtering on Dashboard (past, today, future)
+Please update the Dashboard so that the date selector behaves consistently for any chosen date (past, present, or future), and always shows the correct placements for that date.
+
+1. Default Behavior on Page Load
+When the user first navigates to the Dashboard, the date selector should always default to today’s date.
+
+
+This is likely already happening; please ensure this behavior remains intact.
+
+
+
+2. Core Behavior
+When a user selects any date on the Dashboard:
+Show all placements that are active or scheduled for that specific date, whether it is:
+
+
+A past date
+
+
+Today
+
+
+A future date
+
+
+This applies to all placement types:
+ISS
+
+
+Lunch Detention
+
+
+Class Period Referral (Behavior, Cool-Down, Pre-Planned)
+
+
+Any others already implemented
+
+
+
+3. Past Dates (History View)
+If the selected date is in the past:
+Display all placements that were active on that day, including:
+
+
+Single-day placements
+
+
+Multi-day placements spanning that date
+
+
+Pre-Planned referral days scheduled for that date
+
+
+The view should reflect what the active list would have looked like on that date.
+
+4. Today (Current View)
+For today’s date:
+Keep the existing behavior:
+
+
+Show all placements that are active today.
+
+
+Continue showing real-time operational data.
+
+
+
+5. Future Dates (Planning View)
+If the selected date is in the future:
+Display all placements that are scheduled to be active on that upcoming date, including:
+
+
+Multi-day ISS or Lunch Detention
+
+
+Future Pre-Planned referral days
+
+
+Any other future-scheduled placements
+
+
+This allows staff to anticipate upcoming workload.
+
+6. Implementation Notes
+Dashboard filtering should always use:
+
+
+The selected date, and
+
+
+Each placement’s scheduled date(s) or day-level entries
+
+
+Do not modify how placements are created or stored.
+
+
+
+7. Scope
+Apply changes only to Dashboard date filtering and data loading logic.
+
+
+Do not modify:
+
+
+Placement creation
+
+
+Daily Logs
+
+
+Completed Placements behavior
+
+
+
+Verification Requested
+Please confirm:
+Dashboard defaults to today’s date when opened.
+
+
+Selecting a past date shows who was active that day.
+
+
+Selecting today shows correct current placements.
+
+
+Selecting a future date shows who will be active that day.
+
+
+All placement types are included.
+
+
+No other parts of the system were affected.

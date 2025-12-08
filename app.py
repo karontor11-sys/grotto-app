@@ -1475,6 +1475,12 @@ if page == "Dashboard":
             iss_total_days = 1
         is_multi_day_iss = iss_total_days > 1
         
+        # Get period-based ISS tracking fields
+        required_total_periods = placement_data.get('requiredTotalPeriods', 0) if placement_data else 0
+        served_periods_total = placement_data.get('servedPeriodsTotal', 0) if placement_data else 0
+        periods_remaining = placement_data.get('periodsRemaining', 0) if placement_data else 0
+        periods_per_full_day = placement_data.get('periodsPerFullDay', 10) if placement_data else 10
+        
         # Calculate check-in based progress (Day X advances when Check In is pressed)
         checkin_progress = dm.calculate_iss_checkin_progress(placement_id, target_date)
         checked_in_days = checkin_progress['checked_in_days']
@@ -1504,6 +1510,78 @@ if page == "Dashboard":
                     if st.button("Check In", key=f"iss_checkin_{session_id}", type="primary"):
                         dm.check_in_student(placement_id, date_str)
                         st.rerun()
+            
+            # ISS Session Summary - Period tracking display
+            st.markdown(f"""
+            <div style='background-color: #f0f2f6; padding: 8px 12px; border-radius: 6px; margin: 8px 0;'>
+                <strong>ISS:</strong> Required <strong>{required_total_periods}</strong> periods | 
+                Served <strong>{served_periods_total}</strong> | 
+                Remaining <strong>{periods_remaining}</strong>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Day Type selector and controls (only show when checked in and not completed)
+            if is_checked_in and not is_completed:
+                # Initialize session state for day type if not set
+                day_type_key = f"iss_day_type_{session_id}"
+                start_period_key = f"iss_start_period_{session_id}"
+                end_period_key = f"iss_end_period_{session_id}"
+                
+                if day_type_key not in st.session_state:
+                    # Default to Full Day if current session has all 10 periods
+                    st.session_state[day_type_key] = "Full Day" if is_full_day else "Partial Day"
+                
+                # Day Type selector
+                st.markdown("**Day Type**")
+                day_type_col, periods_col = st.columns([1, 2])
+                
+                with day_type_col:
+                    day_type = st.radio(
+                        "Select Day Type",
+                        options=["Full Day", "Partial Day"],
+                        key=day_type_key,
+                        horizontal=True,
+                        label_visibility="collapsed"
+                    )
+                
+                with periods_col:
+                    period_validation_error = None
+                    selected_start_period = None
+                    selected_end_period = None
+                    
+                    if day_type == "Partial Day":
+                        # Show Start and End Period dropdowns
+                        period_options = list(range(1, 11))  # 1-10
+                        
+                        period_col1, period_col2 = st.columns(2)
+                        with period_col1:
+                            selected_start_period = st.selectbox(
+                                "Start Period*",
+                                options=period_options,
+                                key=start_period_key,
+                                index=0
+                            )
+                        with period_col2:
+                            selected_end_period = st.selectbox(
+                                "End Period*",
+                                options=period_options,
+                                key=end_period_key,
+                                index=len(period_options) - 1  # Default to period 10
+                            )
+                        
+                        # Validate Start/End Period
+                        if selected_start_period is None or selected_end_period is None:
+                            period_validation_error = "Start Period and End Period are required for Partial Day."
+                        elif selected_end_period < selected_start_period:
+                            period_validation_error = "End Period must be greater than or equal to Start Period."
+                        
+                        if period_validation_error:
+                            st.error(period_validation_error)
+                    else:
+                        # Full Day - periods are 1-10 (all periods)
+                        st.caption("Full Day: Periods 1-10 (all periods)")
+                
+                st.divider()
             
             if is_checked_in and not is_completed:
                 points_col, behaviors_col = st.columns([1, 1])
@@ -1560,7 +1638,11 @@ if page == "Dashboard":
                 
                 with points_col:
                     st.markdown("**Points Total**")
-                    if is_full_day:
+                    # Get selected day type from session state
+                    current_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
+                    is_full_day_selected = current_day_type == "Full Day"
+                    
+                    if is_full_day_selected:
                         if total_points >= 10:
                             st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
                             st.caption("✓ Eligible for completion")
@@ -1568,17 +1650,47 @@ if page == "Dashboard":
                             st.markdown(f"<h2 style='margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
                             st.caption(f"Need {10 - total_points} more points")
                     else:
-                        st.markdown(f"<h2 style='margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
-                        st.caption("Custom session")
+                        # Partial day - points requirement varies by periods
+                        current_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
+                        current_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+                        periods_count = max(1, current_end - current_start + 1) if current_end >= current_start else 1
+                        required_points = periods_count  # 1 point per period
+                        if total_points >= required_points:
+                            st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"✓ {periods_count} periods = {required_points} points needed")
+                        else:
+                            st.markdown(f"<h2 style='margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"{periods_count} periods = {required_points} points needed")
                 
                 action_col1, action_col2 = st.columns(2)
                 
                 with action_col1:
-                    can_complete = (not is_full_day) or (is_full_day and total_points >= 10)
-                    complete_help = "" if can_complete else "Full day requires 10+ points"
-                    complete_label = "✓ Complete (Retroactive)" if is_past_session else "✓ Complete"
+                    # Check period validation for Partial Day
+                    current_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
+                    has_period_error = False
+                    if current_day_type == "Partial Day":
+                        curr_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
+                        curr_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+                        if curr_end < curr_start:
+                            has_period_error = True
+                    
+                    can_complete = (not has_period_error) and ((current_day_type != "Full Day") or (current_day_type == "Full Day" and total_points >= 10))
+                    complete_help = ""
+                    if has_period_error:
+                        complete_help = "Fix period validation errors first"
+                    elif current_day_type == "Full Day" and total_points < 10:
+                        complete_help = "Full day requires 10+ points"
+                    
+                    complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
                     if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary", 
                                  use_container_width=True, disabled=not can_complete, help=complete_help):
+                        # Store day type settings for the complete action
+                        # (Full save logic will be implemented in next prompt)
+                        st.session_state[f"iss_complete_day_type_{placement_id}_{date_str}"] = current_day_type
+                        if current_day_type == "Partial Day":
+                            st.session_state[f"iss_complete_start_period_{placement_id}_{date_str}"] = st.session_state.get(f"iss_start_period_{session_id}", 1)
+                            st.session_state[f"iss_complete_end_period_{placement_id}_{date_str}"] = st.session_state.get(f"iss_end_period_{session_id}", 10)
+                        
                         dm.mark_session_completed(session_id, "Admin")
                         if not is_present:
                             dm.update_iss_attendance(placement_id, date_str, True)
@@ -1587,7 +1699,7 @@ if page == "Dashboard":
                         if makeup_check.get('needsMakeup', False):
                             st.session_state[f"show_makeup_prompt_{placement_id}"] = True
                             st.session_state[f"makeup_info_{placement_id}"] = makeup_check
-                        success_msg = "Session completed retroactively!" if is_past_session else "Session completed!"
+                        success_msg = "Day completed retroactively!" if is_past_session else "Day completed!"
                         st.success(success_msg)
                         st.rerun()
                 

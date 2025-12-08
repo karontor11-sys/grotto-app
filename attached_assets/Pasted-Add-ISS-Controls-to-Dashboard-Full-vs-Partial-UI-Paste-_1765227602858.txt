@@ -1,0 +1,90 @@
+Add ISS Controls to Dashboard (Full vs Partial UI)
+
+Paste this into Replit:
+
+Prompt 2 – ISS Dashboard controls: Full vs Partial day
+
+Please update the Dashboard so that each active ISS placement for the selected date includes the correct UI for tracking that day’s ISS service. This is where staff will choose Full Day vs Partial Day, specify periods, and enter points.
+
+We will be using the fields you just added:
+
+periodsPerFullDay
+
+numDays
+
+requiredTotalPeriods
+
+servedPeriodsTotal
+
+periodsRemaining
+
+1. Display ISS sentence summary
+
+For every active ISS placement shown on the Dashboard, display a small summary line such as:
+
+ISS: Required {requiredTotalPeriods} periods | Served {servedPeriodsTotal} | Remaining {periodsRemaining}
+
+
+Use the existing placement dictionary/record fields for these values.
+
+2. Add ISS day controls on the Dashboard row
+
+For each active ISS placement on the selected date, add the following controls to that row:
+
+A Check-in / Present toggle (use the same style/logic you already use for other placement types, if applicable).
+
+A Day Type selector with two options:
+
+“Full Day”
+
+“Partial Day”
+
+These controls should appear only for ISS placements, not for other placement types.
+
+3. Full Day UI behavior
+
+When “Full Day” is selected for an ISS row:
+
+Hide or disable the Start Period and End Period controls for that row.
+
+Show a Points field for the day (this can be read-only or editable for now; we will enforce rules in a later prompt).
+
+Do not perform any of the period math in this prompt; just ensure the UI and state for “Full Day” is wired up.
+
+4. Partial Day UI behavior
+
+When “Partial Day” is selected for an ISS row:
+
+Show a Start Period dropdown with integer choices 1–10.
+
+Show an End Period dropdown with integer choices 1–10.
+
+Start and End Period should be required when Day Type = Partial Day.
+
+Add basic UI validation:
+
+If either Start Period or End Period is missing, show an error and block saving.
+
+If endPeriod < startPeriod, show an error message like:
+
+“End Period must be greater than or equal to Start Period.”
+
+Also show a Points field for the day (actual enforcement of the points rules will be implemented in the next prompt).
+
+5. “Complete Day” button (hook only)
+
+Ensure each ISS row on the Dashboard has a “Complete Day” button:
+
+Clicking this button should prepare to save the current settings for that date (Day Type, Start/End Periods if Partial, and Points).
+
+For this prompt, you do not need to implement the full save logic or math; just make sure the button and basic wiring exist.
+
+In the next prompt, we will:
+
+Calculate servedPeriodsForThisDay,
+
+Enforce the points rules,
+
+Update servedPeriodsTotal and periodsRemaining,
+
+And manage auto-completion of the ISS placement.

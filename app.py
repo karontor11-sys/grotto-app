@@ -273,37 +273,46 @@ user_role = st.sidebar.selectbox(
 
 st.sidebar.divider()
 
-# Check if we need to navigate to a specific page
+# Page options for navigation
+PAGE_OPTIONS = ["Dashboard", "Placements", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"]
+
+# Initialize current_page if not set
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Dashboard"
+
+# Handle navigation requests BEFORE rendering sidebar
+# These flags are set by various parts of the app to request page changes
 if st.session_state.get('navigate_to_create_placement'):
     st.session_state.current_page = "Placements"
-    st.session_state.page_selector = "Placements"  # Sync selectbox state
     del st.session_state.navigate_to_create_placement
 elif st.session_state.get('navigate_to_dashboard'):
     st.session_state.current_page = "Dashboard"
-    st.session_state.page_selector = "Dashboard"  # Sync selectbox state
     del st.session_state.navigate_to_dashboard
 elif st.session_state.get('navigate_to_iss_detail'):
     st.session_state.current_page = "ISS Detail"
-    # Don't sync page_selector - this is a hidden page
     del st.session_state.navigate_to_iss_detail
-elif 'current_page' not in st.session_state:
-    st.session_state.current_page = "Dashboard"
 
-# Use current_page as the source of truth for the page selector
-page = st.session_state.current_page
+# Ensure current_page is in valid options (fallback to Dashboard for hidden pages)
+display_page = st.session_state.current_page if st.session_state.current_page in PAGE_OPTIONS else "Dashboard"
 
-# Sidebar page selector (synchronized with current_page)
+# Get the index for the current page
+current_page_index = PAGE_OPTIONS.index(display_page) if display_page in PAGE_OPTIONS else 0
+
+# Sidebar page selector - no key, use index to control selection
+# This allows programmatic navigation to work correctly
 sidebar_page = st.sidebar.selectbox(
     "Select a page:",
-    ["Dashboard", "Placements", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"],
-    index=["Dashboard", "Placements", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"].index(st.session_state.current_page),
-    key="page_selector"
+    PAGE_OPTIONS,
+    index=current_page_index
 )
 
-# Update current_page when user manually selects a page from sidebar
+# Update current_page when user manually selects a different page
 if sidebar_page != st.session_state.current_page:
     st.session_state.current_page = sidebar_page
-    page = sidebar_page
+    st.rerun()
+
+# Use current_page as the source of truth for rendering
+page = st.session_state.current_page
 
 # Show notification badge in sidebar
 all_notifs = notifications.get_all_notifications()
@@ -1893,13 +1902,11 @@ elif page == "Placements":
                     submit_clicked = st.form_submit_button("Create ISS Placement", type="primary", use_container_width=True)
                     
                     if submit_clicked:
-                        first_name = student_first_name
-                        last_name = student_last_name
-                        grade = student_grade
-                        homeroom_teacher = student_homeroom
-                        reason = placement_reason
-                        
-                        print(f"[DEBUG] ISS Form submitted - First Name: {first_name}, Last Name: {last_name}")
+                        first_name = st.session_state.get('student_first_name', '')
+                        last_name = st.session_state.get('student_last_name', '')
+                        grade = st.session_state.get('student_grade', '6')
+                        homeroom_teacher = st.session_state.get('student_homeroom', '')
+                        reason = st.session_state.get('placement_reason', '')
                         if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                             print(f"[DEBUG] Validation failed - Missing fields")
                             st.error("❌ Please fill in all required fields marked with *")
@@ -1941,13 +1948,11 @@ elif page == "Placements":
                                 print(f"[DEBUG] Sessions generated, setting navigation flags")
                                 
                                 st.session_state.placement_created = True
-                                st.session_state.navigate_to_dashboard = True
+                                st.session_state.current_page = "Dashboard"
                                 
                                 # Clear Dashboard caches so new placement appears immediately
                                 clear_dashboard_caches()
                                 
-                                st.success(f"✅ ISS placement created for {first_name} {last_name}")
-                                print(f"[DEBUG] About to rerun...")
                                 st.rerun()
                             except Exception as e:
                                 print(f"[DEBUG] Exception occurred: {str(e)}")
@@ -1969,11 +1974,11 @@ elif page == "Placements":
                     created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                     
                     if st.form_submit_button("Create Lunch Detention", type="primary", use_container_width=True):
-                        first_name = student_first_name
-                        last_name = student_last_name
-                        grade = student_grade
-                        homeroom_teacher = student_homeroom
-                        reason = placement_reason
+                        first_name = st.session_state.get('student_first_name', '')
+                        last_name = st.session_state.get('student_last_name', '')
+                        grade = st.session_state.get('student_grade', '6')
+                        homeroom_teacher = st.session_state.get('student_homeroom', '')
+                        reason = st.session_state.get('placement_reason', '')
                         
                         if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                             st.error("❌ Please fill in all required fields marked with *")
@@ -2013,10 +2018,12 @@ elif page == "Placements":
                                 placement_id = dm.add_placement(placement_data)
                                 dm.generate_lunch_detention_sessions_from_scheduled(placement_id, scheduled_lunch_dates)
                                 
+                                st.session_state.placement_created = True
+                                st.session_state.current_page = "Dashboard"
+                                
                                 # Clear Dashboard caches so new placement appears immediately
                                 clear_dashboard_caches()
                                 
-                                st.success(f"✅ Lunch Detention created for {first_name} {last_name} - {lunch_days} day(s) scheduled through {end_date.strftime('%b %d, %Y')}")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Error: {str(e)}")
@@ -2040,11 +2047,11 @@ elif page == "Placements":
                         created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"])
                         
                         if st.form_submit_button("Create Behavior Referral", type="primary", use_container_width=True):
-                            first_name = student_first_name
-                            last_name = student_last_name
-                            grade = student_grade
-                            homeroom_teacher = student_homeroom
-                            reason = placement_reason
+                            first_name = st.session_state.get('student_first_name', '')
+                            last_name = st.session_state.get('student_last_name', '')
+                            grade = st.session_state.get('student_grade', '6')
+                            homeroom_teacher = st.session_state.get('student_homeroom', '')
+                            reason = st.session_state.get('placement_reason', '')
                             
                             print(f"[DEBUG] Behavior Referral Form submitted - First: '{first_name}', Last: '{last_name}', Homeroom: '{homeroom_teacher}', Reason: '{reason}', CreatedBy: '{created_by}'")
                             
@@ -2085,10 +2092,12 @@ elif page == "Placements":
                                     placement_id = dm.add_placement(placement_data)
                                     dm.generate_class_referral_session(placement_id, start_date, selected_period, selected_period)
                                     
+                                    st.session_state.placement_created = True
+                                    st.session_state.current_page = "Dashboard"
+                                    
                                     # Clear Dashboard caches so new placement appears immediately
                                     clear_dashboard_caches()
                                     
-                                    st.success(f"✅ Behavior Referral created for {first_name} {last_name}")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"❌ Error: {str(e)}")
@@ -2108,11 +2117,11 @@ elif page == "Placements":
                         created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="cd_created_by")
                         
                         if st.form_submit_button("Create Cool-Down Referral", type="primary", use_container_width=True):
-                            first_name = student_first_name
-                            last_name = student_last_name
-                            grade = student_grade
-                            homeroom_teacher = student_homeroom
-                            reason = placement_reason
+                            first_name = st.session_state.get('student_first_name', '')
+                            last_name = st.session_state.get('student_last_name', '')
+                            grade = st.session_state.get('student_grade', '6')
+                            homeroom_teacher = st.session_state.get('student_homeroom', '')
+                            reason = st.session_state.get('placement_reason', '')
                             
                             if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                                 st.error("❌ Please fill in all required fields marked with *")
@@ -2151,12 +2160,11 @@ elif page == "Placements":
                                     dm.generate_cooldown_session(placement_id, cooldown_date, selected_period, selected_period)
                                     
                                     st.session_state.placement_created = True
-                                    st.session_state.navigate_to_dashboard = True
+                                    st.session_state.current_page = "Dashboard"
                                     
                                     # Clear Dashboard caches so new placement appears immediately
                                     clear_dashboard_caches()
                                     
-                                    st.success(f"✅ Cool-Down Referral created for {first_name} {last_name}")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"❌ Error creating cool-down referral: {str(e)}")
@@ -2239,11 +2247,11 @@ elif page == "Placements":
                             st.rerun()
                         
                         if submit_button:
-                            first_name = student_first_name
-                            last_name = student_last_name
-                            grade = student_grade
-                            homeroom_teacher = student_homeroom
-                            reason = placement_reason
+                            first_name = st.session_state.get('student_first_name', '')
+                            last_name = st.session_state.get('student_last_name', '')
+                            grade = st.session_state.get('student_grade', '6')
+                            homeroom_teacher = st.session_state.get('student_homeroom', '')
+                            reason = st.session_state.get('placement_reason', '')
                             
                             validation_error = False
                             
@@ -2303,10 +2311,12 @@ elif page == "Placements":
                                     
                                     st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
                                     
+                                    st.session_state.placement_created = True
+                                    st.session_state.current_page = "Dashboard"
+                                    
                                     # Clear Dashboard caches so new placement appears immediately
                                     clear_dashboard_caches()
                                     
-                                    st.success(f"✅ Pre-Planned Referral created for {first_name} {last_name} - {len(scheduled_slots)} session(s) scheduled")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"❌ Error creating pre-planned referral: {str(e)}")

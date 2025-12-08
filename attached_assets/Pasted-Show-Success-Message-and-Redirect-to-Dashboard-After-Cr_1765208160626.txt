@@ -1,0 +1,93 @@
+Show Success Message and Redirect to Dashboard After Creating Any Placement
+
+Title: Add global “placement created” confirmation + redirect to Dashboard
+
+Please update the Grotto App so that every time a placement is successfully created, the user:
+
+Sees a short green success message, and
+
+Is automatically returned to the Dashboard.
+
+This should apply to all placement types.
+
+1. Success Message on Create
+
+For every placement creation flow (on the Create Placement page):
+
+After the placement is successfully saved/created:
+
+Display a green-colored success message (toast or banner).
+
+Example text (or similar):
+
+“Placement created successfully.”
+
+The message should:
+
+Be clearly visible for a short period (e.g., a couple of seconds).
+
+Then automatically disappear (fade out or be dismissed).
+
+Do not show this message if there is a validation error or failure.
+
+2. Automatic Redirect to Dashboard
+
+After showing the success message (or as part of the same flow):
+
+Automatically navigate the user back to the Dashboard view.
+
+Behavior details:
+
+If the placement is created for today, the Dashboard should:
+
+Default to today’s date (as usual).
+
+Show the new placement in the list for that date.
+
+If the placement is created for a different date (past or future):
+
+Use the existing date logic you have in place.
+
+It is sufficient that the user returns to the Dashboard; you do not need to auto-change the date filter unless that is already part of your current behavior.
+
+3. Placement Types Covered
+
+This behavior should be consistent for all placement types:
+
+ISS
+
+Lunch Detention
+
+Class Period Referral and its three subtypes:
+
+Behavior Referral
+
+Cool-Down Referral
+
+Pre-Planned Referral
+
+If there are any other existing placement types, apply the same pattern to them as well.
+
+4. Scope
+
+Do not change:
+
+The fields or validation rules on the Create Placement forms.
+
+The underlying placement creation logic or database model.
+
+Only add:
+
+The green success message on successful creation.
+
+The redirect back to the Dashboard.
+
+Verification
+
+In your summary, please confirm:
+
+That creating each placement type shows a short green success message.
+
+That after creation, the app returns to the Dashboard.
+
+That no other behaviors on the Create Placement page were altered.

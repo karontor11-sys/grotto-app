@@ -100,6 +100,13 @@ The UI features a **Dashboard** with:
 - Navigation now uses `navigate_to_dashboard` session state flag that's processed before sidebar widget renders
 - All placement creation handlers (ISS, Lunch Detention, Behavior Referral, Cool-Down Referral, Pre-Planned Referral) redirect to Dashboard with success message after creation
 
+### ISS Day Editing Support (December 2025)
+- **Preload Existing Values**: When rendering an ISS card for a date with an existing entry, the Day Type radio and Start/End Period dropdowns are preloaded with stored values from the daily log
+- **Edit Handling**: Clicking "Complete Day" on an existing entry updates (overwrites) the daily log with new values instead of creating a duplicate
+- **Recalculate Totals on Edit**: After any edit, `iss_periods_served` is recalculated by summing `periods_added` from ALL daily logs for the placement, preventing double-counting
+- **Completed Placement Guardrails**: Placements with status "completed" are rendered as read-only with a clear "ISS Session Complete" message, preventing further edits
+- **Full ↔ Partial Conversions**: Supports changing a day from Full Day to Partial Day (or vice versa) with automatic period recalculation
+
 ## External Dependencies
 
 ### Core Framework

@@ -276,27 +276,17 @@ st.sidebar.divider()
 # Page options for navigation
 PAGE_OPTIONS = ["Dashboard", "Placements", "Assignments", "Notes", "Notifications", "Reports & Analytics", "Import/Export"]
 
-# Navigation helper function - ensures both current_page and sidebar are in sync
-def navigate_to(page_name):
-    """Navigate to a page, syncing both current_page and sidebar_page session state."""
-    st.session_state.current_page = page_name
-    # Only update sidebar_page if it's a valid sidebar option
-    if page_name in PAGE_OPTIONS:
-        st.session_state.sidebar_page = page_name
-
 # Initialize navigation state
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
-if 'sidebar_page' not in st.session_state:
-    st.session_state.sidebar_page = "Dashboard"
 
 # Handle navigation requests BEFORE rendering sidebar
 # These flags are set by various parts of the app to request page changes
 if st.session_state.get('navigate_to_create_placement'):
-    navigate_to("Placements")
+    st.session_state.current_page = "Placements"
     del st.session_state.navigate_to_create_placement
 elif st.session_state.get('navigate_to_dashboard'):
-    navigate_to("Dashboard")
+    st.session_state.current_page = "Dashboard"
     del st.session_state.navigate_to_dashboard
 elif st.session_state.get('navigate_to_iss_detail'):
     st.session_state.current_page = "ISS Detail"
@@ -305,22 +295,20 @@ elif st.session_state.get('navigate_to_iss_detail'):
 # Ensure current_page is in valid options for sidebar display (fallback to Dashboard for hidden pages)
 display_page = st.session_state.current_page if st.session_state.current_page in PAGE_OPTIONS else "Dashboard"
 
-# Sync sidebar_page with display_page before rendering (handles programmatic navigation)
-if st.session_state.sidebar_page != display_page:
-    st.session_state.sidebar_page = display_page
+# Get the index for the current page to control sidebar selection
+current_page_index = PAGE_OPTIONS.index(display_page) if display_page in PAGE_OPTIONS else 0
 
-# Callback for when user manually changes sidebar selection
-def on_sidebar_change():
-    """Sync current_page when user manually selects a page from sidebar."""
-    st.session_state.current_page = st.session_state.sidebar_page
-
-# Sidebar page selector with key and on_change callback
+# Sidebar page selector - uses index to control selection, no key to avoid widget state conflicts
 sidebar_page = st.sidebar.selectbox(
     "Select a page:",
     PAGE_OPTIONS,
-    key="sidebar_page",
-    on_change=on_sidebar_change
+    index=current_page_index
 )
+
+# Update current_page when user manually selects a different page from sidebar
+if sidebar_page != st.session_state.current_page and sidebar_page in PAGE_OPTIONS:
+    st.session_state.current_page = sidebar_page
+    st.rerun()
 
 # Use current_page as the source of truth for rendering
 page = st.session_state.current_page
@@ -1922,7 +1910,7 @@ elif page == "Placements":
                         dm.generate_iss_full_day_sessions(placement_id, iss_start_date, iss_total_days)
                         
                         st.session_state.placement_created = True
-                        navigate_to("Dashboard")
+                        st.session_state.navigate_to_dashboard = True
                         clear_dashboard_caches()
                         st.rerun()
                     except Exception as e:
@@ -1997,7 +1985,7 @@ elif page == "Placements":
                         dm.generate_lunch_detention_sessions_from_scheduled(placement_id, scheduled_lunch_dates)
                         
                         st.session_state.placement_created = True
-                        navigate_to("Dashboard")
+                        st.session_state.navigate_to_dashboard = True
                         clear_dashboard_caches()
                         st.rerun()
                     except Exception as e:
@@ -2071,7 +2059,7 @@ elif page == "Placements":
                             dm.generate_class_referral_session(placement_id, start_date, selected_period, selected_period)
                             
                             st.session_state.placement_created = True
-                            navigate_to("Dashboard")
+                            st.session_state.navigate_to_dashboard = True
                             clear_dashboard_caches()
                             st.rerun()
                         except Exception as e:
@@ -2142,7 +2130,7 @@ elif page == "Placements":
                             dm.generate_cooldown_session(placement_id, cooldown_date, selected_period, selected_period)
                             
                             st.session_state.placement_created = True
-                            navigate_to("Dashboard")
+                            st.session_state.navigate_to_dashboard = True
                             clear_dashboard_caches()
                             st.rerun()
                         except Exception as e:
@@ -2300,7 +2288,7 @@ elif page == "Placements":
                                 st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
                                 
                                 st.session_state.placement_created = True
-                                navigate_to("Dashboard")
+                                st.session_state.navigate_to_dashboard = True
                                 clear_dashboard_caches()
                                 st.rerun()
                             except Exception as e:

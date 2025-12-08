@@ -62,6 +62,17 @@ The UI features a **Dashboard** with:
 
 ## Recent Changes (December 2025)
 
+### ISS Period-Based Model Enhancement
+- Added `PERIODS_PER_FULL_DAY = 10` constant for ISS period calculations
+- Enhanced placement dictionary output with computed fields:
+  - `periodsPerFullDay`: Constant value (10)
+  - `numDays`: Alias for days assigned
+  - `requiredTotalPeriods`: Total periods required (days × 10)
+  - `servedPeriodsTotal`: Total periods served
+  - `periodsRemaining`: Dynamically computed (required - served)
+- Added debug logging for ISS model verification (temporary)
+- Backward compatibility migration populates new fields for older placements
+
 ### Navigation System Fix
 - Fixed Streamlit sidebar navigation synchronization issue
 - Navigation now uses `navigate_to_dashboard` session state flag that's processed before sidebar widget renders

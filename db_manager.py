@@ -2510,6 +2510,168 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def checkin_preplanned_session(self, placement_id: str, log_date: str) -> bool:
+        """Check in a student for a Pre-Planned referral day.
+        
+        Sets checked_in = True and checked_in_at to current timestamp.
+        Also updates the session status to in_progress.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        db_session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = db_session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    checked_in=True,
+                    checked_in_at=datetime.now()
+                )
+                db_session.add(log)
+            else:
+                log.checked_in = True
+                log.checked_in_at = datetime.now()
+            
+            session_record = db_session.query(PartialDaySession).filter(
+                PartialDaySession.placement_id == placement_id,
+                PartialDaySession.date == date_obj
+            ).first()
+            
+            if session_record:
+                session_record.status = SessionStatus.in_progress
+            
+            db_session.commit()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            print(f"[ERROR] Failed to check in Pre-Planned session: {str(e)}")
+            return False
+        finally:
+            db_session.close()
+    
+    def complete_preplanned_session(self, placement_id: str, log_date: str, completed_by: str) -> bool:
+        """Complete a Pre-Planned referral day with attendance based on check-in status.
+        
+        Sets:
+        - daily_fulfillment = 'yes'
+        - Session status = 'fulfilled' if checked_in, 'no_show' if not
+        - Updates placement.days_completed and auto-completes if all days done
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            completed_by: Name/ID of person completing
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        db_session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = db_session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            was_checked_in = log.checked_in if log else False
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue',
+                    daily_fulfillment='yes',
+                    no_show=not was_checked_in,
+                    finalized_by=completed_by,
+                    finalized_at=datetime.now()
+                )
+                db_session.add(log)
+            else:
+                log.daily_fulfillment = 'yes'
+                log.no_show = not was_checked_in
+                log.finalized_by = completed_by
+                log.finalized_at = datetime.now()
+            
+            session_records = db_session.query(PartialDaySession).filter(
+                PartialDaySession.placement_id == placement_id,
+                PartialDaySession.date == date_obj
+            ).all()
+            
+            for session_record in session_records:
+                if was_checked_in:
+                    session_record.status = SessionStatus.fulfilled
+                else:
+                    session_record.status = SessionStatus.no_show
+            
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if placement:
+                placement.days_completed = (placement.days_completed or 0) + 1
+                days_assigned = placement.days_assigned or 1
+                if placement.days_completed >= days_assigned:
+                    placement.status = PlacementStatus.completed
+                    placement.end_date = date_obj
+            
+            db_session.commit()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            print(f"[ERROR] Failed to complete Pre-Planned session: {str(e)}")
+            return False
+        finally:
+            db_session.close()
+    
+    def get_preplanned_checkin_status(self, placement_id: str, log_date: str) -> dict:
+        """Get the check-in status for a Pre-Planned referral day.
+        
+        Args:
+            placement_id: ID of the placement
+            log_date: ISO format date string
+            
+        Returns:
+            Dict with keys: checked_in (bool), checked_in_at (datetime or None)
+        """
+        db_session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            log = db_session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if log:
+                return {
+                    'checked_in': log.checked_in or False,
+                    'checked_in_at': log.checked_in_at
+                }
+            return {'checked_in': False, 'checked_in_at': None}
+        finally:
+            db_session.close()
+    
     def complete_iss_full_day_session(self, placement_id: str, log_date: str, completed_by: str, 
                                        is_override: bool = False, override_note: str = None,
                                        points_earned: int = None) -> bool:
@@ -3689,8 +3851,30 @@ class DatabaseManager:
                     log.finalized_by = 'System (End of Day)'
                     log.finalized_at = datetime.now()
                     class_referral_auto_completed += 1
-                    # If no_show was set, keep it (it's already a Completed No Show)
-                    # Otherwise it's just a normal completion
+                    
+                    # For Pre-Planned referrals, set attendance based on check-in status
+                    if placement.referral_subtype == 'pre_planned':
+                        # If not checked in, mark as no_show (Absent)
+                        if not log.checked_in:
+                            log.no_show = True
+                        # Update session status based on check-in
+                        sess = session.query(PartialDaySession).filter(
+                            PartialDaySession.placement_id == log.placement_id,
+                            PartialDaySession.date == log.date
+                        ).first()
+                        if sess and sess.status in [SessionStatus.scheduled, SessionStatus.in_progress]:
+                            if log.checked_in:
+                                sess.status = SessionStatus.fulfilled
+                            else:
+                                sess.status = SessionStatus.no_show
+                    
+                    # Update placement days_completed for auto-completed referrals
+                    if placement:
+                        placement.days_completed = (placement.days_completed or 0) + 1
+                        days_assigned = placement.days_assigned or 1
+                        if placement.days_completed >= days_assigned:
+                            placement.status = PlacementStatus.completed
+                            placement.end_date = target_date
                 else:
                     # For ISS and other types, mark as incomplete
                     log.daily_fulfillment = 'no'

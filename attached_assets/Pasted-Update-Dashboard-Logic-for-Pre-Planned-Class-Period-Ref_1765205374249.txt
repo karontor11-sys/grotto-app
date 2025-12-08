@@ -1,0 +1,97 @@
+Update Dashboard Logic for Pre-Planned Class Period Referrals
+Title: Simplify Attendance + Completion Workflow for Pre-Planned Referrals
+Please update the Dashboard behavior for Pre-Planned Class Period Referrals only.
+ Do NOT change Behavior, Cool-Down, ISS, or Lunch Detention.
+
+1. Show Scheduled Periods
+On the Dashboard card for each Pre-Planned referral day, show all periods the student is scheduled to be in the ISS/office area.
+Display only — no logic changes.
+
+2. Replace Attendance Radios with One “Check In” Button
+Remove any “No Show / Present” or similar attendance controls for Pre-Planned.
+Add a single Check In button:
+Pressed once when the student arrives for their first scheduled period that day.
+
+
+Sets an internal flag (e.g., checked_in = True or attendance = "Attended").
+
+
+No need to check in for each period.
+
+3. Add / Confirm a “Complete” Button
+Add or keep a Complete button on the Dashboard card for that Pre-Planned day.
+When pressed:
+Immediately move that day’s referral to Completed Placements.
+
+
+Set attendance:
+
+
+If Check In was pressed → Attended
+
+
+If not → Absent
+
+
+If the referral spans multiple days, each day is handled independently.
+
+4. Midnight Logic
+At midnight for that scheduled date, if a Pre-Planned referral day is still active (Complete was never pressed):
+Auto-move it to Completed Placements.
+
+
+Auto-set attendance:
+
+
+Check In pressed → Attended
+
+
+Check In not pressed → Absent
+
+
+This prevents old pre-planned records from staying on the Dashboard.
+
+5. Completed Placements Display
+In Completed Placements, each finished Pre-Planned day should show:
+The date
+
+
+The list of scheduled periods
+
+
+Attended or Absent based on the rules above
+
+
+
+6. Scope
+Apply all changes only to Pre-Planned Class Period Referrals.
+
+
+Do NOT modify:
+
+
+Behavior or Cool-Down flow
+
+
+ISS
+
+
+Lunch Detention
+
+
+The Pre-Planned schedule builder on Create Placement
+
+
+
+Verification Requested
+Confirm in summary that:
+Dashboard shows scheduled periods for Pre-Planned.
+
+
+Check In (single button) + Complete workflow behaves as described.
+
+
+Midnight auto-move + attendance logic works.
+
+
+No other placement types were affected.

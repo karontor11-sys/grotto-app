@@ -1304,42 +1304,43 @@ if page == "Dashboard":
                         st.rerun()
                 
                 elif subtype_key == 'pre_planned':
-                    # Pre-Planned Referral: Complete button, No Show toggle, and note field
-                    col_complete, col_noshow = st.columns([1, 1])
+                    # Pre-Planned Referral: Check In + Complete workflow
+                    checkin_status = dm.get_preplanned_checkin_status(placement_id, date_str)
+                    is_checked_in = checkin_status.get('checked_in', False)
+                    checked_in_at = checkin_status.get('checked_in_at')
+                    
+                    col_checkin, col_complete = st.columns([1, 1])
+                    
+                    with col_checkin:
+                        if is_checked_in:
+                            # Show check-in confirmation
+                            checkin_time = checked_in_at.strftime('%I:%M %p') if checked_in_at else ''
+                            st.success(f"✓ Checked In {checkin_time}")
+                        else:
+                            # Show Check In button
+                            if st.button("Check In", key=f"checkin_preplanned_{placement_id}_{date_str}", type="secondary"):
+                                dm.checkin_preplanned_session(placement_id, date_str)
+                                st.rerun()
                     
                     with col_complete:
-                        if st.button("Complete Pre-Planned Day", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
-                            dm.complete_placement_day(placement_id, date_str, "Admin")
+                        # Complete button - sets attendance based on check-in status
+                        if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
+                            dm.complete_preplanned_session(placement_id, date_str, "Admin")
                             st.rerun()
                     
-                    with col_noshow:
-                        # No Show toggle
-                        no_show_checked = st.checkbox(
-                            "No Show",
-                            value=is_no_show,
-                            key=f"noshow_{placement_id}_{date_str}"
-                        )
-                        if no_show_checked != is_no_show:
-                            dm.update_daily_log_no_show(placement_id, date_str, no_show_checked)
-                            st.rerun()
-                    
-                    # No Show note field (only shown if No Show is checked)
-                    if no_show_checked:
-                        st.caption("No Show Note")
-                        no_show_note = (daily_log.get('noShowNote', '') if daily_log else '') or ''
-                        render_auto_save_notes(
-                            f"noshow_note_{placement_id}_{date_str}",
-                            no_show_note,
-                            lambda notes: dm.update_daily_log_no_show_note(placement_id, date_str, notes)
-                        )
-                        
-                        # Mark as Completed (No Show) button
-                        if st.button("Mark as Completed (No Show)", key=f"complete_noshow_{placement_id}_{date_str}", type="secondary"):
-                            dm.complete_placement_day_no_show(placement_id, date_str, "Admin")
-                            st.rerun()
+                    # Show attendance preview
+                    if not is_checked_in:
+                        st.caption("⚠️ If completed now, attendance will be marked as **Absent**")
             else:
-                # Show completed status
-                if is_no_show:
+                # Show completed status for all subtypes
+                if subtype_key == 'pre_planned':
+                    # For Pre-Planned, show Attended or Absent based on check-in
+                    was_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+                    if is_no_show or not was_checked_in:
+                        st.error("Completed — Absent")
+                    else:
+                        st.success("Completed — Attended")
+                elif is_no_show:
                     st.success("Completed (No Show)")
                     no_show_note = daily_log.get('noShowNote', '')
                     if no_show_note:
@@ -2344,6 +2345,8 @@ elif page == "Placements":
             for placement in filtered_placements:
                 student = placement['student']
                 placement_type_display = get_placement_type_display_name(placement.get('placementType', ''))
+                referral_subtype = placement.get('referralSubtype', '')
+                
                 with st.expander(f"{student['firstName']} {student['lastName']} - {placement['reason']}"):
                     col1, col2 = st.columns(2)
                     with col1:
@@ -2355,6 +2358,41 @@ elif page == "Placements":
                         st.write(f"**Number of Days:** {placement['daysAssigned']}")
                         st.write(f"**End Date:** {format_date(placement.get('endDate', 'N/A'))}")
                         st.write(f"**Total Points Earned:** {placement.get('totalPoints', 0)}")
+                    
+                    # Pre-Planned specific: Show date, periods, and attendance for each day
+                    if referral_subtype == 'pre_planned':
+                        st.divider()
+                        st.markdown("**Session Details:**")
+                        scheduled_slots = placement.get('scheduledSlots', [])
+                        
+                        # Group slots by date
+                        from collections import defaultdict
+                        slots_by_date = defaultdict(list)
+                        for slot in scheduled_slots:
+                            slot_date = slot.get('date', '')
+                            slot_period = slot.get('period', 0)
+                            slots_by_date[slot_date].append(slot_period)
+                        
+                        # Get daily logs for attendance info
+                        placement_id = placement.get('_id')
+                        for slot_date in sorted(slots_by_date.keys()):
+                            periods = sorted(slots_by_date[slot_date])
+                            if len(periods) == 1:
+                                period_label = f"Period {periods[0]}"
+                            else:
+                                period_label = f"Periods {', '.join(map(str, periods))}"
+                            
+                            # Get check-in status for this date
+                            checkin_status = dm.get_preplanned_checkin_status(placement_id, slot_date)
+                            was_checked_in = checkin_status.get('checked_in', False)
+                            
+                            # Display attendance
+                            if was_checked_in:
+                                attendance_badge = "✅ Attended"
+                            else:
+                                attendance_badge = "❌ Absent"
+                            
+                            st.caption(f"📅 {format_date(slot_date)} · {period_label} · {attendance_badge}")
                     
                     # Restore button
                     if st.button(f"Restore to Active", key=f"restore_{placement['_id']}"):

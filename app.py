@@ -1109,24 +1109,19 @@ if page == "Dashboard":
                 st.caption(f"Grade {student.get('grade', 'N/A')}")
             
             with col3:
-                # Attendance toggle
-                attendance_key = f"attendance_{placement_id}_{date_str}"
-                if attendance_key not in st.session_state:
-                    st.session_state[attendance_key] = "Present" if is_present else "Absent"
+                # Check In + Absent controls
+                is_checked_in = is_present  # Use existing attendance status for now
                 
-                attendance = st.radio(
-                    "Attendance",
-                    ["Present", "Absent"],
-                    index=0 if st.session_state[attendance_key] == "Present" else 1,
-                    horizontal=True,
-                    key=f"radio_{attendance_key}",
-                    label_visibility="collapsed"
-                )
+                if is_checked_in:
+                    st.button("Check In", key=f"ld_checkin_{placement_id}_{date_str}", disabled=True)
+                else:
+                    if st.button("Check In", key=f"ld_checkin_{placement_id}_{date_str}", type="primary"):
+                        dm.update_lunch_detention_attendance(placement_id, date_str, True)
+                        st.rerun()
                 
-                if attendance != st.session_state[attendance_key]:
-                    st.session_state[attendance_key] = attendance
-                    dm.update_lunch_detention_attendance(placement_id, date_str, attendance == "Present")
-                    st.rerun()
+                # Absent checkbox (UI only - no logic hookup yet)
+                absent_key = f"ld_absent_{placement_id}_{date_str}"
+                st.checkbox("Absent", key=absent_key, disabled=is_checked_in)
             
             # Day X of Y
             if total_days > 1 and day_number > 0:
@@ -1330,24 +1325,56 @@ if page == "Dashboard":
             # Completion controls - different by subtype
             if not is_completed:
                 if subtype_key == 'behavior':
-                    # Behavior Referral: Simple "Complete Referral" button
+                    # Behavior Referral: Check In + Absent + Complete Referral
+                    # Check if student is checked in (use daily log)
+                    is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+                    
+                    checkin_col, absent_col = st.columns([1, 1])
+                    with checkin_col:
+                        if is_checked_in:
+                            st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", disabled=True)
+                        else:
+                            if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", type="primary"):
+                                # UI only - no logic hookup yet
+                                pass
+                    with absent_col:
+                        # Absent checkbox (UI only - no logic hookup yet)
+                        st.checkbox("Absent", key=f"absent_behavior_{placement_id}_{date_str}", disabled=is_checked_in)
+                    
+                    # Complete Referral button
                     if st.button("Complete Referral", key=f"complete_behavior_{placement_id}_{date_str}", type="primary"):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         st.rerun()
                 
                 elif subtype_key == 'cool_down':
-                    # Cool-Down Referral: "Complete Cool-Down" button
+                    # Cool-Down Referral: Check In + Absent + Complete Cool-Down
+                    # Check if student is checked in (use daily log)
+                    is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+                    
+                    checkin_col, absent_col = st.columns([1, 1])
+                    with checkin_col:
+                        if is_checked_in:
+                            st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", disabled=True)
+                        else:
+                            if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", type="primary"):
+                                # UI only - no logic hookup yet
+                                pass
+                    with absent_col:
+                        # Absent checkbox (UI only - no logic hookup yet)
+                        st.checkbox("Absent", key=f"absent_cooldown_{placement_id}_{date_str}", disabled=is_checked_in)
+                    
+                    # Complete Cool-Down button
                     if st.button("Complete Cool-Down", key=f"complete_cooldown_{placement_id}_{date_str}", type="primary"):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         st.rerun()
                 
                 elif subtype_key == 'pre_planned':
-                    # Pre-Planned Referral: Check In + Complete workflow
+                    # Pre-Planned Referral: Check In + Absent + Complete workflow
                     checkin_status = dm.get_preplanned_checkin_status(placement_id, date_str)
                     is_checked_in = checkin_status.get('checked_in', False)
                     checked_in_at = checkin_status.get('checked_in_at')
                     
-                    col_checkin, col_complete = st.columns([1, 1])
+                    col_checkin, col_absent = st.columns([1, 1])
                     
                     with col_checkin:
                         if is_checked_in:
@@ -1356,15 +1383,18 @@ if page == "Dashboard":
                             st.success(f"✓ Checked In {checkin_time}")
                         else:
                             # Show Check In button
-                            if st.button("Check In", key=f"checkin_preplanned_{placement_id}_{date_str}", type="secondary"):
+                            if st.button("Check In", key=f"checkin_preplanned_{placement_id}_{date_str}", type="primary"):
                                 dm.checkin_preplanned_session(placement_id, date_str)
                                 st.rerun()
                     
-                    with col_complete:
-                        # Complete button - sets attendance based on check-in status
-                        if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
-                            dm.complete_preplanned_session(placement_id, date_str, "Admin")
-                            st.rerun()
+                    with col_absent:
+                        # Absent checkbox (UI only - no logic hookup yet)
+                        st.checkbox("Absent", key=f"absent_preplanned_{placement_id}_{date_str}", disabled=is_checked_in)
+                    
+                    # Complete button - sets attendance based on check-in status
+                    if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
+                        dm.complete_preplanned_session(placement_id, date_str, "Admin")
+                        st.rerun()
                     
                     # Show attendance preview
                     if not is_checked_in:
@@ -1562,6 +1592,9 @@ if page == "Dashboard":
                     if st.button("Check In", key=f"iss_checkin_{session_id}", type="primary"):
                         dm.check_in_student(placement_id, date_str)
                         st.rerun()
+                
+                # Absent checkbox (UI only - no logic hookup yet)
+                st.checkbox("Absent", key=f"iss_absent_{session_id}_{date_str}", disabled=is_checked_in or is_completed)
             
             # ISS Session Summary - Period tracking display
             st.markdown(f"""

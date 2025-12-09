@@ -139,6 +139,23 @@ The UI features a **Dashboard** with:
   - Dashboard collapsed row: 🟢 (NOT_STARTED), 🟡 (IN_PROGRESS), 🔴 (COMPLETED)
   - Expanded card: Circle + text label (e.g., "🟡 In Progress")
 
+### Check In + Absent Controls (December 2025)
+- **Unified Attendance UI**: All expanded placement cards now display consistent Check In + Absent controls
+- **Check In Button**: Red primary button that marks student as present when clicked
+  - Disabled state when student is already checked in
+  - ISS: Already had Check In, now includes Absent checkbox
+  - Lunch Detention: Replaced Present/Absent radio with Check In button
+  - Class Period Referral (all subtypes): Added Check In button
+- **Absent Checkbox**: Located directly beneath or beside the Check In button
+  - Disabled when student is checked in (prevents conflicting states)
+  - UI only - logic hookup pending
+- **Placement Type Coverage**:
+  - ISS (Full Day and Partial Day)
+  - Lunch Detention
+  - Behavior Referral
+  - Cool-Down Referral
+  - Pre-Planned Referral
+
 ## External Dependencies
 
 ### Core Framework

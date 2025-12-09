@@ -1110,18 +1110,36 @@ if page == "Dashboard":
             
             with col3:
                 # Check In + Absent controls
-                is_checked_in = is_present  # Use existing attendance status for now
+                is_checked_in = is_present  # Use existing attendance status
+                is_absent = dm.is_marked_absent(placement_id, date_str)
+                is_completed_day = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
                 
-                if is_checked_in:
+                # Check In button - disabled if already checked in, completed, or marked absent
+                if is_completed_day:
+                    st.button("Check In", key=f"ld_checkin_{placement_id}_{date_str}", disabled=True)
+                elif is_checked_in:
+                    st.button("Check In", key=f"ld_checkin_{placement_id}_{date_str}", disabled=True)
+                elif is_absent:
                     st.button("Check In", key=f"ld_checkin_{placement_id}_{date_str}", disabled=True)
                 else:
                     if st.button("Check In", key=f"ld_checkin_{placement_id}_{date_str}", type="primary"):
                         dm.update_lunch_detention_attendance(placement_id, date_str, True)
                         st.rerun()
                 
-                # Absent checkbox (UI only - no logic hookup yet)
+                # Absent checkbox - disabled if already checked in or completed
                 absent_key = f"ld_absent_{placement_id}_{date_str}"
-                st.checkbox("Absent", key=absent_key, disabled=is_checked_in)
+                if absent_key not in st.session_state:
+                    st.session_state[absent_key] = is_absent
+                
+                new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in or is_completed_day)
+                
+                # Handle absent checkbox changes
+                if new_absent_value != is_absent and not is_checked_in and not is_completed_day:
+                    if new_absent_value:
+                        dm.mark_absent(placement_id, date_str)
+                    else:
+                        dm.unmark_absent(placement_id, date_str)
+                    st.rerun()
             
             # Day X of Y
             if total_days > 1 and day_number > 0:
@@ -1326,20 +1344,34 @@ if page == "Dashboard":
             if not is_completed:
                 if subtype_key == 'behavior':
                     # Behavior Referral: Check In + Absent + Complete Referral
-                    # Check if student is checked in (use daily log)
                     is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+                    is_absent = dm.is_marked_absent(placement_id, date_str)
                     
                     checkin_col, absent_col = st.columns([1, 1])
                     with checkin_col:
+                        # Check In button - disabled if checked in or marked absent
                         if is_checked_in:
+                            st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", disabled=True)
+                        elif is_absent:
                             st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", disabled=True)
                         else:
                             if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", type="primary"):
                                 dm.checkin_referral(placement_id, date_str)
                                 st.rerun()
                     with absent_col:
-                        # Absent checkbox (UI only - no logic hookup yet)
-                        st.checkbox("Absent", key=f"absent_behavior_{placement_id}_{date_str}", disabled=is_checked_in)
+                        # Absent checkbox - disabled if already checked in
+                        absent_key = f"absent_behavior_{placement_id}_{date_str}"
+                        if absent_key not in st.session_state:
+                            st.session_state[absent_key] = is_absent
+                        
+                        new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in)
+                        
+                        if new_absent_value != is_absent and not is_checked_in:
+                            if new_absent_value:
+                                dm.mark_absent(placement_id, date_str)
+                            else:
+                                dm.unmark_absent(placement_id, date_str)
+                            st.rerun()
                     
                     # Complete Referral button
                     if st.button("Complete Referral", key=f"complete_behavior_{placement_id}_{date_str}", type="primary"):
@@ -1348,20 +1380,34 @@ if page == "Dashboard":
                 
                 elif subtype_key == 'cool_down':
                     # Cool-Down Referral: Check In + Absent + Complete Cool-Down
-                    # Check if student is checked in (use daily log)
                     is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+                    is_absent = dm.is_marked_absent(placement_id, date_str)
                     
                     checkin_col, absent_col = st.columns([1, 1])
                     with checkin_col:
+                        # Check In button - disabled if checked in or marked absent
                         if is_checked_in:
+                            st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", disabled=True)
+                        elif is_absent:
                             st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", disabled=True)
                         else:
                             if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", type="primary"):
                                 dm.checkin_referral(placement_id, date_str)
                                 st.rerun()
                     with absent_col:
-                        # Absent checkbox (UI only - no logic hookup yet)
-                        st.checkbox("Absent", key=f"absent_cooldown_{placement_id}_{date_str}", disabled=is_checked_in)
+                        # Absent checkbox - disabled if already checked in
+                        absent_key = f"absent_cooldown_{placement_id}_{date_str}"
+                        if absent_key not in st.session_state:
+                            st.session_state[absent_key] = is_absent
+                        
+                        new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in)
+                        
+                        if new_absent_value != is_absent and not is_checked_in:
+                            if new_absent_value:
+                                dm.mark_absent(placement_id, date_str)
+                            else:
+                                dm.unmark_absent(placement_id, date_str)
+                            st.rerun()
                     
                     # Complete Cool-Down button
                     if st.button("Complete Cool-Down", key=f"complete_cooldown_{placement_id}_{date_str}", type="primary"):
@@ -1373,6 +1419,7 @@ if page == "Dashboard":
                     checkin_status = dm.get_preplanned_checkin_status(placement_id, date_str)
                     is_checked_in = checkin_status.get('checked_in', False)
                     checked_in_at = checkin_status.get('checked_in_at')
+                    is_absent = dm.is_marked_absent(placement_id, date_str)
                     
                     col_checkin, col_absent = st.columns([1, 1])
                     
@@ -1381,6 +1428,9 @@ if page == "Dashboard":
                             # Show check-in confirmation
                             checkin_time = checked_in_at.strftime('%I:%M %p') if checked_in_at else ''
                             st.success(f"✓ Checked In {checkin_time}")
+                        elif is_absent:
+                            # Show disabled Check In button when absent
+                            st.button("Check In", key=f"checkin_preplanned_{placement_id}_{date_str}", disabled=True)
                         else:
                             # Show Check In button
                             if st.button("Check In", key=f"checkin_preplanned_{placement_id}_{date_str}", type="primary"):
@@ -1388,8 +1438,19 @@ if page == "Dashboard":
                                 st.rerun()
                     
                     with col_absent:
-                        # Absent checkbox (UI only - no logic hookup yet)
-                        st.checkbox("Absent", key=f"absent_preplanned_{placement_id}_{date_str}", disabled=is_checked_in)
+                        # Absent checkbox - disabled if already checked in
+                        absent_key = f"absent_preplanned_{placement_id}_{date_str}"
+                        if absent_key not in st.session_state:
+                            st.session_state[absent_key] = is_absent
+                        
+                        new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in)
+                        
+                        if new_absent_value != is_absent and not is_checked_in:
+                            if new_absent_value:
+                                dm.mark_absent(placement_id, date_str)
+                            else:
+                                dm.unmark_absent(placement_id, date_str)
+                            st.rerun()
                     
                     # Complete button - sets attendance based on check-in status
                     if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
@@ -1397,7 +1458,7 @@ if page == "Dashboard":
                         st.rerun()
                     
                     # Show attendance preview
-                    if not is_checked_in:
+                    if not is_checked_in and not is_absent:
                         st.caption("⚠️ If completed now, attendance will be marked as **Absent**")
             else:
                 # Show completed status for all subtypes
@@ -1583,18 +1644,35 @@ if page == "Dashboard":
                 pass
             
             with header_col3:
-                # Check In button (replaces Present/Absent)
+                # Check if day is marked absent
+                is_absent = dm.is_marked_absent(placement_id, date_str)
+                
+                # Check In button - disabled if already checked in, completed, or marked absent
                 if is_completed:
                     st.success("Checked Out")
                 elif is_checked_in:
+                    st.button("Check In", key=f"iss_checkin_{session_id}", disabled=True)
+                elif is_absent:
                     st.button("Check In", key=f"iss_checkin_{session_id}", disabled=True)
                 else:
                     if st.button("Check In", key=f"iss_checkin_{session_id}", type="primary"):
                         dm.check_in_student(placement_id, date_str)
                         st.rerun()
                 
-                # Absent checkbox (UI only - no logic hookup yet)
-                st.checkbox("Absent", key=f"iss_absent_{session_id}_{date_str}", disabled=is_checked_in or is_completed)
+                # Absent checkbox - disabled if already checked in or completed
+                absent_key = f"iss_absent_{session_id}_{date_str}"
+                if absent_key not in st.session_state:
+                    st.session_state[absent_key] = is_absent
+                
+                new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in or is_completed)
+                
+                # Handle absent checkbox changes
+                if new_absent_value != is_absent and not is_checked_in and not is_completed:
+                    if new_absent_value:
+                        dm.mark_absent(placement_id, date_str)
+                    else:
+                        dm.unmark_absent(placement_id, date_str)
+                    st.rerun()
             
             # ISS Session Summary - Period tracking display
             st.markdown(f"""

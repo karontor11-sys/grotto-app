@@ -1436,6 +1436,65 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def complete_placement_as_absent(self, placement_id: str, absent_date: str) -> bool:
+        """Complete a one-day Pre-Planned placement as absent.
+        
+        For one-day Pre-Planned referrals where the student is marked absent:
+        - Marks the daily log as absent with no check-in
+        - Sets progress_status to COMPLETED
+        - Sets placement status to 'completed'
+        
+        The card will appear grayed out and move to Completed section.
+        
+        Args:
+            placement_id: ID of the placement
+            absent_date: ISO format date string
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            date_obj = datetime.fromisoformat(absent_date).date()
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    day_type='absent',
+                    checked_in=False,
+                    daily_fulfillment='yes',  # Mark as completed
+                    no_show=True  # Mark as no-show/absent
+                )
+                session.add(log)
+            else:
+                log.day_type = 'absent'
+                log.checked_in = False
+                log.checked_in_at = None
+                log.daily_fulfillment = 'yes'  # Mark as completed
+                log.no_show = True  # Mark as no-show/absent
+            
+            # Complete the placement
+            placement.status = PlacementStatus.COMPLETED
+            placement.progress_status = PlacementProgressStatus.COMPLETED
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def checkin_referral(self, placement_id: str, checkin_date: str) -> bool:
         """Check in a student for a Behavior or Cool-Down referral.
         

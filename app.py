@@ -1344,39 +1344,16 @@ if page == "Dashboard":
             # Completion controls - different by subtype
             if not is_completed:
                 if subtype_key == 'behavior':
-                    # Behavior Referral: Check In + Absent + Complete Referral
+                    # Behavior Referral: Check In + Complete Referral (NO Absent - same-day placement)
                     is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
-                    is_absent_db = dm.is_marked_absent(placement_id, date_str)
                     
-                    # Use stable key for absent checkbox
-                    absent_key = f"absent_behavior_{placement_id}_{date_str}"
-                    
-                    # Initialize session state for absent if not set
-                    if absent_key not in st.session_state:
-                        st.session_state[absent_key] = is_absent_db
-                    
-                    # Get current absent value from session state
-                    is_absent = st.session_state.get(absent_key, is_absent_db)
-                    
-                    checkin_col, absent_col = st.columns([1, 1])
-                    with checkin_col:
-                        # Check In button - disabled if checked in or marked absent
-                        checkin_disabled = is_checked_in or is_absent
-                        if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", 
-                                   type="primary" if not checkin_disabled else "secondary",
-                                   disabled=checkin_disabled):
+                    # Check In button
+                    if is_checked_in:
+                        st.success("✓ Checked In")
+                    else:
+                        if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", type="primary"):
                             dm.checkin_referral(placement_id, date_str)
                             st.rerun()
-                    with absent_col:
-                        # Absent checkbox - disabled if already checked in
-                        new_absent_value = st.checkbox("Absent", key=absent_key, disabled=is_checked_in)
-                        
-                        # Handle absent checkbox changes - sync with database
-                        if new_absent_value != is_absent_db and not is_checked_in:
-                            if new_absent_value:
-                                dm.mark_absent(placement_id, date_str)
-                            else:
-                                dm.unmark_absent(placement_id, date_str)
                     
                     # Complete Referral button
                     if st.button("Complete Referral", key=f"complete_behavior_{placement_id}_{date_str}", type="primary"):
@@ -1384,39 +1361,16 @@ if page == "Dashboard":
                         st.rerun()
                 
                 elif subtype_key == 'cool_down':
-                    # Cool-Down Referral: Check In + Absent + Complete Cool-Down
+                    # Cool-Down Referral: Check In + Complete Cool-Down (NO Absent - same-day placement)
                     is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
-                    is_absent_db = dm.is_marked_absent(placement_id, date_str)
                     
-                    # Use stable key for absent checkbox
-                    absent_key = f"absent_cooldown_{placement_id}_{date_str}"
-                    
-                    # Initialize session state for absent if not set
-                    if absent_key not in st.session_state:
-                        st.session_state[absent_key] = is_absent_db
-                    
-                    # Get current absent value from session state
-                    is_absent = st.session_state.get(absent_key, is_absent_db)
-                    
-                    checkin_col, absent_col = st.columns([1, 1])
-                    with checkin_col:
-                        # Check In button - disabled if checked in or marked absent
-                        checkin_disabled = is_checked_in or is_absent
-                        if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", 
-                                   type="primary" if not checkin_disabled else "secondary",
-                                   disabled=checkin_disabled):
+                    # Check In button
+                    if is_checked_in:
+                        st.success("✓ Checked In")
+                    else:
+                        if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", type="primary"):
                             dm.checkin_referral(placement_id, date_str)
                             st.rerun()
-                    with absent_col:
-                        # Absent checkbox - disabled if already checked in
-                        new_absent_value = st.checkbox("Absent", key=absent_key, disabled=is_checked_in)
-                        
-                        # Handle absent checkbox changes - sync with database
-                        if new_absent_value != is_absent_db and not is_checked_in:
-                            if new_absent_value:
-                                dm.mark_absent(placement_id, date_str)
-                            else:
-                                dm.unmark_absent(placement_id, date_str)
                     
                     # Complete Cool-Down button
                     if st.button("Complete Cool-Down", key=f"complete_cooldown_{placement_id}_{date_str}", type="primary"):
@@ -1425,6 +1379,10 @@ if page == "Dashboard":
                 
                 elif subtype_key == 'pre_planned':
                     # Pre-Planned Referral: Check In + Absent + Complete workflow
+                    # Special logic for one-day vs multi-day Pre-Planned
+                    days_assigned = placement.get('daysAssigned', 1)
+                    is_one_day = days_assigned == 1
+                    
                     checkin_status = dm.get_preplanned_checkin_status(placement_id, date_str)
                     is_checked_in = checkin_status.get('checked_in', False)
                     checked_in_at = checkin_status.get('checked_in_at')
@@ -1464,17 +1422,27 @@ if page == "Dashboard":
                         if new_absent_value != is_absent_db and not is_checked_in:
                             if new_absent_value:
                                 dm.mark_absent(placement_id, date_str)
+                                # For one-day Pre-Planned: auto-complete and move to Completed
+                                if is_one_day:
+                                    dm.complete_placement_as_absent(placement_id, date_str)
+                                    st.rerun()
                             else:
                                 dm.unmark_absent(placement_id, date_str)
                     
-                    # Complete button - sets attendance based on check-in status
-                    if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
-                        dm.complete_preplanned_session(placement_id, date_str, "Admin")
-                        st.rerun()
+                    # For multi-day Pre-Planned when marked absent: show skip message
+                    if is_absent and not is_one_day:
+                        st.warning("⚠️ Student marked absent for this day. Day will be skipped and resumed on next scheduled date.")
                     
-                    # Show attendance preview
-                    if not is_checked_in and not is_absent:
-                        st.caption("⚠️ If completed now, attendance will be marked as **Absent**")
+                    # Complete button - sets attendance based on check-in status
+                    # Hide for one-day when absent (auto-completed above)
+                    if not (is_one_day and is_absent):
+                        if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
+                            dm.complete_preplanned_session(placement_id, date_str, "Admin")
+                            st.rerun()
+                        
+                        # Show attendance preview
+                        if not is_checked_in and not is_absent:
+                            st.caption("⚠️ If completed now, attendance will be marked as **Absent**")
             else:
                 # Show completed status for all subtypes
                 if subtype_key == 'pre_planned':

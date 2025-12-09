@@ -1,0 +1,172 @@
+Adjust Absent Logic for Class Period Referrals (Pre-Planned Only) and Multiday Behavior
+
+Please update the Dashboard logic and UI to refine how the Absent option works, especially for Class Period Referral subtypes, and to handle Pre-Planned one-day and multi-day cases correctly.
+
+These changes are an update to the Absent / Check In system we already defined.
+
+1. Placement Types & Where “Absent” Should/Should Not Appear
+
+We have the following placement types:
+
+ISS (full-day and partial-day, possibly multiday)
+
+Lunch Detention (possibly multiday)
+
+Class Period Referral with three subtypes:
+
+Behavior Referral (same-day)
+
+Cool-Down Referral (same-day)
+
+Pre-Planned Referral (future / scheduled, may be multi-day)
+
+1A. Keep Absent for These
+
+Keep the Absent option (with all the existing skip/resume logic) for:
+
+ISS (full and partial, especially multiday)
+
+Lunch Detention (especially multiday)
+
+Class Period Referral – Pre-Planned subtype only
+
+1B. Remove Absent for These
+
+For Class Period Referral – Behavior Referral and Class Period Referral – Cool-Down Referral:
+
+If an Absent radio button / control has been added on the expanded cards, remove it.
+
+These two subtypes should have:
+
+Check In button
+
+Complete button
+
+NO Absent control
+
+Their status behavior is simple same-day:
+
+New → NOT_STARTED (green)
+
+After Check In → IN_PROGRESS (yellow)
+
+After Complete → COMPLETED (red)
+
+Do not change their existing Check In / Complete logic, just remove Absent there.
+
+2. Special Absent Logic for CPR – Pre-Planned Subtype
+
+For Class Period Referral – Pre-Planned specifically, we need special Absent behavior depending on whether the placement is one-day or multi-day.
+
+Pre-Planned entries are scheduled in advance, so a student can be absent on those days.
+
+2A. One-Day Pre-Planned CPR
+
+If the Pre-Planned placement is scheduled for only one day and the user selects Absent for that day:
+
+Do not call Check In logic.
+
+No attendance or period credit is given.
+
+No IN_PROGRESS state should be triggered.
+
+Visually gray out that record:
+
+The card / row should appear visually “inactive” (use a muted/grey styling to indicate it is no longer an active, upcoming placement).
+
+Move it to Completed:
+
+Set its status so it is treated as Completed and moves to whatever Completed list / view you are using.
+
+This is effectively: “This one-day Pre-Planned referral is done, but the student never attended.”
+
+So:
+Absent on a one-day Pre-Planned CPR = gray it out + send to Completed + no check-in / period credit.
+
+2B. Multi-Day Pre-Planned CPR
+
+If the Pre-Planned placement spans multiple days, and the user marks Absent on one of the scheduled days:
+
+Skip that day entirely:
+
+Do not call Check In logic.
+
+Do not count that day as served.
+
+Do not run any period-counting or credit logic for that date.
+
+Status for the overall placement should not be inadvertently completed because of an Absent.
+
+Day-of-days and period math:
+
+That Absent day must not decrement remaining days or remaining periods.
+
+The multiday “day of days” counters and behind-the-scenes period running tally should ignore that day.
+
+Automatically resume on the next scheduled day:
+
+On the next scheduled date for that Pre-Planned CPR:
+
+At the stroke of midnight (12:00 a.m.) on that scheduled day, the system should treat the new day as the active, live record.
+
+That day should appear as:
+
+status = "NOT_STARTED" (green) by default when it first becomes active.
+
+Ready for a Check In on that date.
+
+In other words:
+
+Absent days are a gap with no credit.
+
+The running tally resumes normally on the next actual Check In day.
+
+Visual behavior for the Absent day:
+
+If you show each day individually, that day’s row/card can be greyed / marked as Absent in the history.
+
+The currently active day (today’s date) should be the one with the usual status circle logic (green → yellow → red).
+
+3. Priority Between Check In and Absent (Pre-Planned)
+
+For Pre-Planned CPR (and for consistency, ISS/Lunch too):
+
+If Absent is selected for a given date:
+
+Do not also allow Check In for that same date.
+
+You can enforce this by:
+
+Disabling the Check In button when Absent is selected, or
+
+Having Absent take precedence so no check-in is recorded for that date.
+
+If the user has already pressed Check In for that date:
+
+You may:
+
+Disable the Absent option, or
+
+Require that Absent cannot be selected after a successful Check In.
+
+Do not allow both Absent and Check In to be “active” on the same date.
+
+4. Preserve Existing ISS and Lunch Detention Absent Logic
+
+For ISS and Lunch Detention (especially multiday):
+
+Keep the existing behavior we already defined:
+
+Absent for a given date:
+
+Skips that day in both:
+
+Day-of-days counters.
+
+Behind-the-scenes period running tally.
+
+Does not change the overall placement status.
+
+On the next day the student is actually checked in, the counters and period math resume from the last served day.
+
+Do not remove Absent from ISS or Lunch Detention; just ensure they still use the skip/resume rules.

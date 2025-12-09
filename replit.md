@@ -122,6 +122,16 @@ The UI features a **Dashboard** with:
   - ✅ Completed (green) - All required periods served
 - **Scheduled Placements**: Future placements show with 🔒 lock icon and ⚪ Not Started badge
 
+### Placement Progress Status Field (December 2025)
+- **New `progress_status` Field**: Added persistent status field to ALL placement types (ISS, Lunch Detention, Class Period Referrals)
+- **Enum Values**: `PlacementProgressStatus` with three values:
+  - `NOT_STARTED` - Default value set automatically when placement is created
+  - `IN_PROGRESS` - Set when student activity begins
+  - `COMPLETED` - Set when placement requirements are met
+- **Database Column**: `progress_status VARCHAR(20) DEFAULT 'NOT_STARTED'`
+- **API Output**: Available in placement dictionary as `progressStatus`
+- **Separate from Lifecycle Status**: This tracks completion progress, while existing `status` field tracks lifecycle (active/scheduled/completed/needs_makeup)
+
 ## External Dependencies
 
 ### Core Framework

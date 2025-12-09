@@ -24,6 +24,12 @@ class PlacementStatus(enum.Enum):
     completed = "completed"
     needs_makeup = "needs_makeup"  # Session complete but periods short, awaiting make-up
 
+class PlacementProgressStatus(enum.Enum):
+    """Progress status for all placement types - tracks overall completion progress"""
+    NOT_STARTED = "NOT_STARTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+
 class PlacementType(enum.Enum):
     iss_full_day = "iss_full_day"
     partial = "partial"
@@ -111,6 +117,7 @@ class Placement(Base):
     scheduled_lunch_dates = Column(JSON, default=list)  # Array of scheduled Lunch Detention dates (ISO format strings)
     referral_subtype = Column(String, nullable=True)  # For CLASS_REFERRAL: 'behavior', 'cool_down', or 'pre_planned'
     status = Column(SQLEnum(PlacementStatus), default=PlacementStatus.active)
+    progress_status = Column(SQLEnum(PlacementProgressStatus), default=PlacementProgressStatus.NOT_STARTED)  # Progress tracking for all placement types
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now)
     iss_label = Column(String, nullable=True)  # Official label: "{issDaysAssigned}-day ISS Session for {Student Name}"
@@ -4058,6 +4065,7 @@ class DatabaseManager:
             'scheduledLunchDates': placement.scheduled_lunch_dates or [],
             'referralSubtype': placement.referral_subtype,
             'status': placement.status.value,
+            'progressStatus': placement.progress_status.value if placement.progress_status else PlacementProgressStatus.NOT_STARTED.value,
             'createdBy': placement.created_by,
             'createdAt': placement.created_at.isoformat() if placement.created_at else None,
             'issLabel': placement.iss_label,

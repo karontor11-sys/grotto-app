@@ -1335,8 +1335,8 @@ if page == "Dashboard":
                             st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", disabled=True)
                         else:
                             if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", type="primary"):
-                                # UI only - no logic hookup yet
-                                pass
+                                dm.checkin_referral(placement_id, date_str)
+                                st.rerun()
                     with absent_col:
                         # Absent checkbox (UI only - no logic hookup yet)
                         st.checkbox("Absent", key=f"absent_behavior_{placement_id}_{date_str}", disabled=is_checked_in)
@@ -1357,8 +1357,8 @@ if page == "Dashboard":
                             st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", disabled=True)
                         else:
                             if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", type="primary"):
-                                # UI only - no logic hookup yet
-                                pass
+                                dm.checkin_referral(placement_id, date_str)
+                                st.rerun()
                     with absent_col:
                         # Absent checkbox (UI only - no logic hookup yet)
                         st.checkbox("Absent", key=f"absent_cooldown_{placement_id}_{date_str}", disabled=is_checked_in)

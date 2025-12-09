@@ -1337,6 +1337,57 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def checkin_referral(self, placement_id: str, checkin_date: str) -> bool:
+        """Check in a student for a Behavior or Cool-Down referral.
+        
+        This is a simplified check-in that:
+        - Sets checked_in = True in the daily log
+        - Updates progress_status to IN_PROGRESS
+        
+        Args:
+            placement_id: ID of the placement
+            checkin_date: ISO format date string
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            date_obj = datetime.fromisoformat(checkin_date).date()
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    checked_in=True,
+                    checked_in_at=datetime.now()
+                )
+                session.add(log)
+            else:
+                log.checked_in = True
+                log.checked_in_at = datetime.now()
+            
+            # Update progress_status to IN_PROGRESS on check-in
+            if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
     def get_completed_placements_with_students(self) -> List[Dict[str, Any]]:
         """Get all completed placements with student info.
         

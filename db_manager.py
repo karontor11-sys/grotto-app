@@ -1337,6 +1337,105 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def mark_absent(self, placement_id: str, absent_date: str) -> bool:
+        """Mark a student as absent for a specific date.
+        
+        This does NOT update progress_status - it simply records the absence.
+        Absent days are skipped in day/period counting.
+        
+        Args:
+            placement_id: ID of the placement
+            absent_date: ISO format date string
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return False
+            
+            date_obj = datetime.fromisoformat(absent_date).date()
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    day_type='absent',
+                    checked_in=False
+                )
+                session.add(log)
+            else:
+                log.day_type = 'absent'
+                log.checked_in = False
+                log.checked_in_at = None
+            
+            # Do NOT update progress_status - absent days don't affect status
+            
+            session.commit()
+            return True
+        finally:
+            session.close()
+    
+    def unmark_absent(self, placement_id: str, date_str: str) -> bool:
+        """Remove the absent marking for a specific date.
+        
+        Args:
+            placement_id: ID of the placement
+            date_str: ISO format date string
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(date_str).date()
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if log and log.day_type == 'absent':
+                log.day_type = None
+                session.commit()
+            
+            return True
+        finally:
+            session.close()
+    
+    def is_marked_absent(self, placement_id: str, date_str: str) -> bool:
+        """Check if a specific date is marked as absent.
+        
+        Args:
+            placement_id: ID of the placement
+            date_str: ISO format date string
+            
+        Returns:
+            True if marked absent, False otherwise
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(date_str).date()
+            
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            return log.day_type == 'absent' if log else False
+        finally:
+            session.close()
+    
     def checkin_referral(self, placement_id: str, checkin_date: str) -> bool:
         """Check in a student for a Behavior or Cool-Down referral.
         

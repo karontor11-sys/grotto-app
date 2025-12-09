@@ -1,0 +1,106 @@
+Implement Absent Logic + Skip/Resume Multiday Counters
+
+Prompt for Replit:
+
+Implement the Absent behavior for multiday and single-day placements on the Dashboard.
+
+This applies to:
+
+ISS (full and partial)
+
+Lunch Detention
+
+Class Period Referral (all subtypes)
+
+1. Absent Selection Behavior
+
+When the user selects “Absent” on an expanded card for a given date:
+
+Do not call the Check In logic.
+
+No attendance for that date should be recorded.
+
+The placement should not move into "IN_PROGRESS" if it was "NOT_STARTED".
+
+Freeze the status for that date.
+
+Do not change the status value.
+
+Do not change the Dashboard visuals:
+
+Collapsed row circle color stays the same.
+
+Expanded card circle + text stay the same.
+
+If a placement is already "IN_PROGRESS" or "COMPLETED", selecting Absent should not alter the status.
+
+The Absent option is only to indicate the student did not attend that day without affecting status or progress.
+
+2. Multiday Logic: Skip Absent Days for Counters, Then Resume
+
+For multiday sessions (ISS and Lunch Detention), update the day/period counting logic so Absent days are skipped, and the running tally resumes normally on the next attended day:
+
+When Absent is selected for a given date in a multiday ISS or Lunch Detention placement:
+
+That date should not count as a “served” day.
+
+The “day of days” counters must skip that day.
+
+Example: For a 3-day ISS, if Day 2 is Absent, the student still has 3 days to serve total; Day 2 is not treated as completed.
+
+The behind-the-scenes period-counting math must also be skipped:
+
+No periods are counted as served for that Absent date.
+
+Remaining periods/days should be calculated as if the student simply did not show up.
+
+On the next day the student is actually checked in after an Absent day:
+
+When the Check In button is pressed on that later scheduled day:
+
+The “day of days” counter should resume normal progression based on the previous running tally (i.e., continue counting from the last served day, ignoring the Absent day).
+
+The behind-the-scenes period counting and running tally should also resume as normal for that day.
+
+In other words:
+
+Absent days are simply skipped, not treated as “served” or as a reset.
+
+The running totals for days and periods continue forward as if the Absent day was a gap with no credit.
+
+If there is already internal logic to track:
+
+Days served vs. days remaining, and
+
+Periods served vs. periods remaining
+…then adjust it so that:
+
+Absent dates are ignored by that logic (they do not decrement remaining days or periods), and
+
+A subsequent Check In continues the tally from the last non-absent day.
+
+This behavior should affect:
+
+Multiday ISS (full or partial-day structure)
+
+Multiday Lunch Detention
+
+If Class Period Referral has any multiday structure, apply the same pattern there as well.
+
+3. Priority Between Check In and Absent
+
+If Absent is selected for a day, do not also allow Check In for that same date.
+
+You can enforce this by:
+
+Disabling the Check In button when Absent is selected, or
+
+Overriding logic so Absent takes precedence and no check-in is recorded.
+
+If Check In has already been used for that day, selecting Absent afterward should either:
+
+Be disabled, or
+
+Remove the Absent state and keep it as checked-in.
+
+Choose whichever is simplest and most consistent with the existing design, but ensure both are never “active” at once for a given date.

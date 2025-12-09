@@ -1955,7 +1955,8 @@ class DatabaseManager:
                             'iss_total_required_periods': placement.iss_total_required_periods,
                             'iss_periods_served': placement.iss_periods_served or 0,
                             'days_completed': placement.days_completed or 0,
-                            'issStatus': iss_status  # Derived status field
+                            'issStatus': iss_status,  # Derived status field
+                            'progressStatus': placement.progress_status.value if placement.progress_status else PlacementProgressStatus.NOT_STARTED.value
                         })
             
             return result

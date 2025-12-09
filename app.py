@@ -1952,17 +1952,17 @@ if page == "Dashboard":
         for iss_session in iss_sessions:
             session_id = iss_session['session_id']
             student_name = iss_session['student_name']
-            iss_status = iss_session.get('issStatus', 'Not Started')
+            progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
             
-            # Create status badge with color coding
-            if iss_status == "Completed":
-                status_badge = "✅ Completed"
-            elif iss_status == "In Progress":
-                status_badge = "🔵 In Progress"
+            # Create colored circle based on progress_status
+            if progress_status == "COMPLETED":
+                status_circle = "🔴"  # Red circle for COMPLETED
+            elif progress_status == "IN_PROGRESS":
+                status_circle = "🟡"  # Yellow circle for IN_PROGRESS
             else:
-                status_badge = "⚪ Not Started"
+                status_circle = "🟢"  # Green circle for NOT_STARTED
             
-            with st.expander(f"{student_name} — {status_badge}", expanded=False):
+            with st.expander(f"{status_circle} {student_name}", expanded=False):
                 render_iss_session_card(iss_session, selected_date)
         
         # Then show scheduled (future) placements as locked cards
@@ -1976,8 +1976,8 @@ if page == "Dashboard":
             start_date_obj = datetime.fromisoformat(start_date_str).date() if start_date_str else None
             formatted_start_date = start_date_obj.strftime('%B %d, %Y') if start_date_obj else 'Unknown'
             
-            # Scheduled placements are always "Not Started"
-            with st.expander(f"🔒 {student_name} — ⚪ Not Started", expanded=False):
+            # Scheduled placements are always "NOT_STARTED" - show green circle
+            with st.expander(f"🟢 🔒 {student_name}", expanded=False):
                 # Render locked card for scheduled placement
                 with st.container():
                     st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
@@ -2008,8 +2008,17 @@ if page == "Dashboard":
             placement_id = placement['_id']
             student = placement['student']
             student_name = f"{student['firstName']} {student['lastName']}"
+            progress_status = placement.get('progressStatus', 'NOT_STARTED')
             
-            with st.expander(f"{student_name}", expanded=False):
+            # Create colored circle based on progress_status
+            if progress_status == "COMPLETED":
+                status_circle = "🔴"  # Red circle for COMPLETED
+            elif progress_status == "IN_PROGRESS":
+                status_circle = "🟡"  # Yellow circle for IN_PROGRESS
+            else:
+                status_circle = "🟢"  # Green circle for NOT_STARTED
+            
+            with st.expander(f"{status_circle} {student_name}", expanded=False):
                 render_lunch_detention_card(placement, selected_date)
     
     st.divider()
@@ -2023,8 +2032,17 @@ if page == "Dashboard":
             placement_id = placement['_id']
             student = placement['student']
             student_name = f"{student['firstName']} {student['lastName']}"
+            progress_status = placement.get('progressStatus', 'NOT_STARTED')
             
-            with st.expander(f"{student_name}", expanded=False):
+            # Create colored circle based on progress_status
+            if progress_status == "COMPLETED":
+                status_circle = "🔴"  # Red circle for COMPLETED
+            elif progress_status == "IN_PROGRESS":
+                status_circle = "🟡"  # Yellow circle for IN_PROGRESS
+            else:
+                status_circle = "🟢"  # Green circle for NOT_STARTED
+            
+            with st.expander(f"{status_circle} {student_name}", expanded=False):
                 render_unified_class_referral_card(placement, selected_date)
 
 # Placements Page

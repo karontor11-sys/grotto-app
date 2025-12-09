@@ -1127,9 +1127,8 @@ if page == "Dashboard":
                         st.rerun()
                 
                 # Absent checkbox - disabled if already checked in or completed
-                absent_key = f"ld_absent_{placement_id}_{date_str}"
-                if absent_key not in st.session_state:
-                    st.session_state[absent_key] = is_absent
+                # Use unique key per render to avoid stale session state
+                absent_key = f"ld_absent_{placement_id}_{date_str}_{is_absent}"
                 
                 new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in or is_completed_day)
                 
@@ -1360,9 +1359,8 @@ if page == "Dashboard":
                                 st.rerun()
                     with absent_col:
                         # Absent checkbox - disabled if already checked in
-                        absent_key = f"absent_behavior_{placement_id}_{date_str}"
-                        if absent_key not in st.session_state:
-                            st.session_state[absent_key] = is_absent
+                        # Use unique key per render to avoid stale session state
+                        absent_key = f"absent_behavior_{placement_id}_{date_str}_{is_absent}"
                         
                         new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in)
                         
@@ -1396,9 +1394,8 @@ if page == "Dashboard":
                                 st.rerun()
                     with absent_col:
                         # Absent checkbox - disabled if already checked in
-                        absent_key = f"absent_cooldown_{placement_id}_{date_str}"
-                        if absent_key not in st.session_state:
-                            st.session_state[absent_key] = is_absent
+                        # Use unique key per render to avoid stale session state
+                        absent_key = f"absent_cooldown_{placement_id}_{date_str}_{is_absent}"
                         
                         new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in)
                         
@@ -1439,9 +1436,8 @@ if page == "Dashboard":
                     
                     with col_absent:
                         # Absent checkbox - disabled if already checked in
-                        absent_key = f"absent_preplanned_{placement_id}_{date_str}"
-                        if absent_key not in st.session_state:
-                            st.session_state[absent_key] = is_absent
+                        # Use unique key per render to avoid stale session state
+                        absent_key = f"absent_preplanned_{placement_id}_{date_str}_{is_absent}"
                         
                         new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in)
                         
@@ -1660,9 +1656,8 @@ if page == "Dashboard":
                         st.rerun()
                 
                 # Absent checkbox - disabled if already checked in or completed
-                absent_key = f"iss_absent_{session_id}_{date_str}"
-                if absent_key not in st.session_state:
-                    st.session_state[absent_key] = is_absent
+                # Use unique key per render to avoid stale session state
+                absent_key = f"iss_absent_{session_id}_{date_str}_{is_absent}"
                 
                 new_absent_value = st.checkbox("Absent", key=absent_key, value=is_absent, disabled=is_checked_in or is_completed)
                 

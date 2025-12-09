@@ -55,6 +55,9 @@ The UI features a **Dashboard** with:
 - **ISS Status Field**: Derived status (`Not Started`, `In Progress`, `Completed`) for ISS placements based on periods served.
 - **Placement Progress Status**: A persistent `progress_status` field (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`) tracks completion progress for all placement types, separate from lifecycle status, with automatic transitions.
 - **Unified Attendance UI**: Consistent Check In + Absent controls across all expanded placement cards, triggering `progress_status` updates and UI refreshes.
+- **Absent Logic**: Marking a day as Absent uses `day_type='absent'` in DailyLog. Absent does NOT change `progress_status` - it simply records the absence without affecting completion progress.
+- **Check In / Absent Mutual Exclusivity**: Check In and Absent controls are mutually exclusive - when Absent is checked, Check In is disabled; when already checked in, Absent is disabled.
+- **Multiday Absent Handling**: For multiday placements (ISS, Lunch Detention), absent days are skipped in day/period counting. The served counter resumes from where it left off when the student checks in again.
 
 ## External Dependencies
 

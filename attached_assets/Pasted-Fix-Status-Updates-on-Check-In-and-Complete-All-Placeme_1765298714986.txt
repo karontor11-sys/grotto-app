@@ -1,0 +1,111 @@
+Fix Status Updates on Check In and Complete (All Placement Types)
+
+Please update the Dashboard logic so that pressing Check In and Complete correctly updates the status field and the visual status indicators (circles + text) for all placement types.
+
+1. Current Issue
+
+Right now, when I press Check In on the Dashboard:
+
+The status circle color does not change to yellow on the collapsed row.
+
+The status circle + text in the expanded card does not change to “In Progress”.
+
+I suspect the same problem exists for the Complete button (no change to red / “Completed”).
+
+It appears that the underlying status is either not being updated correctly, or the Dashboard is not reloading / re-rendering the updated status after these button clicks.
+
+2. Desired Behavior
+
+For all placement types and their subtypes:
+
+In-School Suspension (ISS)
+
+Lunch Detention
+
+Class Period Referral
+
+I want this status logic and UI to be enforced:
+
+A. On Placement Creation
+
+When a new placement is created:
+
+Set status = "NOT_STARTED".
+
+Dashboard (collapsed row): green circle only.
+
+Expanded card: green circle + “Not Started”.
+
+B. On Check In Button (Dashboard)
+
+When I click Check In for a placement on the Dashboard:
+
+Update the placement object in storage to status = "IN_PROGRESS".
+
+Immediately refresh the Dashboard view so:
+
+Collapsed row shows a yellow circle only.
+
+Expanded card shows a yellow circle + “In Progress”.
+
+C. On Complete Button (Dashboard)
+
+When I click Complete for a placement on the Dashboard:
+
+Update the placement object in storage to status = "COMPLETED".
+
+Immediately refresh the Dashboard view so:
+
+Collapsed row shows a red circle only.
+
+Expanded card shows a red circle + “Completed”.
+
+3. Implementation Requirements
+
+Find the code that handles the Check In and Complete button clicks on the Dashboard.
+
+Wherever a check-in is processed, ensure status is updated to "IN_PROGRESS".
+
+Wherever a placement is marked complete, ensure status is updated to "COMPLETED".
+
+Persist the status change:
+
+Make sure the updated status is saved to the same data structure / database used to render the Dashboard lists.
+
+Trigger a UI refresh:
+
+After updating the status, ensure the Dashboard is reloaded or re-rendered so the circles and text use the new status value immediately.
+
+In other words, I should not have to manually reload the page to see the color and text change.
+
+Use the existing mapping:
+
+"NOT_STARTED" → green circle; text: “Not Started”
+
+"IN_PROGRESS" → yellow circle; text: “In Progress”
+
+"COMPLETED" → red circle; text: “Completed”
+
+Confirm this works for:
+
+ISS placements (any subtype)
+
+Lunch Detention placements
+
+Class Period Referral placements (any subtype)
+
+4. Quick QA Checklist (Built-In)
+
+Please also add or verify these simple tests internally:
+
+Create a new ISS placement → Dashboard shows green.
+
+Click Check In for that ISS placement → Dashboard shows yellow / In Progress.
+
+Click Complete for that ISS placement → Dashboard shows red / Completed.
+
+Repeat the same quick test for:
+
+One Lunch Detention placement.
+
+One Class Period Referral placement.

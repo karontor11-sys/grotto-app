@@ -126,11 +126,18 @@ The UI features a **Dashboard** with:
 - **New `progress_status` Field**: Added persistent status field to ALL placement types (ISS, Lunch Detention, Class Period Referrals)
 - **Enum Values**: `PlacementProgressStatus` with three values:
   - `NOT_STARTED` - Default value set automatically when placement is created
-  - `IN_PROGRESS` - Set when student activity begins
+  - `IN_PROGRESS` - Set when student activity begins (check-in or first day completed)
   - `COMPLETED` - Set when placement requirements are met
 - **Database Column**: `progress_status VARCHAR(20) DEFAULT 'NOT_STARTED'`
 - **API Output**: Available in placement dictionary as `progressStatus`
 - **Separate from Lifecycle Status**: This tracks completion progress, while existing `status` field tracks lifecycle (active/scheduled/completed/needs_makeup)
+- **Automatic Status Transitions**:
+  - **NOT_STARTED → IN_PROGRESS**: Triggered by Check-In buttons (ISS, Pre-Planned), Present attendance (Lunch Detention), or completing a day of a multi-day placement
+  - **IN_PROGRESS → COMPLETED**: Triggered when all required days/periods are completed
+  - **NOT_STARTED → COMPLETED**: For single-day placements (Behavior/Cool-Down referrals), clicking Complete directly transitions to COMPLETED
+- **Visual Indicators**:
+  - Dashboard collapsed row: 🟢 (NOT_STARTED), 🟡 (IN_PROGRESS), 🔴 (COMPLETED)
+  - Expanded card: Circle + text label (e.g., "🟡 In Progress")
 
 ## External Dependencies
 

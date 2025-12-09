@@ -2613,6 +2613,10 @@ class DatabaseManager:
                             placement.status = PlacementStatus.completed
                             placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
+                        else:
+                            # Set to IN_PROGRESS when completing a day but not yet finished
+                            if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
                     
                     # Auto-complete Class Period Referral (Behavior, Cool-Down, Pre-Planned single day)
                     elif placement.placement_type == PlacementCategory.CLASS_REFERRAL:
@@ -2621,6 +2625,14 @@ class DatabaseManager:
                             placement.status = PlacementStatus.completed
                             placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
+                        else:
+                            # Set to IN_PROGRESS when completing a day but not yet finished
+                            if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+                    else:
+                        # For other placement types, set to IN_PROGRESS if not already completed
+                        if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                            placement.progress_status = PlacementProgressStatus.IN_PROGRESS
             else:
                 old_fulfillment = log.daily_fulfillment
                 log.daily_fulfillment = 'yes'
@@ -2640,6 +2652,10 @@ class DatabaseManager:
                             placement.status = PlacementStatus.completed
                             placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
+                        else:
+                            # Set to IN_PROGRESS when completing a day but not yet finished
+                            if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
                     
                     # Auto-complete Class Period Referral (Behavior, Cool-Down, Pre-Planned single day)
                     elif placement.placement_type == PlacementCategory.CLASS_REFERRAL:
@@ -2648,6 +2664,14 @@ class DatabaseManager:
                             placement.status = PlacementStatus.completed
                             placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
+                        else:
+                            # Set to IN_PROGRESS when completing a day but not yet finished
+                            if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+                    else:
+                        # For other placement types, set to IN_PROGRESS if not already completed
+                        if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                            placement.progress_status = PlacementProgressStatus.IN_PROGRESS
             
             session.commit()
             return True

@@ -1011,6 +1011,7 @@ class DatabaseManager:
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
             if placement:
                 placement.status = PlacementStatus.completed
+                placement.progress_status = PlacementProgressStatus.COMPLETED
                 placement.end_date = date.today()
                 session.commit()
                 return True
@@ -1100,6 +1101,7 @@ class DatabaseManager:
                 total_required = placement.days_assigned
                 if len(served_dates) >= total_required:
                     placement.status = PlacementStatus.completed
+                    placement.progress_status = PlacementProgressStatus.COMPLETED
                     placement.end_date = date_obj
             else:
                 # Student was absent - extend schedule by one school day
@@ -1240,6 +1242,10 @@ class DatabaseManager:
                     served_dates.append(date_str)
                     placement.served_dates = served_dates
             
+            # Update progress_status to IN_PROGRESS on check-in
+            if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+            
             session.commit()
             return True
         finally:
@@ -1304,6 +1310,10 @@ class DatabaseManager:
                 # Transition from scheduled to active on first check-in
                 if placement.status == PlacementStatus.scheduled:
                     placement.status = PlacementStatus.active
+                
+                # Update progress_status to IN_PROGRESS when marked present
+                if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                    placement.progress_status = PlacementProgressStatus.IN_PROGRESS
             else:
                 # Student was absent - extend schedule by one school day with lunch
                 if not scheduled_lunch_dates:
@@ -2601,6 +2611,7 @@ class DatabaseManager:
                         days_assigned = placement.days_assigned or 1
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed
+                            placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
                     
                     # Auto-complete Class Period Referral (Behavior, Cool-Down, Pre-Planned single day)
@@ -2608,6 +2619,7 @@ class DatabaseManager:
                         days_assigned = placement.days_assigned or 1
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed
+                            placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
             else:
                 old_fulfillment = log.daily_fulfillment
@@ -2626,6 +2638,7 @@ class DatabaseManager:
                         days_assigned = placement.days_assigned or 1
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed
+                            placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
                     
                     # Auto-complete Class Period Referral (Behavior, Cool-Down, Pre-Planned single day)
@@ -2633,6 +2646,7 @@ class DatabaseManager:
                         days_assigned = placement.days_assigned or 1
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed
+                            placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = date_obj
             
             session.commit()
@@ -2687,6 +2701,11 @@ class DatabaseManager:
             
             if session_record:
                 session_record.status = SessionStatus.in_progress
+            
+            # Update progress_status to IN_PROGRESS on check-in
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if placement and placement.progress_status != PlacementProgressStatus.COMPLETED:
+                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
             
             db_session.commit()
             return True
@@ -2763,6 +2782,7 @@ class DatabaseManager:
                 days_assigned = placement.days_assigned or 1
                 if placement.days_completed >= days_assigned:
                     placement.status = PlacementStatus.completed
+                    placement.progress_status = PlacementProgressStatus.COMPLETED
                     placement.end_date = date_obj
             
             db_session.commit()
@@ -2940,6 +2960,7 @@ class DatabaseManager:
             iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
             if placement.iss_periods_served >= iss_total_required:
                 placement.status = PlacementStatus.completed
+                placement.progress_status = PlacementProgressStatus.COMPLETED
                 placement.end_date = date_obj
                 # Set the official label
                 iss_days = placement.iss_days_assigned or 0
@@ -3136,6 +3157,7 @@ class DatabaseManager:
             iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
             if placement.iss_periods_served >= iss_total_required:
                 placement.status = PlacementStatus.completed
+                placement.progress_status = PlacementProgressStatus.COMPLETED
                 placement.end_date = date_obj
                 # Set the official label
                 iss_days = placement.iss_days_assigned or 0
@@ -3318,6 +3340,7 @@ class DatabaseManager:
             was_completed = placement.status == PlacementStatus.completed
             if total_periods >= required_total and not was_completed:
                 placement.status = PlacementStatus.completed
+                placement.progress_status = PlacementProgressStatus.COMPLETED
                 placement.end_date = date_obj
                 iss_days = placement.iss_days_assigned or 0
                 placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
@@ -3420,6 +3443,7 @@ class DatabaseManager:
             
             # Update placement
             placement.status = PlacementStatus.completed
+            placement.progress_status = PlacementProgressStatus.COMPLETED
             placement.end_date = date.today()
             placement.closed_early = True
             placement.early_closure_note = note or "Session closed early — remaining periods waived by staff judgment."
@@ -3699,6 +3723,7 @@ class DatabaseManager:
                     iss_total_required = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
                     if placement.iss_periods_served >= iss_total_required:
                         placement.status = PlacementStatus.completed
+                        placement.progress_status = PlacementProgressStatus.COMPLETED
                         placement.end_date = date_obj
                         iss_days = placement.iss_days_assigned or 0
                         placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
@@ -3729,6 +3754,7 @@ class DatabaseManager:
             # Auto-complete placement if no days remaining
             if placement.iss_remaining_days == 0 and placement.status == PlacementStatus.active:
                 placement.status = PlacementStatus.completed
+                placement.progress_status = PlacementProgressStatus.COMPLETED
             
             session.commit()
             return True
@@ -3756,6 +3782,7 @@ class DatabaseManager:
             # Set iss_remaining_days to 0
             placement.iss_remaining_days = 0
             placement.status = PlacementStatus.completed
+            placement.progress_status = PlacementProgressStatus.COMPLETED
             
             # Create or update today's daily log with override flag
             today = date.today()
@@ -4218,6 +4245,7 @@ class DatabaseManager:
                         days_assigned = placement.days_assigned or 1
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed
+                            placement.progress_status = PlacementProgressStatus.COMPLETED
                             placement.end_date = target_date
                 else:
                     # For ISS and other types, mark as incomplete

@@ -95,3 +95,6 @@ externalPort = 8099
 [[ports]]
 localPort = 46823
 externalPort = 6000
+
+[agent]
+integrations = ["github:1.0.0"]

@@ -1113,16 +1113,28 @@ if page == "Dashboard":
                 is_checked_in = is_present  # Use existing attendance status
                 is_completed_day = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
                 
-                # Absent checkbox key - always sync from DB for consistency
+                # Absent checkbox key
                 absent_key = f"ld_absent_{placement_id}_{date_str}"
                 db_absent = dm.is_marked_absent(placement_id, date_str)
                 
-                # Sync session state with DB (DB is source of truth)
+                # Initialize session state from DB if not set
                 if absent_key not in st.session_state:
                     st.session_state[absent_key] = db_absent
                 
-                # Use session state for is_absent (reflects checkbox immediately during interaction)
-                is_absent = st.session_state.get(absent_key, db_absent)
+                # Absent checkbox - render FIRST so state is processed
+                def handle_absent_change(pid=placement_id, ds=date_str, key=absent_key):
+                    new_val = st.session_state.get(key, False)
+                    if new_val:
+                        dm.mark_absent(pid, ds)
+                    else:
+                        dm.unmark_absent(pid, ds)
+                
+                absent_checked = st.checkbox("Absent", key=absent_key,
+                          disabled=is_checked_in or is_completed_day,
+                          on_change=handle_absent_change)
+                
+                # is_absent uses the checkbox return value (current state after widget processing)
+                is_absent = absent_checked
                 
                 # Check In button - disabled if already checked in, completed, or marked absent
                 checkin_disabled = is_completed_day or is_checked_in or is_absent
@@ -1133,18 +1145,6 @@ if page == "Dashboard":
                     # Clear absent session state on check-in (mutual exclusivity)
                     st.session_state[absent_key] = False
                     st.rerun()
-                
-                # Absent checkbox - use on_change callback for database sync
-                def handle_absent_change(pid=placement_id, ds=date_str, key=absent_key):
-                    new_val = st.session_state.get(key, False)
-                    if new_val:
-                        dm.mark_absent(pid, ds)
-                    else:
-                        dm.unmark_absent(pid, ds)
-                
-                st.checkbox("Absent", key=absent_key,
-                          disabled=is_checked_in or is_completed_day,
-                          on_change=handle_absent_change)
             
             # Day X of Y
             if total_days > 1 and day_number > 0:
@@ -1391,14 +1391,34 @@ if page == "Dashboard":
                     is_checked_in = checkin_status.get('checked_in', False)
                     checked_in_at = checkin_status.get('checked_in_at')
                     
-                    # Absent checkbox key - always sync from DB for consistency
+                    # Absent checkbox key
                     absent_key = f"absent_preplanned_{placement_id}_{date_str}"
                     db_absent = dm.is_marked_absent(placement_id, date_str)
+                    
+                    # Initialize session state from DB if not set
                     if absent_key not in st.session_state:
                         st.session_state[absent_key] = db_absent
-                    is_absent = st.session_state.get(absent_key, db_absent)
                     
-                    col_checkin, col_absent = st.columns([1, 1])
+                    # Render Absent checkbox FIRST (in its own column) so state is processed
+                    col_absent, col_checkin = st.columns([1, 1])
+                    
+                    with col_absent:
+                        # Absent checkbox with on_change callback for database sync
+                        def handle_preplanned_absent(pid=placement_id, ds=date_str, key=absent_key, one_day=is_one_day):
+                            new_val = st.session_state.get(key, False)
+                            if new_val:
+                                dm.mark_absent(pid, ds)
+                                # For one-day Pre-Planned: auto-complete
+                                if one_day:
+                                    dm.complete_placement_as_absent(pid, ds)
+                            else:
+                                dm.unmark_absent(pid, ds)
+                        
+                        absent_checked = st.checkbox("Absent", key=absent_key,
+                                  disabled=is_checked_in, on_change=handle_preplanned_absent)
+                    
+                    # is_absent uses the checkbox return value (current state after widget processing)
+                    is_absent = absent_checked
                     
                     with col_checkin:
                         if is_checked_in:
@@ -1413,21 +1433,6 @@ if page == "Dashboard":
                                        disabled=checkin_disabled):
                                 dm.checkin_preplanned_session(placement_id, date_str)
                                 st.rerun()
-                    
-                    with col_absent:
-                        # Use on_change callback for database sync
-                        def handle_preplanned_absent(pid=placement_id, ds=date_str, key=absent_key, one_day=is_one_day):
-                            new_val = st.session_state.get(key, False)
-                            if new_val:
-                                dm.mark_absent(pid, ds)
-                                # For one-day Pre-Planned: auto-complete
-                                if one_day:
-                                    dm.complete_placement_as_absent(pid, ds)
-                            else:
-                                dm.unmark_absent(pid, ds)
-                        
-                        st.checkbox("Absent", key=absent_key,
-                                  disabled=is_checked_in, on_change=handle_preplanned_absent)
                     
                     # For multi-day Pre-Planned when marked absent: show skip message
                     if is_absent and not is_one_day:
@@ -1627,12 +1632,28 @@ if page == "Dashboard":
                 pass
             
             with header_col3:
-                # Absent checkbox key - always sync from DB for consistency
+                # Absent checkbox key
                 absent_key = f"iss_absent_{session_id}_{date_str}"
                 db_absent = dm.is_marked_absent(placement_id, date_str)
+                
+                # Initialize session state from DB if not set
                 if absent_key not in st.session_state:
                     st.session_state[absent_key] = db_absent
-                is_absent = st.session_state.get(absent_key, db_absent)
+                
+                # Absent checkbox - render FIRST so state is processed
+                def handle_iss_absent(pid=placement_id, ds=date_str, key=absent_key):
+                    new_val = st.session_state.get(key, False)
+                    if new_val:
+                        dm.mark_absent(pid, ds)
+                    else:
+                        dm.unmark_absent(pid, ds)
+                
+                absent_checked = st.checkbox("Absent", key=absent_key,
+                          disabled=is_checked_in or is_completed,
+                          on_change=handle_iss_absent)
+                
+                # is_absent uses the checkbox return value (current state after widget processing)
+                is_absent = absent_checked
                 
                 # Check In button - disabled if already checked in, completed, or marked absent
                 if is_completed:
@@ -1644,18 +1665,6 @@ if page == "Dashboard":
                                disabled=checkin_disabled):
                         dm.check_in_student(placement_id, date_str)
                         st.rerun()
-                
-                # Absent checkbox - use on_change callback for database sync
-                def handle_iss_absent(pid=placement_id, ds=date_str, key=absent_key):
-                    new_val = st.session_state.get(key, False)
-                    if new_val:
-                        dm.mark_absent(pid, ds)
-                    else:
-                        dm.unmark_absent(pid, ds)
-                
-                st.checkbox("Absent", key=absent_key,
-                          disabled=is_checked_in or is_completed,
-                          on_change=handle_iss_absent)
             
             # ISS Session Summary - Period tracking display
             st.markdown(f"""

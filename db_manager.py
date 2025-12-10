@@ -295,7 +295,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'scheduled_lunch_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'scheduled_lunch_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived', 'original_day_count')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -389,6 +389,18 @@ class DatabaseManager:
             
             if 'periods_waived' not in existing_columns:
                 session.execute("ALTER TABLE placements ADD COLUMN periods_waived INTEGER DEFAULT 0")
+                session.commit()
+            
+            # Add original_day_count column for ISS Make-Up Days tracking
+            if 'original_day_count' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN original_day_count INTEGER")
+                session.commit()
+                # Backfill from iss_days_assigned for existing placements
+                session.execute("""
+                    UPDATE placements 
+                    SET original_day_count = iss_days_assigned 
+                    WHERE original_day_count IS NULL AND iss_days_assigned IS NOT NULL
+                """)
                 session.commit()
             
             # Migrate existing ISS placements to populate new period-based fields
@@ -2621,6 +2633,102 @@ class DatabaseManager:
         periods_waived = placement.get('periodsWaived') or 0
         
         return max(0, total_required - periods_served - periods_waived)
+    
+    def should_offer_makeup_days(self, placement: dict) -> bool:
+        """Determine if make-up days should be offered for an ISS placement.
+        
+        This helper implements the trigger condition for prompting the user
+        to add make-up days when a student hasn't completed all required periods
+        after finishing all original scheduled dates.
+        
+        Args:
+            placement: Placement dict (from _placement_to_dict or similar)
+            
+        Returns:
+            True if all of the following conditions are met:
+            1. The placement is ISS (multiday with original_day_count >= 1)
+            2. All original scheduled dates are marked as completed
+            3. session_periods_served < session_total_periods_required
+            
+            Otherwise returns False.
+        """
+        if not placement:
+            return False
+        
+        # Check 1: Must be ISS placement
+        placement_type = placement.get('placementType', '')
+        if placement_type != 'ISS':
+            return False
+        
+        # Check 2: Must be multiday ISS (original_day_count >= 1)
+        original_day_count = placement.get('originalDayCount') or placement.get('issDaysAssigned') or 0
+        if original_day_count < 1:
+            return False
+        
+        # Check 3: Get periods served and required
+        periods_served = self.get_iss_periods_served(placement)
+        periods_required = self.get_iss_total_periods_required(placement)
+        
+        # If periods_served >= periods_required, no make-up needed
+        if periods_served >= periods_required:
+            return False
+        
+        # Check 4: All original scheduled dates must be completed
+        # Get original scheduled dates (not make-up dates)
+        scheduled_iss_dates = placement.get('scheduledIssDates') or []
+        scheduled_sessions = placement.get('scheduledIssSessions') or []
+        
+        # Collect all original dates (non-make-up)
+        original_dates = set()
+        
+        # From scheduled_iss_dates (simple date list)
+        for date_str in scheduled_iss_dates:
+            original_dates.add(date_str)
+        
+        # From scheduled_iss_sessions (detailed session list)
+        for session in scheduled_sessions:
+            is_makeup = session.get('isMakeup', False) or session.get('is_makeup', False)
+            if not is_makeup:
+                session_date = session.get('date', '')
+                if session_date:
+                    original_dates.add(session_date)
+        
+        # If no original dates found, can't determine - return False
+        if not original_dates:
+            return False
+        
+        # Query daily logs to check if all original dates are completed
+        placement_id = placement.get('_id')
+        if not placement_id:
+            return False
+        
+        session = self.get_session()
+        try:
+            from sqlalchemy import and_
+            
+            # Get all daily logs for this placement
+            logs = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id
+            ).all()
+            
+            # Build a set of completed dates (daily_fulfillment = 'yes' and not absent)
+            completed_dates = set()
+            for log in logs:
+                if log.daily_fulfillment == 'yes' and log.day_type != 'absent':
+                    # Original sessions have is_makeup_session = False or NULL (legacy data)
+                    # Only make-up sessions have is_makeup_session = True
+                    is_makeup = log.is_makeup_session is True  # Explicitly True means make-up
+                    if not is_makeup:  # Original session (False or NULL)
+                        completed_dates.add(log.date.isoformat())
+            
+            # Check if all original dates are completed
+            all_original_completed = original_dates.issubset(completed_dates)
+            
+            # Return True only if all original dates completed AND periods still remaining
+            return all_original_completed
+            
+        finally:
+            session.close()
     
     def get_iss_scheduled_periods_for_date(self, placement: dict, target_date) -> int:
         """Get scheduled periods for a specific ISS date.

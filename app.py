@@ -1394,15 +1394,6 @@ if page == "Dashboard":
         reason = placement.get('reason', 'No reason provided')
         
         with st.container():
-            # Header: Name, Grade, Status
-            col1, col2 = st.columns([4, 1])
-            
-            with col1:
-                st.markdown(f"**{status_icon} {student_name}**")
-            
-            with col2:
-                st.caption(f"Grade {student.get('grade', 'N/A')}")
-            
             # Subtype label
             if subtype_key == 'behavior':
                 st.caption(f"📚 **{subtype_display}**")

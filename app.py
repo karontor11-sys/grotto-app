@@ -1186,6 +1186,21 @@ if page == "Dashboard":
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
+        # Get progress status and display at top of expanded card
+        progress_status = placement.get('progressStatus', 'NOT_STARTED')
+        if progress_status == "COMPLETED":
+            progress_circle = "🔴"
+            progress_text = "Completed"
+        elif progress_status == "IN_PROGRESS":
+            progress_circle = "🟡"
+            progress_text = "In Progress"
+        else:
+            progress_circle = "🟢"
+            progress_text = "Not Started"
+        
+        # Display status line at top of expanded card (no student name)
+        st.markdown(f"**Status:** {progress_circle} {progress_text}")
+        
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         
@@ -1276,6 +1291,21 @@ if page == "Dashboard":
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
+        
+        # Get progress status and display at top of expanded card
+        progress_status = placement.get('progressStatus', 'NOT_STARTED')
+        if progress_status == "COMPLETED":
+            progress_circle = "🔴"
+            progress_text = "Completed"
+        elif progress_status == "IN_PROGRESS":
+            progress_circle = "🟡"
+            progress_text = "In Progress"
+        else:
+            progress_circle = "🟢"
+            progress_text = "Not Started"
+        
+        # Display status line at top of expanded card (no student name)
+        st.markdown(f"**Status:** {progress_circle} {progress_text}")
         
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)

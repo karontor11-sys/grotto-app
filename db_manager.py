@@ -127,6 +127,10 @@ class Placement(Base):
     closed_early = Column(Boolean, default=False)  # True if Session was closed early with periods remaining
     early_closure_note = Column(Text, nullable=True)  # Required note when closing early
     periods_waived = Column(Integer, default=0)  # Number of periods waived when closing early
+    # Make-up tracking fields
+    makeup_days_used = Column(Integer, default=0)  # Number of make-up days completed
+    makeup_periods_served = Column(Integer, default=0)  # Total periods served on make-up days
+    makeup_note = Column(Text, nullable=True)  # Note about make-up days used (e.g., "Make-up required: 1 additional day (4 periods)")
 
 class DailyLog(Base):
     __tablename__ = 'daily_logs'
@@ -295,7 +299,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'scheduled_lunch_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived', 'original_day_count')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'scheduled_lunch_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived', 'original_day_count', 'makeup_days_used', 'makeup_periods_served', 'makeup_note')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -401,6 +405,19 @@ class DatabaseManager:
                     SET original_day_count = iss_days_assigned 
                     WHERE original_day_count IS NULL AND iss_days_assigned IS NOT NULL
                 """)
+                session.commit()
+            
+            # Add make-up tracking columns
+            if 'makeup_days_used' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN makeup_days_used INTEGER DEFAULT 0")
+                session.commit()
+            
+            if 'makeup_periods_served' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN makeup_periods_served INTEGER DEFAULT 0")
+                session.commit()
+            
+            if 'makeup_note' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN makeup_note TEXT")
                 session.commit()
             
             # Migrate existing ISS placements to populate new period-based fields
@@ -3957,6 +3974,20 @@ class DatabaseManager:
             ).count()
             placement.days_completed = days_completed
             
+            # Track make-up periods: count completed make-up sessions
+            makeup_logs = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.daily_fulfillment == 'yes',
+                DailyLog.is_makeup_session == True
+            ).all()
+            
+            makeup_days_count = len(makeup_logs)
+            makeup_periods_total = sum(ml.periods_added or 0 for ml in makeup_logs)
+            
+            # Update placement make-up tracking fields
+            placement.makeup_days_used = makeup_days_count
+            placement.makeup_periods_served = makeup_periods_total
+            
             # Calculate required and remaining
             required_total = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
             remaining = max(0, required_total - total_periods)
@@ -3967,8 +3998,14 @@ class DatabaseManager:
                 placement.status = PlacementStatus.completed
                 placement.progress_status = PlacementProgressStatus.COMPLETED
                 placement.end_date = date_obj
-                iss_days = placement.iss_days_assigned or 0
-                placement.iss_label = f"{iss_days}-day ISS Session for {student_name}"
+                # Use original_day_count for the label (preserves "X days of ISS")
+                original_days = placement.original_day_count or placement.iss_days_assigned or 0
+                placement.iss_label = f"{original_days}-day ISS Session for {student_name}"
+                
+                # Generate make-up note if make-up days were used
+                if makeup_days_count > 0:
+                    day_word = "day" if makeup_days_count == 1 else "days"
+                    placement.makeup_note = f"Make-up required: {makeup_days_count} additional {day_word} ({makeup_periods_total} periods) beyond original {original_days}-day ISS assignment."
             
             # Create ISS Session Log entry (only for new completions, not edits)
             if was_first_completion:

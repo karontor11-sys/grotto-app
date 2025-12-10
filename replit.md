@@ -55,6 +55,9 @@ The UI features a **Dashboard** with:
 - **ISS Make-Up Days Data Model**: Distinguishes between original scheduled ISS dates and make-up dates:
     - `original_day_count`: Immutable field storing the original "Day of Days" count (e.g., 3 for "3 days of ISS"). Never changes even when make-up days are added.
     - `is_makeup_session` (DailyLog): Boolean flag indicating if a day is a make-up session (`True`) or original session (`False`/`NULL`).
+    - `makeup_days_used` (Placement): Count of completed make-up days (auto-calculated from make-up DailyLogs).
+    - `makeup_periods_served` (Placement): Total periods served on make-up days (auto-calculated).
+    - `makeup_note` (Placement): Completion note documenting make-up usage (e.g., "Make-up required: 2 additional days (15 periods) beyond original 3-day ISS assignment.").
     - `should_offer_makeup_days(placement)`: Helper function that returns `True` when all original dates are completed AND periods remaining > 0.
 - **ISS Status Field**: Derived status (`Not Started`, `In Progress`, `Completed`) for ISS placements based on periods served.
 - **Placement Progress Status**: A persistent `progress_status` field (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`) tracks completion progress for all placement types, separate from lifecycle status, with automatic transitions.

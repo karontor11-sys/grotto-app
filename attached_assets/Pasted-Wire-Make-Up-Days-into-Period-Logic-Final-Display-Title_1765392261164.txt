@@ -1,0 +1,123 @@
+Wire Make-Up Days into Period Logic + Final Display
+
+Title: Apply Make-Up Days to ISS Period Logic and Preserve Original Day Count Display
+
+Now that users can add make-up days, please ensure:
+
+Make-up days actually reduce periods remaining, and
+
+The final status still displays the original “X days of ISS”, even if more calendar days were used.
+
+1. Period Logic for Make-Up Days
+
+Make-up days should behave just like original ISS days in terms of serving periods:
+
+Each make-up date:
+
+Has its own schedule:
+
+Full-day → 10 periods.
+
+Partial-day → N periods.
+
+When the user clicks Complete for that make-up date:
+
+Use scheduled_periods_for_date(placement, date) (from Prompt 3A) to determine how many periods to serve.
+
+Increase session_periods_served by that number.
+
+Recalculate session_periods_remaining:
+
+session_periods_remaining = session_total_periods_required - session_periods_served
+
+Clamp at zero minimum, and avoid double-counting via the same “day already completed” flag logic.
+
+Important: session_total_periods_required DOES NOT CHANGE when make-up days are added.
+Make-up days only help session_periods_served catch up to the original requirement.
+
+2. Completion of ISS Placement with Make-Up Days
+
+An ISS placement should be considered fully satisfied when:
+
+session_periods_served >= session_total_periods_required.
+
+At that point:
+
+session_periods_remaining should be 0.
+
+Any additional completions should not further change these values (guard via day-complete flags).
+
+3. Final Display – Preserve Original “X Days of ISS”
+
+In all places where the placement is described (e.g., Dashboard cards, Completed placements list, detail views), ensure that:
+
+The primary label continues to show the original day assignment, such as:
+
+“3 days of ISS”
+
+“2 days of ISS”
+
+Do not change this label to “4 days of ISS” just because a make-up day was added.
+
+Instead, rely on:
+
+original_day_count for the main text (ex: 3 days of ISS).
+
+Additional metadata/notes to indicate that make-up days were required.
+
+4. Record a Note About Make-Up Days and Periods
+
+When one or more make-up days are used, and the placement ultimately reaches full completion:
+
+Add or update a note/field on the placement such as:
+
+“Make-up required: 1 additional day (4 periods) beyond original 3-day ISS assignment.”
+
+or more generally:
+
+makeup_days_used – number of make-up dates that were actually completed.
+
+makeup_periods_served – total periods served on make-up days.
+
+Implementation options:
+
+Either store a structured set of fields:
+
+makeup_days_used
+
+makeup_periods_served
+
+Or store a text note that includes those values.
+
+Show this note in the Completed placements detail view, not as the main label.
+
+Acceptance Criteria
+
+This prompt is complete when:
+
+Completing a make-up day:
+
+Increases session_periods_served by the correct number of periods for that date.
+
+Decreases session_periods_remaining accordingly.
+
+The ISS placement is considered fully satisfied when session_periods_served >= session_total_periods_required, regardless of how many calendar days (original + make-up) were used.
+
+The main label (e.g., on Dashboard / Completed page) continues to display only the original “X days of ISS” based on original_day_count.
+
+When make-up days have been used:
+
+A note or metadata is stored and visible indicating that:
+
+Additional make-up days and periods were required.
+
+Example phrasing is acceptable:
+“Make-up required: 1 additional day (4 periods) beyond original 3-day ISS assignment.”
+
+No regressions occur to:
+
+Original scheduling.
+
+The base ISS days-of-days display.
+
+Periods-served logic for non-make-up days.

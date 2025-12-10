@@ -1,0 +1,97 @@
+“Add make-up days?” Prompt + Schedule Builder
+
+Title: Implement “Add make-up days?” Prompt and Make-Up Schedule Builder for ISS
+
+Now that we have a trigger (should_offer_makeup_days) and data model for make-up days, please implement the user prompt and the schedule builder UI for adding make-up days.
+
+When to Show the Prompt
+
+Use the should_offer_makeup_days(placement) helper from Prompt 4A to decide when to show the prompt.
+
+Trigger points might include (pick whichever is consistent with existing patterns):
+
+Immediately after the user clicks Complete on the last original scheduled ISS date, or
+
+When the user attempts to fully complete/close the ISS placement and there are still session_periods_remaining > 0.
+
+When the condition is true, display a prompt:
+
+“Add make-up days? The student still has X periods remaining to serve.”
+
+Where X is session_periods_remaining.
+
+Buttons:
+
+Yes, add make-up days
+
+No, not now
+
+If the user chooses No, simply close the prompt and leave the placement as-is (still incomplete, with periods remaining).
+
+Make-Up Schedule Builder
+
+If the user clicks Yes, add make-up days, display a schedule builder that:
+
+Looks and behaves like the existing ISS schedule builder, but:
+
+Any dates and periods added through this builder must be flagged as make-up days (is_makeup = True).
+
+These dates must be added to makeup_scheduled_dates.
+
+Allows the user to:
+
+Select one or more future dates.
+
+For each selected date, choose either:
+
+Full-day ISS (10 periods), or
+
+Partial-day ISS (specific periods).
+
+Does not modify:
+
+original_day_count (Day-of-Days).
+
+original_scheduled_dates.
+
+Persists the schedule:
+
+When the user saves, all added dates should be stored with:
+
+Date,
+
+Periods (full or partial),
+
+is_makeup = True,
+
+Any other required metadata.
+
+UX Notes
+
+Clearly label the builder UI section as something like:
+
+“ISS Make-Up Days – Add additional dates and periods to complete remaining time.”
+
+But do not change the main display label that says “X days of ISS” (that will be handled in the next prompt; for now just avoid coupling).
+
+Acceptance Criteria
+
+This prompt is complete when:
+
+When an ISS placement meets the make-up trigger condition, the system displays a modal/dialog or clear prompt:
+
+“Add make-up days? The student still has X periods remaining to serve.”
+
+Clicking No, not now closes the prompt and makes no changes to the schedule.
+
+Clicking Yes, add make-up days opens a schedule builder that:
+
+Reuses the existing ISS scheduling patterns (date picker, full/partial day).
+
+Creates new schedule entries with is_makeup = True.
+
+Stores them in makeup_scheduled_dates (or equivalent).
+
+Does not alter original_day_count or original dates.
+
+After saving, the new make-up dates are visible in whatever views normally show ISS scheduled days (Daily Log, calendar, etc.), clearly distinguishable as make-up days if needed internally (flagged) even if visually similar.

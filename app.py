@@ -2036,20 +2036,10 @@ if page == "Dashboard":
                             st.error(result.get('message', 'Failed to complete ISS day'))
                 
                 with action_col2:
-                    override_key = f"iss_override_expand_{session_id}"
-                    if override_key not in st.session_state:
-                        st.session_state[override_key] = False
-                    
                     override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
                     if st.button(override_label, key=f"iss_override_btn_{session_id}", 
-                                 use_container_width=True):
-                        st.session_state[override_key] = not st.session_state[override_key]
-                        st.rerun()
-                
-                if st.session_state.get(f"iss_override_expand_{session_id}", False):
-                    warning_msg = "⚠️ This will retroactively mark the session complete and credit all scheduled periods." if is_past_session else "⚠️ This will mark the session complete and credit all scheduled periods."
-                    st.warning(warning_msg)
-                    if st.button("Confirm Override", key=f"iss_override_confirm_{session_id}", type="primary"):
+                                 use_container_width=True, type="secondary"):
+                        print(f"[DEBUG] Override button clicked for session_id={session_id}, placement_id={placement_id}")
                         override_note = "Retroactive override: session marked complete after the fact." if is_past_session else "Supervisor override: student released early due to positive behavior; remaining periods waived."
                         
                         # Use complete_iss_day with override flag - always use Full Day for override
@@ -2079,9 +2069,8 @@ if page == "Dashboard":
                                 if makeup_check.get('needsMakeup', False):
                                     st.session_state[f"show_makeup_prompt_{placement_id}"] = True
                                     st.session_state[f"makeup_info_{placement_id}"] = makeup_check
-                                st.success("✅ Override applied retroactively!" if is_past_session else "✅ Override applied!")
+                                st.success("✅ Override applied!" if not is_past_session else "✅ Override applied retroactively!")
                             
-                            st.session_state[f"iss_override_expand_{session_id}"] = False
                             if hasattr(st, 'cache_data'):
                                 st.cache_data.clear()
                             st.rerun()

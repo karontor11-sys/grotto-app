@@ -1,0 +1,150 @@
+QA / Verification for Make-Up Days Workflow
+
+Title: QA – Verify ISS Make-Up Days Workflow and Final Display
+
+Please run the following QA scenarios to confirm that the make-up days workflow behaves correctly.
+
+Use test students like Buddy Holly, Jane Doe, and John Smith.
+
+Scenario 1 – 3-Day ISS, One Missed Period (Simple Make-Up)
+
+Create a 3-day full-day ISS placement for Buddy Holly:
+
+original_day_count = 3.
+
+session_total_periods_required = 30 (3 × 10).
+
+For Days 1 and 2:
+
+Complete each day normally (full-day):
+
+After Day 1: served = 10, remaining = 20.
+
+After Day 2: served = 20, remaining = 10.
+
+For Day 3:
+
+Treat it as partial attendance in a way that results in only 9 periods being served instead of 10:
+
+For example, adjust schedule or completion such that:
+
+After completing Day 3, session_periods_served = 29, session_periods_remaining = 1.
+
+After completing the last original day:
+
+Confirm that should_offer_makeup_days(placement) returns true.
+
+Confirm the UI shows:
+“Add make-up days? The student still has 1 period remaining to serve.”
+
+Click Yes, add make-up days:
+
+Add one make-up day for a future date with exactly 1 period scheduled.
+
+Complete that make-up date:
+
+Confirm:
+
+session_periods_served = 30.
+
+session_periods_remaining = 0.
+
+In the Completed placement view:
+
+Main label still shows: “3 days of ISS”.
+
+Note indicates something like:
+
+“Make-up required: 1 additional day (1 period) beyond original 3-day ISS assignment.”
+
+Scenario 2 – Multiple Make-Up Days Needed
+
+Create a 2-day ISS for Jane Doe, with both days intended as full (10 periods each):
+
+original_day_count = 2.
+
+session_total_periods_required = 20.
+
+On Day 1:
+
+Complete with only 6 periods served (e.g., partial-day scenario).
+
+On Day 2:
+
+Complete with only 6 periods served.
+
+After all original days are completed:
+
+session_periods_served = 12.
+
+session_periods_remaining = 8.
+
+Confirm:
+
+Make-up prompt appears: “Add make-up days? The student still has 8 periods remaining to serve.”
+
+Add two make-up days:
+
+Make-Up Day A: 4 periods.
+
+Make-Up Day B: 4 periods.
+
+Complete both make-up days:
+
+Final:
+
+session_periods_served = 20.
+
+session_periods_remaining = 0.
+
+Final display:
+
+Main label: “2 days of ISS”.
+
+Note: indicates 2 make-up days, 8 make-up periods.
+
+Scenario 3 – User Chooses “No, not now”
+
+Using John Smith, create a 3-day ISS and deliberately under-serve periods on the original days so that session_periods_served < session_total_periods_required after Day 3.
+
+When prompted “Add make-up days?” choose No, not now.
+
+Confirm:
+
+No new scheduled dates are created.
+
+session_periods_served and session_periods_remaining remain as-is.
+
+The placement remains in an “incomplete” state (periods still remaining).
+
+Later, navigate back to the placement and complete another original or make-up-eligible action that triggers the condition again if appropriate; confirm the prompt can reappear until the requirement is satisfied.
+
+Scenario 4 – Regression Checks
+
+ISS without Make-Up Needed:
+
+Create a 2-day full ISS where each day is fully served (10 periods).
+
+After Day 2:
+
+session_periods_served = 20.
+
+session_periods_remaining = 0.
+
+Confirm:
+
+No make-up prompt appears.
+
+No make-up dates are created.
+
+Non-ISS Placements:
+
+Create Lunch Detention and Class Period Referral placements.
+
+Confirm:
+
+No “Add make-up days?” prompt ever appears.
+
+Their scheduling and completion behavior are unchanged.
+
+If all scenarios pass exactly as described, the Make-Up Days Workflow for Multiday ISS can be considered ✅ complete and consistent with the periods logic from #2 and #3.

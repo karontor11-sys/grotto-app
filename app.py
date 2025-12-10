@@ -552,12 +552,13 @@ if page == "Dashboard":
                     
                     with col_right:
                         st.markdown("**Points Total**")
-                        if total_points >= 10:
-                            st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
+                        required_full_day_points = 10  # Full Day ISS = 10 periods = 10 required points
+                        if total_points >= required_full_day_points:
+                            st.markdown(f"<h2 style='color: green;'>{total_points} / {required_full_day_points}</h2>", unsafe_allow_html=True)
                             st.caption("Eligible for completion")
                         else:
-                            st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
-                            st.caption(f"Need {10 - total_points} more points")
+                            st.markdown(f"<h2>{total_points} / {required_full_day_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Need {required_full_day_points - total_points} more points")
                     
                     # Notes for Full Day session
                     st.caption("Session Notes")
@@ -573,7 +574,7 @@ if page == "Dashboard":
                     col_complete, col_override = st.columns(2)
                     
                     with col_complete:
-                        can_complete = total_points >= 10
+                        can_complete = total_points >= required_full_day_points
                         if st.button("✅ Complete", key=f"complete_full_{placement_id}_{date_str}", type="primary", 
                                      use_container_width=True, disabled=not can_complete):
                             dm.complete_iss_full_day_session(placement_id, date_str, "Admin", 
@@ -585,7 +586,7 @@ if page == "Dashboard":
                                 st.session_state[f"makeup_info_{placement_id}"] = makeup_check
                             st.rerun()
                         if not can_complete:
-                            st.caption("Requires 10+ points")
+                            st.caption(f"Requires {required_full_day_points}+ points")
                     
                     with col_override:
                         # Initialize session state for override modal
@@ -767,11 +768,11 @@ if page == "Dashboard":
                     with col_right:
                         st.markdown("**Points Total**")
                         if total_points >= required_points:
-                            st.markdown(f"<h2 style='color: green;'>{total_points}</h2>", unsafe_allow_html=True)
-                            st.caption(f"Meets target of {required_points} points")
+                            st.markdown(f"<h2 style='color: green;'>{total_points} / {required_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Meets target ({required_points} pts for {periods_count} periods)")
                         else:
-                            st.markdown(f"<h2>{total_points}</h2>", unsafe_allow_html=True)
-                            st.caption(f"Target: {required_points} points ({required_points - total_points} more needed)")
+                            st.markdown(f"<h2>{total_points} / {required_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Need {required_points - total_points} more ({required_points} pts for {periods_count} periods)")
                     
                     # Notes for Partial Day session
                     st.caption("Session Notes")
@@ -1041,7 +1042,14 @@ if page == "Dashboard":
                     st.success("Completed")
             
             st.caption(f"📚 {period_label}")
-            st.caption(f"Points: {total_points}")
+            # Get required points from daily_log (authoritative) with fallback to calculated
+            if daily_log and daily_log.get('requiredPoints'):
+                required_points = daily_log.get('requiredPoints')
+            elif start_period != 'N/A' and end_period != 'N/A':
+                required_points = end_period - start_period + 1
+            else:
+                required_points = 1  # Default
+            st.caption(f"Points: {total_points} / {required_points}")
             
             # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
@@ -1828,26 +1836,27 @@ if page == "Dashboard":
                     # Get selected day type from session state
                     current_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
                     is_full_day_selected = current_day_type == "Full Day"
+                    full_day_required = 10  # Full Day ISS = 10 periods = 10 required points
                     
                     if is_full_day_selected:
-                        if total_points >= 10:
-                            st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
+                        if total_points >= full_day_required:
+                            st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points} / {full_day_required}</h2>", unsafe_allow_html=True)
                             st.caption("✓ Eligible for completion")
                         else:
-                            st.markdown(f"<h2 style='margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
-                            st.caption(f"Need {10 - total_points} more points")
+                            st.markdown(f"<h2 style='margin: 0;'>{total_points} / {full_day_required}</h2>", unsafe_allow_html=True)
+                            st.caption(f"Need {full_day_required - total_points} more points")
                     else:
                         # Partial day - points requirement varies by periods
                         current_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
                         current_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
                         periods_count = max(1, current_end - current_start + 1) if current_end >= current_start else 1
-                        required_points = periods_count  # 1 point per period
-                        if total_points >= required_points:
-                            st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
-                            st.caption(f"✓ {periods_count} periods = {required_points} points needed")
+                        partial_required_points = periods_count  # 1 point per period
+                        if total_points >= partial_required_points:
+                            st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points} / {partial_required_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"✓ {periods_count} periods = {partial_required_points} points needed")
                         else:
-                            st.markdown(f"<h2 style='margin: 0;'>{total_points}</h2>", unsafe_allow_html=True)
-                            st.caption(f"{periods_count} periods = {required_points} points needed")
+                            st.markdown(f"<h2 style='margin: 0;'>{total_points} / {partial_required_points}</h2>", unsafe_allow_html=True)
+                            st.caption(f"{periods_count} periods = {partial_required_points} points needed")
                 
                 action_col1, action_col2 = st.columns(2)
                 
@@ -1861,12 +1870,12 @@ if page == "Dashboard":
                         if curr_end < curr_start:
                             has_period_error = True
                     
-                    can_complete = (not has_period_error) and ((current_day_type != "Full Day") or (current_day_type == "Full Day" and total_points >= 10))
+                    can_complete = (not has_period_error) and ((current_day_type != "Full Day") or (current_day_type == "Full Day" and total_points >= full_day_required))
                     complete_help = ""
                     if has_period_error:
                         complete_help = "Fix period validation errors first"
-                    elif current_day_type == "Full Day" and total_points < 10:
-                        complete_help = "Full day requires 10+ points"
+                    elif current_day_type == "Full Day" and total_points < full_day_required:
+                        complete_help = f"Full day requires {full_day_required}+ points"
                     
                     complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
                     if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary", 
@@ -3099,12 +3108,13 @@ elif page == "ISS Detail":
                 st.caption("No behaviors recorded yet")
         
         with col_total:
-            st.metric("Total Points", total_points)
+            full_day_points_required = 10  # Full Day ISS = 10 periods = 10 points
+            st.metric("Total Points", f"{total_points} / {full_day_points_required}" if selected_day_type == "full" else total_points)
             if selected_day_type == "full":
-                if total_points >= 10:
+                if total_points >= full_day_points_required:
                     st.success("✓ Eligible for completion")
                 else:
-                    st.warning(f"Need {10 - total_points} more")
+                    st.warning(f"Need {full_day_points_required - total_points} more")
             else:
                 st.caption("No minimum for partial days")
         

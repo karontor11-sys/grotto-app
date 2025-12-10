@@ -1,0 +1,129 @@
+Fix and Verify ISS Points System (Full-Day + Partial-Day)
+
+Title: Audit and Fix ISS Points System for Full-Day and Partial-Day Sessions
+
+Please audit and fix the ISS points system so that it works correctly and consistently for all ISS placements only, including both full-day and partial-day sessions.
+
+Scope
+
+This applies only to ISS placements (single-day or multiday, full or partial).
+
+Do not change any Lunch Detention or Class Period Referral behavior here.
+
+Use the existing UI for adding positive / negative points; just make sure the arithmetic and requirements are correct.
+
+Current Behavior (Intended)
+
+For each ISS day (one calendar date of ISS):
+
+The UI shows a points counter for that day (e.g., “Points: 0” or similar).
+
+Staff can add:
+
+Positive points (for good behaviors/tasks such as reading, assignments, etc.).
+
+Negative points (for infractions or disruptive behavior).
+
+The displayed total should always show the accurate cumulative points for that specific ISS day only.
+
+There may currently be bugs where:
+
+Points are not updating correctly when positive and negative entries are mixed.
+
+Points do not reset properly per day.
+
+Full-day vs partial-day expectations are not aligned with the number of periods.
+
+Required Behavior
+
+Please ensure the system behaves as follows:
+
+1. Per-Day Points Tracking (ISS Only)
+
+The points counter must be scoped to a single ISS day:
+
+Each ISS date has its own independent total.
+
+Changing days (e.g., Day 1 vs Day 2 of a multiday ISS) must show the correct total for that date only.
+
+When a staff member adds:
+
+A positive point value (e.g., +1, +2, etc.), the day’s total increases by that amount.
+
+A negative point value (e.g., –1, –2, etc.), the day’s total decreases by that amount.
+
+The displayed total must always be the sum of all point events recorded for that ISS day.
+
+Do not add new caps or limits unless they already exist. Just ensure the math is correct with the current design (i.e., if negative totals are currently allowed, keep that behavior).
+
+2. Full-Day ISS – 10 Periods = 10 Required Points
+
+For a full-day ISS placement (10 periods served in that day):
+
+The system must treat the required points for that date as 10 points.
+
+The expected daily total should match the number of periods served:
+
+Full day = 10 periods → 10 required points.
+
+Wherever the UI indicates completion/requirements for points, it should clearly reflect:
+
+Current total vs required (e.g., “Points: 7 / 10” or equivalent representation that already exists in the app).
+
+When checking if the day’s points requirement has been met, the system should compare against 10 points for a full-day ISS.
+
+3. Partial-Day ISS – Required Points = Number of Scheduled Periods
+
+For a partial-day ISS placement (fewer than 10 periods scheduled that day):
+
+The required points must automatically equal the number of scheduled periods for that day.
+
+Example:
+
+If the ISS is scheduled for 4 periods, the requirement is 4 points.
+
+If scheduled for 6 periods, the requirement is 6 points, etc.
+
+The system must:
+
+Correctly read the scheduled periods for that ISS day.
+
+Set the required points to match that number.
+
+Reflect this in the UI the same way as full-day ISS (e.g., “Points: 3 / 4” if the student has 3 of the 4 required points).
+
+4. Alignment Between Periods and Points
+
+For every ISS day, the following must hold true:
+
+Required points for that day = number of periods scheduled for that day.
+
+Full-day (10 periods) → 10 points.
+
+Partial-day (N periods) → N points.
+
+The points system must not depend on any global session total; it should be purely driven by the current day’s configured number of ISS periods.
+
+5. No Behavior Changes Outside ISS
+
+Do not alter:
+
+Status circles.
+
+Non-ISS placements (Lunch Detention, CPR, etc.).
+
+Any UI text or styling, except where necessary to correctly display the day’s point total and requirement as already intended.
+
+Acceptance Criteria
+
+This change is complete when:
+
+For a full-day ISS, adding positive and negative points updates the total correctly and the required total is 10 points.
+
+For a partial-day ISS, the required points automatically match the number of scheduled periods, and the total updates correctly with positives and negatives.
+
+The displayed points total is always the accurate cumulative value for that individual ISS day.
+
+Switching between different dates/days in a multiday ISS shows correct, independent point totals for each day.
+
+No changes occur to non-ISS placement types.

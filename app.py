@@ -1144,6 +1144,7 @@ if page == "Dashboard":
                     dm.update_lunch_detention_attendance(placement_id, date_str, True)
                     # Clear absent session state on check-in (mutual exclusivity)
                     st.session_state[absent_key] = False
+                    clear_dashboard_caches()
                     st.rerun()
             
             # Day X of Y
@@ -1155,6 +1156,7 @@ if page == "Dashboard":
             if not is_completed:
                 if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
                     dm.complete_placement_day(placement_id, date_str, "Admin")
+                    clear_dashboard_caches()
                     st.rerun()
             else:
                 st.success("Completed")
@@ -1357,11 +1359,13 @@ if page == "Dashboard":
                     else:
                         if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", type="primary"):
                             dm.checkin_referral(placement_id, date_str)
+                            clear_dashboard_caches()
                             st.rerun()
                     
                     # Complete Referral button
                     if st.button("Complete Referral", key=f"complete_behavior_{placement_id}_{date_str}", type="primary"):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
+                        clear_dashboard_caches()
                         st.rerun()
                 
                 elif subtype_key == 'cool_down':
@@ -1374,11 +1378,13 @@ if page == "Dashboard":
                     else:
                         if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", type="primary"):
                             dm.checkin_referral(placement_id, date_str)
+                            clear_dashboard_caches()
                             st.rerun()
                     
                     # Complete Cool-Down button
                     if st.button("Complete Cool-Down", key=f"complete_cooldown_{placement_id}_{date_str}", type="primary"):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
+                        clear_dashboard_caches()
                         st.rerun()
                 
                 elif subtype_key == 'pre_planned':
@@ -1432,6 +1438,7 @@ if page == "Dashboard":
                                        type="primary" if not checkin_disabled else "secondary",
                                        disabled=checkin_disabled):
                                 dm.checkin_preplanned_session(placement_id, date_str)
+                                clear_dashboard_caches()
                                 st.rerun()
                     
                     # For multi-day Pre-Planned when marked absent: show skip message
@@ -1443,6 +1450,7 @@ if page == "Dashboard":
                     if not (is_one_day and is_absent):
                         if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
                             dm.complete_preplanned_session(placement_id, date_str, "Admin")
+                            clear_dashboard_caches()
                             st.rerun()
                         
                         # Show attendance preview

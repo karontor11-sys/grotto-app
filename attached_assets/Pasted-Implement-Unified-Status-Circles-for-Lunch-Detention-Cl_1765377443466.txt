@@ -1,0 +1,132 @@
+Implement Unified Status Circles for Lunch Detention + Class Period Referrals
+
+Title: Unify Status Circle Behavior for Lunch Detention and Class Period Referrals
+
+Please update the Dashboard so that Lunch Detention and all Class Period Referral subtypes use the exact same status-circle system that is already working correctly for ISS.
+
+Goal
+
+Make the visual + state behavior for Lunch Detention and Class Period Referral placements consistent with ISS:
+
+Same colored circles
+
+Same state text
+
+Same triggers (Create → Check In → Complete)
+
+Same behavior in both collapsed and expanded card views
+
+Current Behavior
+
+On the Dashboard, ISS placements currently behave correctly:
+
+After placement creation:
+
+Collapsed card: Green circle only (no text)
+
+Expanded card: Green circle + “Not Started”
+
+After student is checked in:
+
+Collapsed card: Yellow circle only
+
+Expanded card: Yellow circle + “In Progress”
+
+After placement is completed:
+
+Collapsed card: Red circle only
+
+Expanded card: Red circle + “Completed”
+
+For Lunch Detention and Class Period Referral (and its subtypes), the status-circle behavior is currently not matching ISS in all cases.
+(For example, some cards may not update their color on check-in/complete, or the text labels might be missing or inconsistent.)
+
+Required Changes
+
+Apply ISS status-circle logic to these placement types:
+
+Lunch Detention
+
+Class Period Referral – Behavior Referral subtype
+
+Class Period Referral – Cool-Down Referral subtype
+
+Class Period Referral – Pre-Planned Referral subtype
+
+For all of the above types, use the following rules:
+
+On placement creation (before Check In):
+
+Collapsed card: show Green circle only (no status text).
+
+Expanded card: show Green circle + the text “Not Started”.
+
+When the student is Checked In:
+
+Collapsed card: update to Yellow circle only.
+
+Expanded card: Yellow circle + the text “In Progress”.
+
+When the placement is Completed:
+
+Collapsed card: update to Red circle only.
+
+Expanded card: Red circle + the text “Completed”.
+
+Match ISS behavior exactly:
+
+Reuse the same status/state mapping and any shared helper functions that ISS uses.
+
+The only differences between ISS and these other types should be the placement details themselves, not the status-circle logic.
+
+If there is a central “status” field in the data model (e.g., NOT_STARTED, IN_PROGRESS, COMPLETED), ensure Lunch Detention and all Class Period Referral subtypes subscribe to and display that status in the same way ISS does.
+
+Keep ISS behavior unchanged:
+
+Do not alter the existing ISS status-circle logic.
+
+Use ISS as the “gold standard” and bring the other placement types into alignment with it.
+
+Acceptance Criteria
+
+A change is complete when all of the following are true:
+
+New Lunch Detention placement
+
+After creation:
+
+Collapsed card: Green circle only.
+
+Expanded card: Green circle + “Not Started”.
+
+After Check In:
+
+Collapsed: Yellow circle only.
+
+Expanded: Yellow circle + “In Progress”.
+
+After Complete:
+
+Collapsed: Red circle only.
+
+Expanded: Red circle + “Completed”.
+
+New Class Period Referral – Behavior Referral
+
+Follows the exact same pattern as above (Green → Yellow → Red on collapsed cards; “Not Started” → “In Progress” → “Completed” on expanded cards).
+
+New Class Period Referral – Cool-Down Referral
+
+Follows the exact same pattern as above.
+
+New Class Period Referral – Pre-Planned Referral
+
+Follows the exact same pattern as above, regardless of how many periods are scheduled.
+
+Consistency across dates:
+
+When navigating the Dashboard calendar to other dates, any existing Lunch Detention or Class Period Referral placements show the correct circle color and text based on their saved status, just like ISS does.
+
+No regressions to ISS:
+
+ISS card behavior remains unchanged and still matches the Green → Yellow → Red flow and corresponding text states in expanded view.

@@ -1871,7 +1871,7 @@ if page == "Dashboard":
                         default_start_idx = (stored_start_period - 1) if stored_start_period else 0
                         default_end_idx = (stored_end_period - 1) if stored_end_period else (len(period_options) - 1)
                         
-                        period_col1, period_col2 = st.columns(2)
+                        period_col1, period_col2, confirm_col = st.columns([1, 1, 1])
                         with period_col1:
                             selected_start_period = st.selectbox(
                                 "Start Period*",
@@ -1895,6 +1895,15 @@ if page == "Dashboard":
                         
                         if period_validation_error:
                             st.error(period_validation_error)
+                        else:
+                            # Show Confirm button to lock in the partial day selection
+                            with confirm_col:
+                                st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)  # Align with selectboxes
+                                if st.button("Confirm", key=f"confirm_partial_{session_id}", type="primary"):
+                                    dm.update_iss_day_type(placement_id, date_str, 'partial', 
+                                                         selected_start_period, selected_end_period)
+                                    clear_dashboard_caches()
+                                    st.rerun()
                     elif day_type == "Partial Day" and is_day_type_locked:
                         # Show locked partial day info
                         st.caption(f"Partial Day: Periods {stored_start_period}-{stored_end_period}")

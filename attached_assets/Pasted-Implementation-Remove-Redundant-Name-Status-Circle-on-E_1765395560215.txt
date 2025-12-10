@@ -1,0 +1,91 @@
+Implementation: Remove Redundant Name + Status Circle on Expanded Cards
+
+Title: Clean Up Expanded Cards for Lunch Detention and Class Period Referrals
+
+Please update the Dashboard UI so that the expanded cards for Lunch Detention and Class Period Referral (all subtypes) no longer repeat the student’s name and status circle inside the expanded section.
+
+Current Behavior
+
+On the Dashboard:
+
+Each Lunch Detention and Class Period Referral placement has:
+
+A collapsed card header that shows:
+
+The student’s name
+
+The colored status circle (Green / Yellow / Red)
+
+An expanded card that currently repeats:
+
+The student’s name
+
+The colored status circle again, usually as a small heading row at the top of the expanded content.
+
+This duplication is visually redundant because the name and status circle are already visible in the card header (which remains at the top whether the card is collapsed or expanded).
+
+Required Change
+
+Scope
+
+Apply this change to:
+
+Lunch Detention
+
+Class Period Referral – Behavior Referral
+
+Class Period Referral – Cool-Down Referral
+
+Class Period Referral – Pre-Planned Referral
+
+Do not change ISS cards in this prompt.
+
+Expanded Card Cleanup
+
+In the expanded view for all the above placement types:
+
+Remove the repeated student name element.
+
+Remove the repeated status-circle element.
+
+Keep all other expanded details (reason, periods, notes, buttons, etc.) exactly as they are.
+
+Collapsed Card Header
+
+The collapsed/expanded card header at the top must stay the same:
+
+Still shows the student’s name.
+
+Still shows the status circle indicating Not Started / In Progress / Completed (Green / Yellow / Red).
+
+This header continues to be the only place where name + status circle appear.
+
+Layout & Spacing
+
+After removing the redundant row in the expanded view:
+
+Adjust spacing/padding if necessary so the expanded content doesn’t look like there’s an empty gap where the name/status used to be.
+
+The expanded content should start cleanly with the first meaningful detail (e.g., subtype label, schedule, reason, etc.).
+
+Acceptance Criteria
+
+This change is complete when:
+
+For Lunch Detention and each Class Period Referral subtype:
+
+The collapsed card header still shows:
+
+Student name + status circle.
+
+The expanded card content no longer shows:
+
+Any duplicate student name.
+
+Any duplicate status-circle icon.
+
+There is no awkward blank row where those elements used to be; spacing looks natural.
+
+ISS cards:
+
+Are unchanged by this prompt (both collapsed and expanded behavior remain as currently implemented).

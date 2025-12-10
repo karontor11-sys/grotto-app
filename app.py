@@ -1186,30 +1186,8 @@ if page == "Dashboard":
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
-        # Get progress status and display at top of card
-        progress_status = placement.get('progressStatus', 'NOT_STARTED')
-        if progress_status == "COMPLETED":
-            progress_circle = "🔴"
-            progress_text = "Completed"
-        elif progress_status == "IN_PROGRESS":
-            progress_circle = "🟡"
-            progress_text = "In Progress"
-        else:
-            progress_circle = "🟢"
-            progress_text = "Not Started"
-        
-        # Display status at top of expanded card
-        st.markdown(f"**Status:** {progress_circle} {progress_text}")
-        
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
-        
-        if daily_log:
-            fulfillment = daily_log.get('dailyFulfillment') or ''
-            status_color = get_daily_status_color(fulfillment, date_str)
-        else:
-            status_color = 'yellow'  # Default to yellow (pending)
-        status_icon = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}.get(status_color, '⚪')
         
         # Day X of Y for multi-day lunch detention
         total_days = placement.get('daysAssigned', 0)
@@ -1220,39 +1198,38 @@ if page == "Dashboard":
         is_present = date_str in served_dates
         
         with st.container():
-            col1, col2, col3 = st.columns([3, 1, 2])
+            # Check In + Absent controls
+            is_checked_in = is_present  # Use existing attendance status
+            is_completed_day = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
             
-            with col1:
-                st.markdown(f"**{status_icon} {student_name}**")
+            # Absent checkbox key
+            absent_key = f"ld_absent_{placement_id}_{date_str}"
+            db_absent = dm.is_marked_absent(placement_id, date_str)
             
-            with col2:
-                st.caption(f"Grade {student.get('grade', 'N/A')}")
+            # Initialize session state from DB if not set
+            if absent_key not in st.session_state:
+                st.session_state[absent_key] = db_absent
             
-            with col3:
-                # Check In + Absent controls
-                is_checked_in = is_present  # Use existing attendance status
-                is_completed_day = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
-                
-                # Absent checkbox key
-                absent_key = f"ld_absent_{placement_id}_{date_str}"
-                db_absent = dm.is_marked_absent(placement_id, date_str)
-                
-                # Initialize session state from DB if not set
-                if absent_key not in st.session_state:
-                    st.session_state[absent_key] = db_absent
-                
-                # Absent checkbox - render FIRST so state is processed
-                def handle_absent_change(pid=placement_id, ds=date_str, key=absent_key):
-                    new_val = st.session_state.get(key, False)
-                    if new_val:
-                        dm.mark_absent(pid, ds)
-                    else:
-                        dm.unmark_absent(pid, ds)
-                
+            # Absent checkbox - render FIRST so state is processed
+            def handle_absent_change(pid=placement_id, ds=date_str, key=absent_key):
+                new_val = st.session_state.get(key, False)
+                if new_val:
+                    dm.mark_absent(pid, ds)
+                else:
+                    dm.unmark_absent(pid, ds)
+            
+            # Day X of Y (show first for context)
+            if total_days > 1 and day_number > 0:
+                st.caption(f"📅 Day {day_number} of {total_days}")
+            
+            # Check In / Absent controls in columns
+            ctrl_col1, ctrl_col2 = st.columns(2)
+            with ctrl_col1:
                 absent_checked = st.checkbox("Absent", key=absent_key,
-                          disabled=is_checked_in or is_completed_day,
-                          on_change=handle_absent_change)
-                
+                              disabled=is_checked_in or is_completed_day,
+                              on_change=handle_absent_change)
+            
+            with ctrl_col2:
                 # is_absent uses the checkbox return value (current state after widget processing)
                 is_absent = absent_checked
                 
@@ -1266,10 +1243,6 @@ if page == "Dashboard":
                     dm.unmark_absent(placement_id, date_str)
                     clear_dashboard_caches()
                     st.rerun()
-            
-            # Day X of Y
-            if total_days > 1 and day_number > 0:
-                st.caption(f"📅 Day {day_number} of {total_days}")
             
             # Complete button (safe access - daily_log may be None)
             is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
@@ -1303,21 +1276,6 @@ if page == "Dashboard":
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
-        
-        # Get progress status and display at top of card
-        progress_status = placement.get('progressStatus', 'NOT_STARTED')
-        if progress_status == "COMPLETED":
-            progress_circle = "🔴"
-            progress_text = "Completed"
-        elif progress_status == "IN_PROGRESS":
-            progress_circle = "🟡"
-            progress_text = "In Progress"
-        else:
-            progress_circle = "🟢"
-            progress_text = "Not Started"
-        
-        # Display status at top of expanded card
-        st.markdown(f"**Status:** {progress_circle} {progress_text}")
         
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)

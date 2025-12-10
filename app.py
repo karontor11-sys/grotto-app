@@ -1567,10 +1567,6 @@ if page == "Dashboard":
                             dm.complete_preplanned_session(placement_id, date_str, "Admin")
                             clear_dashboard_caches()
                             st.rerun()
-                        
-                        # Show attendance preview
-                        if not is_checked_in and not is_absent:
-                            st.caption("⚠️ If completed now, attendance will be marked as **Absent**")
             else:
                 # Show completed status for all subtypes
                 if subtype_key == 'pre_planned':

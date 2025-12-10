@@ -1201,6 +1201,14 @@ if page == "Dashboard":
         # Display status line at top of expanded card (no student name)
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
         
+        # Display Grade + Homeroom Teacher
+        grade = student.get('grade', 'N/A')
+        homeroom = student.get('homeroomTeacher', '')
+        if homeroom:
+            st.caption(f"Grade {grade} — {homeroom}")
+        else:
+            st.caption(f"Grade {grade}")
+        
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         
@@ -1306,6 +1314,14 @@ if page == "Dashboard":
         
         # Display status line at top of expanded card (no student name)
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
+        
+        # Display Grade + Homeroom Teacher
+        grade = student.get('grade', 'N/A')
+        homeroom = student.get('homeroomTeacher', '')
+        if homeroom:
+            st.caption(f"Grade {grade} — {homeroom}")
+        else:
+            st.caption(f"Grade {grade}")
         
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)

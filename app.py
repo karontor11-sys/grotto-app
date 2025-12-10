@@ -1262,8 +1262,8 @@ if page == "Dashboard":
                            type="primary" if not checkin_disabled else "secondary",
                            disabled=checkin_disabled):
                     dm.update_lunch_detention_attendance(placement_id, date_str, True)
-                    # Clear absent session state on check-in (mutual exclusivity)
-                    st.session_state[absent_key] = False
+                    # Unmark absent in DB if was marked (mutual exclusivity)
+                    dm.unmark_absent(placement_id, date_str)
                     clear_dashboard_caches()
                     st.rerun()
             

@@ -2268,38 +2268,35 @@ if page == "Dashboard":
                             st.session_state[makeup_dates_key] = []
                             st.rerun()
                 else:
-                    # Show initial prompt
-                    st.warning(f"""
-                    **Add make-up days?**
+                    # Show decision prompt with radio buttons
+                    st.warning(f"**This student has {periods_remaining} periods remaining to complete the ISS session.**")
                     
-                    The student still has **{periods_remaining}** periods remaining to serve.
-                    """)
+                    # Radio button key for decision
+                    decision_key = f"iss_end_decision_{placement_id}"
                     
-                    col_yes, col_no, col_close = st.columns(3)
-                    with col_yes:
-                        if st.button("✅ Yes, add make-up days", key=f"yes_makeup_final_{placement_id}", 
-                                    type="primary", use_container_width=True):
+                    # Radio buttons for decision
+                    decision = st.radio(
+                        "Select an option:",
+                        options=["Add Make-Up Time", "Complete Session Now"],
+                        key=decision_key,
+                        index=None,  # No default selection
+                        horizontal=True
+                    )
+                    
+                    # Continue button - disabled until a choice is made
+                    continue_disabled = decision is None
+                    if st.button("Continue", key=f"continue_decision_{placement_id}", 
+                                type="primary", use_container_width=True, disabled=continue_disabled):
+                        if decision == "Add Make-Up Time":
+                            # Show schedule builder
                             st.session_state[schedule_builder_key] = True
                             st.rerun()
-                    
-                    with col_no:
-                        if st.button("⏸️ No, not now", key=f"no_makeup_final_{placement_id}", 
-                                    use_container_width=True):
-                            dm.keep_iss_session_open_for_makeup(placement_id)
-                            st.session_state[f"show_makeup_prompt_{placement_id}"] = False
-                            st.info("Case kept open. You can add make-up days later.")
+                        elif decision == "Complete Session Now":
+                            # Show close case confirmation
+                            st.session_state[f"show_close_early_final_{placement_id}"] = True
                             st.rerun()
                     
-                    with col_close:
-                        close_key = f"show_close_early_final_{placement_id}"
-                        if close_key not in st.session_state:
-                            st.session_state[close_key] = False
-                        
-                        if st.button("❌ Close case anyway", key=f"close_early_final_btn_{placement_id}", 
-                                    use_container_width=True):
-                            st.session_state[close_key] = True
-                            st.rerun()
-                    
+                    # Show close case confirmation if that option was selected
                     if st.session_state.get(f"show_close_early_final_{placement_id}", False):
                         st.info("**Close Case Early**")
                         close_note = st.text_area(

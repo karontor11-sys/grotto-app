@@ -2647,8 +2647,9 @@ class DatabaseManager:
         Returns:
             True if all of the following conditions are met:
             1. The placement is ISS (multiday with original_day_count >= 1)
-            2. All original scheduled dates are marked as completed
-            3. session_periods_served < session_total_periods_required
+            2. Placement is NOT already in make-up mode (status != 'needs_makeup')
+            3. All original scheduled dates are marked as completed
+            4. session_periods_served < session_total_periods_required
             
             Otherwise returns False.
         """
@@ -2660,12 +2661,17 @@ class DatabaseManager:
         if placement_type != 'ISS':
             return False
         
-        # Check 2: Must be multiday ISS (original_day_count >= 1)
+        # Check 2: If already in make-up mode (has scheduled make-up days), don't prompt again
+        status = placement.get('status', '')
+        if status == 'needs_makeup':
+            return False
+        
+        # Check 3: Must be multiday ISS (original_day_count >= 1)
         original_day_count = placement.get('originalDayCount') or placement.get('issDaysAssigned') or 0
         if original_day_count < 1:
             return False
         
-        # Check 3: Get periods served and required
+        # Check 4: Get periods served and required
         periods_served = self.get_iss_periods_served(placement)
         periods_required = self.get_iss_total_periods_required(placement)
         
@@ -3784,18 +3790,20 @@ class DatabaseManager:
     def check_iss_session_needs_makeup(self, placement_id: str) -> Dict[str, Any]:
         """Check if an ISS session needs make-up periods after final scheduled day.
         
+        Delegates entirely to should_offer_makeup_days() helper for trigger logic.
+        
         Args:
             placement_id: ID of the placement
             
         Returns:
             Dictionary with:
-            - needsMakeup: True if periods are short after final scheduled day
-            - isFinalDay: True if this was the final scheduled day
+            - needsMakeup: True if should_offer_makeup_days() returns True
+            - isFinalDay: True if all original scheduled days are completed
             - periodsServed: Current periods served
             - periodsRequired: Total required periods
             - periodsRemaining: Periods still needed (0 if complete)
             - daysCompleted: Number of days completed
-            - daysAssigned: Number of days assigned
+            - daysAssigned: Original day count (immutable)
         """
         session = self.get_session()
         try:
@@ -3803,23 +3811,27 @@ class DatabaseManager:
             if not placement:
                 return {'needsMakeup': False, 'isFinalDay': False}
             
-            iss_days_assigned = placement.iss_days_assigned or 0
-            iss_total_required = placement.iss_total_required_periods or (iss_days_assigned * 10)
-            iss_periods_served = placement.iss_periods_served or 0
-            days_completed = placement.days_completed or 0
+            # Get placement dict and use shared helper for trigger logic
+            placement_dict = self._placement_to_dict(placement, session)
             
-            # Check if this is the final scheduled day (days_completed == iss_days_assigned)
+            # Delegate entirely to should_offer_makeup_days() for the trigger decision
+            needs_makeup = self.should_offer_makeup_days(placement_dict)
+            
+            # Extract metadata from placement_dict (consistent with helper's view)
+            iss_days_assigned = placement_dict.get('originalDayCount') or placement_dict.get('issDaysAssigned') or 0
+            periods_served = self.get_iss_periods_served(placement_dict)
+            periods_required = self.get_iss_total_periods_required(placement_dict)
+            periods_remaining = self.get_iss_periods_remaining(placement_dict)
+            days_completed = placement_dict.get('daysCompleted') or 0
+            
+            # Final day = all original scheduled days completed
             is_final_day = days_completed >= iss_days_assigned
-            
-            # Check if periods are short
-            periods_remaining = max(0, iss_total_required - iss_periods_served)
-            needs_makeup = is_final_day and periods_remaining > 0
             
             return {
                 'needsMakeup': needs_makeup,
                 'isFinalDay': is_final_day,
-                'periodsServed': iss_periods_served,
-                'periodsRequired': iss_total_required,
+                'periodsServed': periods_served,
+                'periodsRequired': periods_required,
                 'periodsRemaining': periods_remaining,
                 'daysCompleted': days_completed,
                 'daysAssigned': iss_days_assigned
@@ -4068,6 +4080,154 @@ class DatabaseManager:
             
             session.commit()
             return True
+        finally:
+            session.close()
+    
+    def add_iss_makeup_dates(self, placement_id: str, makeup_dates: list) -> Dict[str, Any]:
+        """Add make-up dates to an ISS placement.
+        
+        Creates DailyLog and ISSSession entries for each make-up date,
+        and updates placement's scheduled_iss_sessions with make-up entries.
+        Does NOT modify original_day_count.
+        
+        Args:
+            placement_id: ID of the placement
+            makeup_dates: List of dicts with:
+                - date: ISO date string
+                - day_type: 'full' or 'partial'
+                - start_period: int (for partial)
+                - end_period: int (for partial)
+        
+        Returns:
+            Dictionary with success status and added dates
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'success': False, 'message': 'Placement not found'}
+            
+            # Get student for labeling
+            student = session.query(Student).filter(Student.id == placement.student_id).first()
+            student_name = f"{student.first_name} {student.last_name}" if student else "Unknown"
+            
+            # Get existing scheduled sessions (preserve original ones)
+            existing_sessions = placement.scheduled_iss_sessions or []
+            new_sessions = list(existing_sessions)  # Copy to avoid mutation issues
+            
+            added_dates = []
+            for makeup_entry in makeup_dates:
+                date_str = makeup_entry.get('date')
+                day_type = makeup_entry.get('day_type', 'full')
+                start_period = makeup_entry.get('start_period', 1)
+                end_period = makeup_entry.get('end_period', 10)
+                
+                date_obj = datetime.fromisoformat(date_str).date() if isinstance(date_str, str) else date_str
+                date_iso = date_obj.isoformat()
+                
+                # Check if daily log already exists for this date
+                existing_log = session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == date_obj
+                ).first()
+                
+                if existing_log:
+                    continue  # Skip if already exists
+                
+                # Check if date already in scheduled sessions
+                date_already_scheduled = any(
+                    s.get('date') == date_iso for s in new_sessions
+                )
+                if date_already_scheduled:
+                    continue
+                
+                # Calculate periods for this make-up day
+                if day_type == 'full':
+                    periods = 10
+                    periods_list = list(range(1, 11))
+                else:
+                    periods = end_period - start_period + 1
+                    periods_list = list(range(start_period, end_period + 1))
+                
+                # Create daily log with is_makeup_session = True
+                log_id = self.generate_id()
+                daily_log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    day_type=day_type,
+                    start_period=start_period,
+                    end_period=end_period,
+                    required_points=periods,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    daily_fulfillment='pending',
+                    is_makeup_session=True,
+                    readiness='continue'
+                )
+                session.add(daily_log)
+                
+                # Create ISS session for this make-up date
+                session_id = self.generate_id()
+                iss_session = ISSSession(
+                    id=session_id,
+                    placement_id=placement_id,
+                    student_id=placement.student_id,
+                    date=date_obj,
+                    day_type=day_type,
+                    status='pending',
+                    periods=periods_list,
+                    is_makeup=True
+                )
+                session.add(iss_session)
+                
+                # Add to scheduled_iss_sessions with is_makeup flag
+                new_sessions.append({
+                    'date': date_iso,
+                    'dayType': day_type,
+                    'periods': periods_list,
+                    'startPeriod': start_period,
+                    'endPeriod': end_period,
+                    'isMakeup': True
+                })
+                
+                added_dates.append({
+                    'date': date_iso,
+                    'day_type': day_type,
+                    'periods': periods
+                })
+            
+            if not added_dates:
+                return {
+                    'success': False,
+                    'message': 'No new dates were added (all dates may already exist)'
+                }
+            
+            # Update placement's scheduled_iss_sessions
+            placement.scheduled_iss_sessions = new_sessions
+            
+            # Update placement status to needs_makeup (keeping it open)
+            placement.status = PlacementStatus.needs_makeup
+            
+            # Keep progress_status as IN_PROGRESS since make-up days are pending
+            placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+            
+            session.commit()
+            
+            return {
+                'success': True,
+                'added_dates': added_dates,
+                'count': len(added_dates),
+                'message': f'Added {len(added_dates)} make-up date(s) for {student_name}'
+            }
+                
+        except Exception as e:
+            session.rollback()
+            return {
+                'success': False,
+                'message': f'Error adding make-up dates: {str(e)}'
+            }
         finally:
             session.close()
     

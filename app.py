@@ -933,56 +933,159 @@ if page == "Dashboard":
                 makeup_info = st.session_state.get(f"makeup_info_{placement_id}", {})
                 periods_remaining = makeup_info.get('periodsRemaining', 0)
                 
-                st.warning(f"""
-                **⚠️ ISS Session Needs Make-Up Periods**
+                # Initialize session state for schedule builder
+                schedule_builder_key = f"show_makeup_builder_{placement_id}"
+                if schedule_builder_key not in st.session_state:
+                    st.session_state[schedule_builder_key] = False
                 
-                This student still needs **{periods_remaining}** more periods to complete this ISS Session.
-                
-                Would you like to keep the case open for a make-up Session?
-                """)
-                
-                col_keep, col_close = st.columns(2)
-                with col_keep:
-                    if st.button("✅ YES, keep the case open", key=f"keep_open_main_{placement_id}", 
-                                type="primary", use_container_width=True):
-                        dm.keep_iss_session_open_for_makeup(placement_id)
-                        st.session_state[f"show_makeup_prompt_{placement_id}"] = False
-                        st.success("Case kept open for make-up periods.")
-                        st.rerun()
-                
-                with col_close:
-                    close_key = f"show_close_early_main_{placement_id}"
-                    if close_key not in st.session_state:
-                        st.session_state[close_key] = False
+                # Show schedule builder if "Yes" was clicked
+                if st.session_state.get(schedule_builder_key, False):
+                    st.info("**ISS Make-Up Days – Add additional dates and periods to complete remaining time.**")
+                    st.caption(f"Periods remaining: **{periods_remaining}**")
                     
-                    if st.button("❌ NO, close the case anyway", key=f"close_early_main_btn_{placement_id}", 
-                                use_container_width=True):
-                        st.session_state[close_key] = True
-                        st.rerun()
-                
-                if st.session_state.get(f"show_close_early_main_{placement_id}", False):
-                    st.info("**Close Case Early**")
-                    close_note = st.text_area(
-                        "Reason for closing early (optional):",
-                        key=f"close_early_main_note_{placement_id}",
-                        placeholder="Session closed early — remaining periods waived by staff judgment.",
-                        height=80
-                    )
+                    # Date picker for make-up dates
+                    makeup_dates_key = f"makeup_dates_{placement_id}"
+                    if makeup_dates_key not in st.session_state:
+                        st.session_state[makeup_dates_key] = []
                     
-                    col_confirm_close, col_cancel_close = st.columns(2)
-                    with col_confirm_close:
-                        if st.button("Confirm Close", key=f"confirm_close_main_{placement_id}", 
+                    # Add new make-up date form
+                    st.markdown("**Add Make-Up Date:**")
+                    col_date, col_type = st.columns(2)
+                    with col_date:
+                        min_date = date.today() + timedelta(days=1)
+                        new_makeup_date = st.date_input(
+                            "Select date",
+                            min_value=min_date,
+                            value=min_date,
+                            key=f"new_makeup_date_{placement_id}"
+                        )
+                    with col_type:
+                        makeup_day_type = st.selectbox(
+                            "Day type",
+                            ["Full Day (10 periods)", "Partial Day"],
+                            key=f"makeup_day_type_{placement_id}"
+                        )
+                    
+                    # Show period selectors for partial day
+                    start_p, end_p = 1, 10
+                    if makeup_day_type == "Partial Day":
+                        col_start, col_end = st.columns(2)
+                        with col_start:
+                            start_p = st.number_input("Start period", min_value=1, max_value=10, value=1, 
+                                                      key=f"makeup_start_{placement_id}")
+                        with col_end:
+                            end_p = st.number_input("End period", min_value=1, max_value=10, value=10,
+                                                    key=f"makeup_end_{placement_id}")
+                    
+                    # Add date button
+                    if st.button("➕ Add Date", key=f"add_makeup_date_{placement_id}"):
+                        day_type_val = 'full' if makeup_day_type.startswith("Full") else 'partial'
+                        new_entry = {
+                            'date': new_makeup_date.isoformat(),
+                            'day_type': day_type_val,
+                            'start_period': start_p if day_type_val == 'partial' else 1,
+                            'end_period': end_p if day_type_val == 'partial' else 10
+                        }
+                        if makeup_dates_key not in st.session_state:
+                            st.session_state[makeup_dates_key] = []
+                        st.session_state[makeup_dates_key].append(new_entry)
+                        st.rerun()
+                    
+                    # Display added dates
+                    if st.session_state.get(makeup_dates_key):
+                        st.markdown("**Scheduled Make-Up Dates:**")
+                        for i, entry in enumerate(st.session_state[makeup_dates_key]):
+                            entry_date = datetime.fromisoformat(entry['date']).strftime('%B %d, %Y')
+                            if entry['day_type'] == 'full':
+                                period_info = "Full Day (10 periods)"
+                            else:
+                                period_info = f"Periods {entry['start_period']}–{entry['end_period']}"
+                            col_info, col_remove = st.columns([4, 1])
+                            with col_info:
+                                st.caption(f"• {entry_date}: {period_info}")
+                            with col_remove:
+                                if st.button("🗑️", key=f"remove_makeup_{placement_id}_{i}"):
+                                    st.session_state[makeup_dates_key].pop(i)
+                                    st.rerun()
+                    
+                    # Save and Cancel buttons
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        save_disabled = not st.session_state.get(makeup_dates_key)
+                        if st.button("💾 Save Make-Up Schedule", key=f"save_makeup_{placement_id}", 
+                                    type="primary", use_container_width=True, disabled=save_disabled):
+                            result = dm.add_iss_makeup_dates(placement_id, st.session_state[makeup_dates_key])
+                            if result.get('success'):
+                                st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                                st.session_state[schedule_builder_key] = False
+                                st.session_state[makeup_dates_key] = []
+                                st.success(result.get('message', 'Make-up dates added!'))
+                                if hasattr(st, 'cache_data'):
+                                    st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(result.get('message', 'Failed to add make-up dates'))
+                    with col_cancel:
+                        if st.button("Cancel", key=f"cancel_makeup_builder_{placement_id}", use_container_width=True):
+                            st.session_state[schedule_builder_key] = False
+                            st.session_state[makeup_dates_key] = []
+                            st.rerun()
+                else:
+                    # Show initial prompt
+                    st.warning(f"""
+                    **Add make-up days?**
+                    
+                    The student still has **{periods_remaining}** periods remaining to serve.
+                    """)
+                    
+                    col_yes, col_no, col_close = st.columns(3)
+                    with col_yes:
+                        if st.button("✅ Yes, add make-up days", key=f"yes_makeup_main_{placement_id}", 
                                     type="primary", use_container_width=True):
-                            note = close_note.strip() if close_note.strip() else "Session closed early — remaining periods waived by staff judgment."
-                            dm.close_iss_session_early(placement_id, note)
+                            st.session_state[schedule_builder_key] = True
+                            st.rerun()
+                    
+                    with col_no:
+                        if st.button("⏸️ No, not now", key=f"no_makeup_main_{placement_id}", 
+                                    use_container_width=True):
+                            dm.keep_iss_session_open_for_makeup(placement_id)
                             st.session_state[f"show_makeup_prompt_{placement_id}"] = False
-                            st.session_state[f"show_close_early_main_{placement_id}"] = False
-                            st.success(f"Case closed. {periods_remaining} periods waived.")
+                            st.info("Case kept open. You can add make-up days later.")
                             st.rerun()
-                    with col_cancel_close:
-                        if st.button("Cancel", key=f"cancel_close_main_{placement_id}", use_container_width=True):
-                            st.session_state[f"show_close_early_main_{placement_id}"] = False
+                    
+                    with col_close:
+                        close_key = f"show_close_early_main_{placement_id}"
+                        if close_key not in st.session_state:
+                            st.session_state[close_key] = False
+                        
+                        if st.button("❌ Close case anyway", key=f"close_early_main_btn_{placement_id}", 
+                                    use_container_width=True):
+                            st.session_state[close_key] = True
                             st.rerun()
+                    
+                    if st.session_state.get(f"show_close_early_main_{placement_id}", False):
+                        st.info("**Close Case Early**")
+                        close_note = st.text_area(
+                            "Reason for closing early (optional):",
+                            key=f"close_early_main_note_{placement_id}",
+                            placeholder="Session closed early — remaining periods waived by staff judgment.",
+                            height=80
+                        )
+                        
+                        col_confirm_close, col_cancel_close = st.columns(2)
+                        with col_confirm_close:
+                            if st.button("Confirm Close", key=f"confirm_close_main_{placement_id}", 
+                                        type="primary", use_container_width=True):
+                                note = close_note.strip() if close_note.strip() else "Session closed early — remaining periods waived by staff judgment."
+                                dm.close_iss_session_early(placement_id, note)
+                                st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                                st.session_state[f"show_close_early_main_{placement_id}"] = False
+                                st.success(f"Case closed. {periods_remaining} periods waived.")
+                                st.rerun()
+                        with col_cancel_close:
+                            if st.button("Cancel", key=f"cancel_close_main_{placement_id}", use_container_width=True):
+                                st.session_state[f"show_close_early_main_{placement_id}"] = False
+                                st.rerun()
             
             # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
@@ -2046,56 +2149,159 @@ if page == "Dashboard":
                 makeup_info = st.session_state.get(f"makeup_info_{placement_id}", {})
                 periods_remaining = makeup_info.get('periodsRemaining', 0)
                 
-                st.warning(f"""
-                **⚠️ ISS Session Needs Make-Up Periods**
+                # Initialize session state for schedule builder
+                schedule_builder_key = f"show_makeup_builder_final_{placement_id}"
+                if schedule_builder_key not in st.session_state:
+                    st.session_state[schedule_builder_key] = False
                 
-                This student still needs **{periods_remaining}** more periods to complete this ISS Session.
-                
-                Would you like to keep the case open for a make-up Session?
-                """)
-                
-                col_keep, col_close = st.columns(2)
-                with col_keep:
-                    if st.button("✅ YES, keep the case open", key=f"keep_open_final_{placement_id}", 
-                                type="primary", use_container_width=True):
-                        dm.keep_iss_session_open_for_makeup(placement_id)
-                        st.session_state[f"show_makeup_prompt_{placement_id}"] = False
-                        st.success("Case kept open for make-up periods.")
-                        st.rerun()
-                
-                with col_close:
-                    close_key = f"show_close_early_final_{placement_id}"
-                    if close_key not in st.session_state:
-                        st.session_state[close_key] = False
+                # Show schedule builder if "Yes" was clicked
+                if st.session_state.get(schedule_builder_key, False):
+                    st.info("**ISS Make-Up Days – Add additional dates and periods to complete remaining time.**")
+                    st.caption(f"Periods remaining: **{periods_remaining}**")
                     
-                    if st.button("❌ NO, close the case anyway", key=f"close_early_final_btn_{placement_id}", 
-                                use_container_width=True):
-                        st.session_state[close_key] = True
-                        st.rerun()
-                
-                if st.session_state.get(f"show_close_early_final_{placement_id}", False):
-                    st.info("**Close Case Early**")
-                    close_note = st.text_area(
-                        "Reason for closing early (optional):",
-                        key=f"close_early_final_note_{placement_id}",
-                        placeholder="Session closed early — remaining periods waived by staff judgment.",
-                        height=80
-                    )
+                    # Date picker for make-up dates
+                    makeup_dates_key = f"makeup_dates_final_{placement_id}"
+                    if makeup_dates_key not in st.session_state:
+                        st.session_state[makeup_dates_key] = []
                     
-                    col_confirm_close, col_cancel_close = st.columns(2)
-                    with col_confirm_close:
-                        if st.button("Confirm Close", key=f"confirm_close_final_{placement_id}", 
+                    # Add new make-up date form
+                    st.markdown("**Add Make-Up Date:**")
+                    col_date, col_type = st.columns(2)
+                    with col_date:
+                        min_date = date.today() + timedelta(days=1)
+                        new_makeup_date = st.date_input(
+                            "Select date",
+                            min_value=min_date,
+                            value=min_date,
+                            key=f"new_makeup_date_final_{placement_id}"
+                        )
+                    with col_type:
+                        makeup_day_type = st.selectbox(
+                            "Day type",
+                            ["Full Day (10 periods)", "Partial Day"],
+                            key=f"makeup_day_type_final_{placement_id}"
+                        )
+                    
+                    # Show period selectors for partial day
+                    start_p, end_p = 1, 10
+                    if makeup_day_type == "Partial Day":
+                        col_start, col_end = st.columns(2)
+                        with col_start:
+                            start_p = st.number_input("Start period", min_value=1, max_value=10, value=1, 
+                                                      key=f"makeup_start_final_{placement_id}")
+                        with col_end:
+                            end_p = st.number_input("End period", min_value=1, max_value=10, value=10,
+                                                    key=f"makeup_end_final_{placement_id}")
+                    
+                    # Add date button
+                    if st.button("➕ Add Date", key=f"add_makeup_date_final_{placement_id}"):
+                        day_type_val = 'full' if makeup_day_type.startswith("Full") else 'partial'
+                        new_entry = {
+                            'date': new_makeup_date.isoformat(),
+                            'day_type': day_type_val,
+                            'start_period': start_p if day_type_val == 'partial' else 1,
+                            'end_period': end_p if day_type_val == 'partial' else 10
+                        }
+                        if makeup_dates_key not in st.session_state:
+                            st.session_state[makeup_dates_key] = []
+                        st.session_state[makeup_dates_key].append(new_entry)
+                        st.rerun()
+                    
+                    # Display added dates
+                    if st.session_state.get(makeup_dates_key):
+                        st.markdown("**Scheduled Make-Up Dates:**")
+                        for i, entry in enumerate(st.session_state[makeup_dates_key]):
+                            entry_date = datetime.fromisoformat(entry['date']).strftime('%B %d, %Y')
+                            if entry['day_type'] == 'full':
+                                period_info = "Full Day (10 periods)"
+                            else:
+                                period_info = f"Periods {entry['start_period']}–{entry['end_period']}"
+                            col_info, col_remove = st.columns([4, 1])
+                            with col_info:
+                                st.caption(f"• {entry_date}: {period_info}")
+                            with col_remove:
+                                if st.button("🗑️", key=f"remove_makeup_final_{placement_id}_{i}"):
+                                    st.session_state[makeup_dates_key].pop(i)
+                                    st.rerun()
+                    
+                    # Save and Cancel buttons
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        save_disabled = not st.session_state.get(makeup_dates_key)
+                        if st.button("💾 Save Make-Up Schedule", key=f"save_makeup_final_{placement_id}", 
+                                    type="primary", use_container_width=True, disabled=save_disabled):
+                            result = dm.add_iss_makeup_dates(placement_id, st.session_state[makeup_dates_key])
+                            if result.get('success'):
+                                st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                                st.session_state[schedule_builder_key] = False
+                                st.session_state[makeup_dates_key] = []
+                                st.success(result.get('message', 'Make-up dates added!'))
+                                if hasattr(st, 'cache_data'):
+                                    st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(result.get('message', 'Failed to add make-up dates'))
+                    with col_cancel:
+                        if st.button("Cancel", key=f"cancel_makeup_builder_final_{placement_id}", use_container_width=True):
+                            st.session_state[schedule_builder_key] = False
+                            st.session_state[makeup_dates_key] = []
+                            st.rerun()
+                else:
+                    # Show initial prompt
+                    st.warning(f"""
+                    **Add make-up days?**
+                    
+                    The student still has **{periods_remaining}** periods remaining to serve.
+                    """)
+                    
+                    col_yes, col_no, col_close = st.columns(3)
+                    with col_yes:
+                        if st.button("✅ Yes, add make-up days", key=f"yes_makeup_final_{placement_id}", 
                                     type="primary", use_container_width=True):
-                            note = close_note.strip() if close_note.strip() else "Session closed early — remaining periods waived by staff judgment."
-                            dm.close_iss_session_early(placement_id, note)
+                            st.session_state[schedule_builder_key] = True
+                            st.rerun()
+                    
+                    with col_no:
+                        if st.button("⏸️ No, not now", key=f"no_makeup_final_{placement_id}", 
+                                    use_container_width=True):
+                            dm.keep_iss_session_open_for_makeup(placement_id)
                             st.session_state[f"show_makeup_prompt_{placement_id}"] = False
-                            st.session_state[f"show_close_early_final_{placement_id}"] = False
-                            st.success(f"Case closed. {periods_remaining} periods waived.")
+                            st.info("Case kept open. You can add make-up days later.")
                             st.rerun()
-                    with col_cancel_close:
-                        if st.button("Cancel", key=f"cancel_close_final_{placement_id}", use_container_width=True):
-                            st.session_state[f"show_close_early_final_{placement_id}"] = False
+                    
+                    with col_close:
+                        close_key = f"show_close_early_final_{placement_id}"
+                        if close_key not in st.session_state:
+                            st.session_state[close_key] = False
+                        
+                        if st.button("❌ Close case anyway", key=f"close_early_final_btn_{placement_id}", 
+                                    use_container_width=True):
+                            st.session_state[close_key] = True
                             st.rerun()
+                    
+                    if st.session_state.get(f"show_close_early_final_{placement_id}", False):
+                        st.info("**Close Case Early**")
+                        close_note = st.text_area(
+                            "Reason for closing early (optional):",
+                            key=f"close_early_final_note_{placement_id}",
+                            placeholder="Session closed early — remaining periods waived by staff judgment.",
+                            height=80
+                        )
+                        
+                        col_confirm_close, col_cancel_close = st.columns(2)
+                        with col_confirm_close:
+                            if st.button("Confirm Close", key=f"confirm_close_final_{placement_id}", 
+                                        type="primary", use_container_width=True):
+                                note = close_note.strip() if close_note.strip() else "Session closed early — remaining periods waived by staff judgment."
+                                dm.close_iss_session_early(placement_id, note)
+                                st.session_state[f"show_makeup_prompt_{placement_id}"] = False
+                                st.session_state[f"show_close_early_final_{placement_id}"] = False
+                                st.success(f"Case closed. {periods_remaining} periods waived.")
+                                st.rerun()
+                        with col_cancel_close:
+                            if st.button("Cancel", key=f"cancel_close_final_{placement_id}", use_container_width=True):
+                                st.session_state[f"show_close_early_final_{placement_id}"] = False
+                                st.rerun()
             
             # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")

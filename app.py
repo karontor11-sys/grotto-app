@@ -1741,6 +1741,33 @@ if page == "Dashboard":
         day_progress_label = f"Day {checked_in_days} of {total_days} {day_word}"
         
         with st.container():
+            # Initialize session state for day type - preload from daily log if available
+            day_type_key = f"iss_day_type_{session_id}"
+            start_period_key = f"iss_start_period_{session_id}"
+            end_period_key = f"iss_end_period_{session_id}"
+            
+            # Preload existing values from daily log if they exist
+            stored_day_type = daily_log.get('dayType') if daily_log else None
+            stored_start_period = daily_log.get('startPeriod') if daily_log else None
+            stored_end_period = daily_log.get('endPeriod') if daily_log else None
+            
+            if day_type_key not in st.session_state:
+                # Use stored value if available, else no default (user must choose)
+                if stored_day_type == 'full':
+                    st.session_state[day_type_key] = "Full Day"
+                elif stored_day_type == 'partial':
+                    st.session_state[day_type_key] = "Partial Day"
+                # If no stored value, don't set any default - user must choose
+            
+            # Preload start/end periods if stored
+            if start_period_key not in st.session_state and stored_start_period:
+                st.session_state[start_period_key] = stored_start_period
+            if end_period_key not in st.session_state and stored_end_period:
+                st.session_state[end_period_key] = stored_end_period
+            
+            # Check if day type is already locked (stored in database)
+            is_day_type_locked = stored_day_type is not None
+            
             header_col1, header_col2, header_col3 = st.columns([3, 2, 1])
             
             with header_col1:
@@ -1760,6 +1787,7 @@ if page == "Dashboard":
                     st.session_state[absent_key] = db_absent
                 
                 # Absent checkbox - render FIRST so state is processed
+                # DISABLED until day type is locked
                 def handle_iss_absent(pid=placement_id, ds=date_str, key=absent_key):
                     new_val = st.session_state.get(key, False)
                     if new_val:
@@ -1767,18 +1795,19 @@ if page == "Dashboard":
                     else:
                         dm.unmark_absent(pid, ds)
                 
+                absent_disabled = is_checked_in or is_completed or not is_day_type_locked
                 absent_checked = st.checkbox("Absent", key=absent_key,
-                          disabled=is_checked_in or is_completed,
+                          disabled=absent_disabled,
                           on_change=handle_iss_absent)
                 
                 # is_absent uses the checkbox return value (current state after widget processing)
                 is_absent = absent_checked
                 
-                # Check In button - disabled if already checked in, completed, or marked absent
+                # Check In button - disabled if already checked in, completed, marked absent, OR day type not locked
                 if is_completed:
                     st.success("Checked Out")
                 else:
-                    checkin_disabled = is_checked_in or is_absent
+                    checkin_disabled = is_checked_in or is_absent or not is_day_type_locked
                     if st.button("Check In", key=f"iss_checkin_{session_id}", 
                                type="primary" if not checkin_disabled else "secondary",
                                disabled=checkin_disabled):
@@ -1798,32 +1827,8 @@ if page == "Dashboard":
             if is_placement_completed:
                 st.success("ISS Session Complete - All required periods served. No further edits allowed.")
             
-            # Day Type selector and controls (only show when checked in and not completed)
-            if is_checked_in and not is_completed:
-                # Initialize session state for day type - preload from daily log if available
-                day_type_key = f"iss_day_type_{session_id}"
-                start_period_key = f"iss_start_period_{session_id}"
-                end_period_key = f"iss_end_period_{session_id}"
-                
-                # Preload existing values from daily log if they exist
-                stored_day_type = daily_log.get('dayType') if daily_log else None
-                stored_start_period = daily_log.get('startPeriod') if daily_log else None
-                stored_end_period = daily_log.get('endPeriod') if daily_log else None
-                
-                if day_type_key not in st.session_state:
-                    # Use stored value if available, else no default (user must choose)
-                    if stored_day_type == 'full':
-                        st.session_state[day_type_key] = "Full Day"
-                    elif stored_day_type == 'partial':
-                        st.session_state[day_type_key] = "Partial Day"
-                    # If no stored value, don't set any default - user must choose
-                
-                # Preload start/end periods if stored
-                if start_period_key not in st.session_state and stored_start_period:
-                    st.session_state[start_period_key] = stored_start_period
-                if end_period_key not in st.session_state and stored_end_period:
-                    st.session_state[end_period_key] = stored_end_period
-                
+            # Day Type selector - ALWAYS show first (before any actions can proceed)
+            if not is_completed:
                 # Day Type selector
                 st.markdown("**Day Type**")
                 day_type_col, periods_col = st.columns([1, 2])
@@ -1837,9 +1842,6 @@ if page == "Dashboard":
                         radio_index = 1
                     else:
                         radio_index = None  # No default selection
-                    
-                    # Check if day type is already locked (stored in database)
-                    is_day_type_locked = stored_day_type is not None
                     
                     day_type = st.radio(
                         "Select Day Type",
@@ -1910,6 +1912,13 @@ if page == "Dashboard":
                     elif day_type == "Full Day":
                         # Full Day - periods are 1-10 (all periods)
                         st.caption("Full Day: Periods 1-10 (all periods)")
+                    elif day_type is None:
+                        # No selection made yet
+                        st.caption("Select a day type")
+                
+                # Show message when no day type is selected
+                if not is_day_type_locked:
+                    st.info("📋 Please select Full Day or Partial Day to continue.")
                 
                 st.divider()
             

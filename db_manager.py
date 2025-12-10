@@ -627,6 +627,7 @@ class DatabaseManager:
                 iss_days_assigned=iss_days_assigned if placement_category == PlacementCategory.ISS else None,
                 iss_total_required_periods=iss_total_required_periods,
                 iss_periods_served=iss_periods_served if placement_category == PlacementCategory.ISS else None,
+                original_day_count=iss_days_assigned if placement_category == PlacementCategory.ISS else None,
                 start_date=start_date_obj,
                 end_date=end_date,
                 start_period=placement_data.get('startPeriod'),
@@ -4626,7 +4627,9 @@ class DatabaseManager:
             # Early closure tracking
             'closedEarly': placement.closed_early or False,
             'earlyClosureNote': placement.early_closure_note,
-            'periodsWaived': placement.periods_waived or 0
+            'periodsWaived': placement.periods_waived or 0,
+            # Make-up day tracking
+            'originalDayCount': placement.original_day_count  # Original "Day of Days" count - NEVER changes
         }
     
     def _daily_log_to_dict(self, log: DailyLog) -> Dict[str, Any]:

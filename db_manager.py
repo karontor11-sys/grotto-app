@@ -107,6 +107,7 @@ class Placement(Base):
     iss_days_assigned = Column(Integer, nullable=True)  # For ISS: Number of ISS days entered on form
     iss_total_required_periods = Column(Integer, nullable=True)  # For ISS: Calculated as iss_days_assigned * 10
     iss_periods_served = Column(Integer, default=0)  # For ISS: Running counter of periods served
+    original_day_count = Column(Integer, nullable=True)  # For ISS: Original "Day of Days" count - NEVER changes, even when make-up days are added
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # Set when placement is completed
     start_period = Column(Integer, nullable=True)  # For CLASS_REFERRAL: starting period (e.g., 1 for P1)

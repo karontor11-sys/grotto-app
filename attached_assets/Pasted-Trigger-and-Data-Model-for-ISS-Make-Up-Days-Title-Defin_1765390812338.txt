@@ -1,0 +1,124 @@
+Trigger and Data Model for ISS Make-Up Days
+
+Title: Define Trigger and Data Model for ISS Make-Up Days
+
+Please review and extend the ISS data model and logic so that the system can clearly distinguish between:
+
+Original scheduled ISS days (“Day of Days” sequence), and
+
+Additional make-up days added later to complete missing periods.
+
+This will enable the make-up workflow we’ll build in the next prompts.
+
+Data Model Requirements (ISS Only)
+
+For each ISS placement, ensure we support the following concepts:
+
+original_day_count (Day of Days)
+
+Represents the original number of ISS days assigned (e.g., 3 for “3 days of ISS”).
+
+This value must never change, even when make-up days are added later.
+
+This is what drives the display text like “3 days of ISS.”
+
+original_scheduled_dates
+
+The set/list of dates that belong to the original Day-of-Days sequence.
+
+Each date has its own schedule (full-day or partial-day periods).
+
+makeup_scheduled_dates
+
+A separate set/list of additional ISS dates added later as make-up days.
+
+Each make-up date has its own schedule (full-day or partial-day periods), just like regular ISS days.
+
+Each date in this set should be clearly marked as is_makeup = True (or equivalent flag).
+
+session_total_periods_required
+
+As defined in Prompt 3A: total periods required based on the original placement schedule.
+
+Important: Do not increase this when make-up days are added.
+
+Make-up days exist only to allow the student to finish serving the remaining required periods; they don’t increase the requirement.
+
+session_periods_served / session_periods_remaining
+
+Already defined in Prompt 3A & 3B.
+
+Make-up days should simply help bring session_periods_served up to session_total_periods_required.
+
+Trigger Condition for Make-Up Days
+
+We need a consistent way to detect when to prompt for make-up days.
+
+Define a helper or central check like:
+
+should_offer_makeup_days(placement) -> bool
+
+
+This should return true when all of the following are true:
+
+The placement is multiday ISS (original_day_count ≥ 1).
+
+All original scheduled dates in original_scheduled_dates are marked as completed.
+
+session_periods_served < session_total_periods_required (i.e., there are still periods remaining to be served).
+
+Otherwise, it should return false.
+
+We will use this condition to show the “Add make-up days?” prompt in the next prompt.
+
+Implementation Tasks
+
+Identify existing fields:
+
+Find whatever currently represents the “Day of Days” / original ISS day count.
+
+Identify how dates are stored for ISS sessions.
+
+Introduce (or formalize) the distinction between:
+
+Original scheduled ISS dates, and
+
+Make-up scheduled ISS dates.
+
+Add an is_makeup flag (or equivalent):
+
+For each ISS date entry in the schedule, store a boolean flag indicating if it’s a make-up day or an original day.
+
+Existing dates should default to is_makeup = False.
+
+Implement the helper:
+
+should_offer_makeup_days(placement):
+
+Checks all original dates are completed.
+
+Checks that session_periods_served < session_total_periods_required.
+
+Returns true only in that case.
+
+No prompt UI yet:
+
+Do not display any dialogs or schedule builders yet.
+
+This prompt is only about the data model and the trigger logic.
+
+Acceptance Criteria
+
+This prompt is complete when:
+
+ISS placements clearly distinguish between original scheduled dates and make-up scheduled dates, via an is_makeup flag or equivalent.
+
+The original “Day-of-Days” count (original_day_count) is stored and never changed, even when make-up days are added later.
+
+A helper like should_offer_makeup_days(placement) exists and returns true exactly when:
+
+All original dates are completed,
+
+And session_periods_served < session_total_periods_required.
+
+No UI prompts or schedule builders for make-up days have been implemented yet.

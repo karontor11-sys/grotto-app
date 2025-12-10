@@ -2298,23 +2298,35 @@ if page == "Dashboard":
                     
                     # Show close case confirmation if that option was selected
                     if st.session_state.get(f"show_close_early_final_{placement_id}", False):
-                        st.info("**Close Case Early**")
-                        close_note = st.text_area(
-                            "Reason for closing early (optional):",
+                        st.info("**Complete Session Now**")
+                        st.caption(f"This will mark the ISS session as complete with **{periods_remaining} periods remaining unserved**.")
+                        
+                        additional_note = st.text_area(
+                            "Additional notes (optional):",
                             key=f"close_early_final_note_{placement_id}",
-                            placeholder="Session closed early — remaining periods waived by staff judgment.",
+                            placeholder="Enter any additional notes about this early completion...",
                             height=80
                         )
                         
                         col_confirm_close, col_cancel_close = st.columns(2)
                         with col_confirm_close:
-                            if st.button("Confirm Close", key=f"confirm_close_final_{placement_id}", 
+                            if st.button("Complete Session", key=f"confirm_close_final_{placement_id}", 
                                         type="primary", use_container_width=True):
-                                note = close_note.strip() if close_note.strip() else "Session closed early — remaining periods waived by staff judgment."
-                                dm.close_iss_session_early(placement_id, note)
+                                # Generate the standard note with periods remaining
+                                base_note = f"ISS session marked complete by staff with {periods_remaining} periods remaining unserved."
+                                if additional_note.strip():
+                                    full_note = f"{base_note} Additional notes: {additional_note.strip()}"
+                                else:
+                                    full_note = base_note
+                                dm.close_iss_session_early(placement_id, full_note)
                                 st.session_state[f"show_makeup_prompt_{placement_id}"] = False
                                 st.session_state[f"show_close_early_final_{placement_id}"] = False
-                                st.success(f"Case closed. {periods_remaining} periods waived.")
+                                # Clear decision radio state
+                                if f"iss_end_decision_{placement_id}" in st.session_state:
+                                    del st.session_state[f"iss_end_decision_{placement_id}"]
+                                st.success(f"ISS session completed. {periods_remaining} periods waived.")
+                                if hasattr(st, 'cache_data'):
+                                    st.cache_data.clear()
                                 st.rerun()
                         with col_cancel_close:
                             if st.button("Cancel", key=f"cancel_close_final_{placement_id}", use_container_width=True):
@@ -3070,6 +3082,12 @@ elif page == "Placements":
                         periods_served = iss_placement.get('issPeriodsServed', 0)
                         total_required = iss_placement.get('issTotalRequiredPeriods', 0)
                         st.write(f"**Periods Served:** {periods_served} of {total_required}")
+                    
+                    # Display early closure note if applicable
+                    if iss_placement.get('closedEarly', False):
+                        early_note = iss_placement.get('earlyClosureNote', '')
+                        if early_note:
+                            st.warning(f"📋 **Staff Note:** {early_note}")
                     
                     st.divider()
                     

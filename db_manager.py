@@ -4407,6 +4407,66 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def update_iss_day_type(self, placement_id: str, log_date: str, day_type: str,
+                           start_period: int = 1, end_period: int = 10) -> bool:
+        """Set ISS day type configuration without marking the day as complete.
+        
+        Used when user selects Full Day or Partial Day to lock in their choice.
+        Does NOT mark the day as fulfilled - that happens separately on completion.
+        
+        Args:
+            placement_id: ID of the ISS placement
+            log_date: Date of the log (ISO format)
+            day_type: 'full' or 'partial'
+            start_period: Start period (1-10), default 1
+            end_period: End period (1-10), default 10
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
+            
+            # Get or create daily log
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+            
+            if not log:
+                log_id = self.generate_id()
+                log = DailyLog(
+                    id=log_id,
+                    placement_id=placement_id,
+                    date=date_obj,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0,
+                    readiness='continue'
+                )
+                session.add(log)
+            
+            # Set day type configuration (without marking as fulfilled)
+            log.day_type = day_type
+            log.start_period = start_period
+            log.end_period = end_period
+            
+            # Calculate periods covered for Full Day
+            if day_type == 'full':
+                log.periods_covered = list(range(1, 11))  # Periods 1-10
+            else:
+                log.periods_covered = list(range(start_period, end_period + 1))
+            
+            session.commit()
+            return True
+        except Exception as e:
+            session.rollback()
+            print(f"Error updating ISS day type: {e}")
+            return False
+        finally:
+            session.close()
+    
     def update_iss_daily_log(self, placement_id: str, log_date: str, day_type: str, 
                             periods_covered: list = None, completed_by: str = "Admin") -> bool:
         """Update ISS daily log with day type and periods, and decrement iss_remaining_days if appropriate.

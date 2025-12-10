@@ -1838,22 +1838,33 @@ if page == "Dashboard":
                     else:
                         radio_index = None  # No default selection
                     
+                    # Check if day type is already locked (stored in database)
+                    is_day_type_locked = stored_day_type is not None
+                    
                     day_type = st.radio(
                         "Select Day Type",
                         options=["Full Day", "Partial Day"],
                         key=day_type_key,
                         horizontal=True,
                         label_visibility="collapsed",
-                        index=radio_index
+                        index=radio_index,
+                        disabled=is_day_type_locked
                     )
+                    
+                    # If Full Day just selected (not yet stored), save to database and lock
+                    if day_type == "Full Day" and stored_day_type is None:
+                        # Save Full Day configuration to database
+                        dm.update_iss_day_type(placement_id, date_str, 'full', 1, 10)
+                        clear_dashboard_caches()
+                        st.rerun()
                 
                 with periods_col:
                     period_validation_error = None
                     selected_start_period = None
                     selected_end_period = None
                     
-                    if day_type == "Partial Day":
-                        # Show Start and End Period dropdowns
+                    if day_type == "Partial Day" and not is_day_type_locked:
+                        # Show Start and End Period dropdowns (only if not locked)
                         period_options = list(range(1, 11))  # 1-10
                         
                         # Determine default index from stored values or defaults
@@ -1884,7 +1895,10 @@ if page == "Dashboard":
                         
                         if period_validation_error:
                             st.error(period_validation_error)
-                    else:
+                    elif day_type == "Partial Day" and is_day_type_locked:
+                        # Show locked partial day info
+                        st.caption(f"Partial Day: Periods {stored_start_period}-{stored_end_period}")
+                    elif day_type == "Full Day":
                         # Full Day - periods are 1-10 (all periods)
                         st.caption("Full Day: Periods 1-10 (all periods)")
                 

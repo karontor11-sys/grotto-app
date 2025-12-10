@@ -1,0 +1,123 @@
+QA / Verification for ISS Points System
+
+Title: QA – Verify ISS Points System (Full-Day and Partial-Day)
+
+Please run the following QA scenarios to confirm the ISS points system behaves correctly.
+
+Use test students like Buddy Holly, Jane Doe, or John Smith, and use today’s date unless otherwise noted.
+
+Scenario 1 – Full-Day ISS with Mixed Positive and Negative Points
+
+Create a full-day ISS placement (10 periods) for Buddy Holly starting today.
+
+Check Buddy Holly in for today’s ISS.
+
+On the Daily Log (or ISS detail view for today’s date):
+
+Confirm initial points display as 0 (or equivalent empty state).
+
+Add the following points in order:
+
++1 (e.g., “Completed reading assignment”)
+
++2 (e.g., “Helped another student”)
+
+–1 (e.g., “Talking out of turn”)
+
++3 (e.g., “Completed math worksheet”)
+
+Verify the day’s total is now +5:
+
+0 + 1 + 2 – 1 + 3 = 5
+
+Confirm that the required points for this full-day ISS are shown as 10 points (e.g., “5 / 10” or similar representation).
+
+Add additional positive points until the total reaches 10.
+
+Confirm that:
+
+The day now reflects 10 / 10 points.
+
+No unexpected resets or cross-day interference occurs.
+
+Record in QA notes:
+“Full-day ISS points correctly track positive + negative events; requirement = 10 points.”
+
+Scenario 2 – Partial-Day ISS (4 Periods) with Points
+
+Create a partial-day ISS placement for Jane Doe for today with exactly 4 periods scheduled.
+
+Check Jane Doe in for today’s ISS.
+
+On the Daily Log / detail view:
+
+Confirm the day’s required points are 4, or the UI shows a 0 / 4 style initial state.
+
+Add:
+
++1
+
++1
+
+–1
+
++2
+
+Verify the total is now +3:
+
+0 + 1 + 1 – 1 + 2 = 3
+
+Confirm the UI shows 3 / 4 or equivalent.
+
+Add +1 more point.
+
+Confirm the UI now shows 4 / 4 and that this is treated as meeting the requirement for a 4-period day.
+
+Record in QA notes:
+“Partial-day (4 periods) required points = 4, totals update correctly with mixed events.”
+
+Scenario 3 – Multiday ISS, Per-Day Isolation of Points
+
+Create a 3-day ISS placement for John Smith starting today (full days or partial days, your choice).
+
+For Day 1:
+
+Add a few points (e.g., total = 5).
+
+Move to Day 2 of the same ISS placement:
+
+Confirm the starting total is independent (e.g., 0, not 5).
+
+Add points so Day 2 ends at a different total (e.g., 3).
+
+Move to Day 3:
+
+Confirm Day 3 has its own independent total (e.g., 0 initially).
+
+Navigate back and forth between Day 1, Day 2, and Day 3:
+
+Confirm Day 1 still shows 5.
+
+Day 2 still shows 3.
+
+Day 3 still shows its own total.
+
+Confirm that the required points per day match the number of scheduled periods for each day (10 for full days, N for partial days).
+
+Record in QA notes:
+“Multiday ISS keeps point totals correctly isolated per day; required points per day match scheduled periods.”
+
+Scenario 4 – Regression Check on Non-ISS Placements
+
+Create a Lunch Detention placement and a Class Period Referral for today.
+
+Confirm that:
+
+Their behavior is unchanged regarding points (if they do not use the ISS points system, they should remain as-is).
+
+No ISS-specific point requirement logic has spilled into other placement types.
+
+Record in QA notes:
+“No changes detected to non-ISS placement types.”
+
+If all scenarios pass exactly as described, then the ISS points system can be considered ✅ fixed and verified.

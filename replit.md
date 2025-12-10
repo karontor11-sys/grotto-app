@@ -52,6 +52,10 @@ The UI features a **Dashboard** with:
 - **Status Indicators**: Visual status badges using color coding for placement progress and lifecycle status.
 - **ISS Period-Based Completion**: ISS placements track progress based on `iss_periods_served` out of `iss_total_required_periods`. Supports Day 1 partial auto-classification and future-dated ISS placements. `ISSSessionLog` model records session details.
 - **Make-Up Session Support**: Allows for additional check-ins for students with remaining periods after scheduled ISS days.
+- **ISS Make-Up Days Data Model**: Distinguishes between original scheduled ISS dates and make-up dates:
+    - `original_day_count`: Immutable field storing the original "Day of Days" count (e.g., 3 for "3 days of ISS"). Never changes even when make-up days are added.
+    - `is_makeup_session` (DailyLog): Boolean flag indicating if a day is a make-up session (`True`) or original session (`False`/`NULL`).
+    - `should_offer_makeup_days(placement)`: Helper function that returns `True` when all original dates are completed AND periods remaining > 0.
 - **ISS Status Field**: Derived status (`Not Started`, `In Progress`, `Completed`) for ISS placements based on periods served.
 - **Placement Progress Status**: A persistent `progress_status` field (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`) tracks completion progress for all placement types, separate from lifecycle status, with automatic transitions.
 - **Unified Attendance UI**: Consistent Check In + Absent controls across all expanded placement cards, triggering `progress_status` updates and UI refreshes.

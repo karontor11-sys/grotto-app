@@ -1,0 +1,141 @@
+Core Periods Served / Remaining Logic for ISS
+
+Title: Normalize ISS Fields and Logic for Periods Served and Remaining
+
+Please review and normalize the ISS period-tracking logic so that all ISS placements consistently use the same fields and formulas for periods served and periods remaining.
+
+Goal
+
+For ISS placements only, ensure we have a clear and accurate way to track:
+
+Total periods required for the ISS session (based on the placement schedule).
+
+Total periods served so far across all days.
+
+Total periods remaining in the session.
+
+This will support the Daily Completion behavior in the next prompt.
+
+Required Data Model (ISS Only)
+
+For every ISS placement, please ensure we have the following fields (or their equivalent) available and used consistently:
+
+session_total_periods_required
+
+Total number of ISS periods the student must serve for this placement.
+
+Typically derived from:
+
+Full-day ISS → 10 periods per scheduled day.
+
+Partial-day ISS → number of scheduled periods for that day.
+
+Multiday ISS → sum of all scheduled periods across all days in the original placement schedule.
+
+If there is already a field doing this job, reuse it and standardize the naming in the code (no need to change the database name, just use a clear concept in the logic).
+
+session_periods_served
+
+Cumulative total of all ISS periods already completed for this placement across all days.
+
+Initialized at 0 when the placement is created.
+
+Incremented only when a day is Completed (we’ll implement that logic in Prompt 3B).
+
+session_periods_remaining
+
+Derived value:
+
+session_periods_remaining = session_total_periods_required - session_periods_served
+
+Must never go below 0 (guard against negative).
+
+Used for display on the Dashboard and/or ISS detail views.
+
+scheduled_periods_for_date (per day)
+
+For a given ISS date, we need a reliable way to know:
+
+If it’s a full day → treat as 10 periods.
+
+If it’s a partial day → use the exact number of scheduled periods for that date from the schedule builder (e.g., 4, 6, etc.).
+
+This is the value we will subtract from session_periods_remaining when that date is completed.
+
+Implementation Tasks
+
+Identify existing fields:
+
+Find the current DB / model fields that store:
+
+Total days or periods for the ISS placement.
+
+Any existing notion of “periods served” or “periods remaining.”
+
+Map them to the conceptual model above:
+
+session_total_periods_required
+
+session_periods_served
+
+session_periods_remaining
+
+scheduled_periods_for_date
+
+Normalize the calculation:
+
+Implement (or confirm) a central helper or method, for example:
+
+get_total_periods_required(placement)
+
+get_periods_served(placement)
+
+get_periods_remaining(placement)
+
+get_scheduled_periods_for_date(placement, date)
+
+These helpers should:
+
+Always return consistent values.
+
+Handle both full-day and partial-day schedules correctly.
+
+Be used wherever periods are displayed or computed for ISS.
+
+Full vs Partial in the helper:
+
+In get_scheduled_periods_for_date(placement, date):
+
+If the day is marked as full-day ISS:
+
+Return 10.
+
+If the day is set as partial-day:
+
+Sum the number of scheduled periods or entries from the schedule builder for that date and return that number.
+
+Keep non-ISS logic untouched:
+
+Do not change Lunch Detention or Class Period Referral logic here.
+
+This prompt is only about ISS.
+
+Acceptance Criteria
+
+This prompt is complete when:
+
+ISS placements expose a clear, reliable concept of:
+
+Total required periods,
+
+Periods served,
+
+Periods remaining,
+
+Scheduled periods for a given date.
+
+These values are obtained via a single, consistent logic path (shared helpers or equivalent) rather than scattered, duplicated calculations.
+
+The helpers correctly distinguish between full-day (10 periods) and partial-day ISS based on the schedule builder.
+
+No changes have been made yet to the Complete button behavior—that will be handled in the next prompt.

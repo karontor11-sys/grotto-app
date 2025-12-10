@@ -2511,6 +2511,242 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    # ==========================================
+    # ISS PERIOD HELPER FUNCTIONS (Normalized)
+    # ==========================================
+    # These helpers provide a single, consistent logic path for ISS period tracking.
+    # Use these throughout the application instead of direct field access.
+    
+    def get_iss_total_periods_required(self, placement: dict) -> int:
+        """Get total periods required for an ISS placement.
+        
+        Args:
+            placement: Placement dict (from _placement_to_dict or similar)
+            
+        Returns:
+            Total periods required for this ISS session.
+            - Full-day ISS: 10 periods per scheduled day
+            - Partial-day ISS: Sum of scheduled periods across all days
+            - Multiday ISS: Sum of all scheduled periods
+            
+        Priority order:
+        1. issTotalRequiredPeriods (authoritative stored value)
+        2. Sum of scheduledIssSessions periods (for partial-day/multiday)
+        3. days * 10 (fallback for legacy data)
+        """
+        if not placement:
+            return 0
+        
+        # Priority 1: issTotalRequiredPeriods field (authoritative)
+        total_required = placement.get('issTotalRequiredPeriods') or 0
+        if total_required > 0:
+            return total_required
+        
+        # Priority 2: Sum scheduled sessions (handles partial-day and multiday correctly)
+        scheduled_sessions = placement.get('scheduledIssSessions') or []
+        if scheduled_sessions:
+            total_from_schedule = 0
+            for session in scheduled_sessions:
+                # Check for explicit periods array first (legacy format)
+                periods_array = session.get('periods') or session.get('periodsCovered')
+                if periods_array and isinstance(periods_array, list) and len(periods_array) > 0:
+                    total_from_schedule += len(periods_array)
+                    continue
+                
+                # Check for periodCount (legacy key)
+                period_count = session.get('periodCount') or session.get('periodsCount')
+                if period_count and isinstance(period_count, int) and period_count > 0:
+                    total_from_schedule += period_count
+                    continue
+                
+                # Check session type
+                session_type = session.get('type', '')
+                if session_type == 'full_day':
+                    total_from_schedule += PERIODS_PER_FULL_DAY
+                elif session_type in ('partial_day', 'partial'):
+                    start_period = session.get('startPeriod', 1)
+                    end_period = session.get('endPeriod', 10)
+                    total_from_schedule += max(1, end_period - start_period + 1)
+                elif not session_type:
+                    # No type specified - infer from start/end or default to full day
+                    start_period = session.get('startPeriod')
+                    end_period = session.get('endPeriod')
+                    if start_period is not None and end_period is not None:
+                        total_from_schedule += max(1, end_period - start_period + 1)
+                    else:
+                        # Default to full day when no metadata
+                        total_from_schedule += PERIODS_PER_FULL_DAY
+                else:
+                    # Unknown type, assume full day
+                    total_from_schedule += PERIODS_PER_FULL_DAY
+            if total_from_schedule > 0:
+                return total_from_schedule
+        
+        # Priority 3: Fallback - Calculate from days assigned * 10
+        days = placement.get('issDaysAssigned') or placement.get('issTotalDays') or placement.get('daysAssigned') or 0
+        return days * PERIODS_PER_FULL_DAY
+    
+    def get_iss_periods_served(self, placement: dict) -> int:
+        """Get cumulative periods served for an ISS placement.
+        
+        Args:
+            placement: Placement dict (from _placement_to_dict or similar)
+            
+        Returns:
+            Total periods served across all completed days.
+            Initialized at 0 when placement is created.
+            Incremented when a day is completed.
+        """
+        if not placement:
+            return 0
+        
+        return placement.get('issPeriodsServed') or 0
+    
+    def get_iss_periods_remaining(self, placement: dict) -> int:
+        """Get periods remaining for an ISS placement.
+        
+        Args:
+            placement: Placement dict (from _placement_to_dict or similar)
+            
+        Returns:
+            Periods remaining = total_required - periods_served - periods_waived
+            Never returns negative (guards against < 0).
+            
+        Accounts for early closure where periods may be waived.
+        """
+        total_required = self.get_iss_total_periods_required(placement)
+        periods_served = self.get_iss_periods_served(placement)
+        periods_waived = placement.get('periodsWaived') or 0
+        
+        return max(0, total_required - periods_served - periods_waived)
+    
+    def get_iss_scheduled_periods_for_date(self, placement: dict, target_date) -> int:
+        """Get scheduled periods for a specific ISS date.
+        
+        Args:
+            placement: Placement dict (from _placement_to_dict or similar)
+            target_date: The date to check (date object or ISO string)
+            
+        Returns:
+            Number of periods scheduled for this date:
+            - Full-day: Returns 10 (PERIODS_PER_FULL_DAY)
+            - Partial-day: Returns exact number from schedule builder
+            - Legacy fallback: Returns 10 if date is in scheduled_iss_dates or date range
+            
+        This value is used to update periods_served when that date is completed.
+        """
+        if not placement:
+            return 0
+        
+        # Convert target_date to string for comparison
+        if hasattr(target_date, 'isoformat'):
+            date_str = target_date.isoformat()
+        else:
+            date_str = str(target_date)
+        
+        # Check scheduled ISS sessions for this date
+        scheduled_sessions = placement.get('scheduledIssSessions') or []
+        
+        for session in scheduled_sessions:
+            session_date = session.get('date', '')
+            
+            # Match the date
+            if session_date == date_str:
+                # Check for explicit periods array first (legacy format)
+                periods_array = session.get('periods') or session.get('periodsCovered')
+                if periods_array and isinstance(periods_array, list) and len(periods_array) > 0:
+                    return len(periods_array)
+                
+                # Check for periodCount (legacy key)
+                period_count = session.get('periodCount') or session.get('periodsCount')
+                if period_count and isinstance(period_count, int) and period_count > 0:
+                    return period_count
+                
+                session_type = session.get('type', '')
+                
+                if session_type == 'full_day':
+                    return PERIODS_PER_FULL_DAY
+                elif session_type in ('partial_day', 'partial'):
+                    # Calculate periods from start/end
+                    start_period = session.get('startPeriod', 1)
+                    end_period = session.get('endPeriod', 10)
+                    return max(1, end_period - start_period + 1)
+                elif not session_type:
+                    # No type - infer from start/end or default to full day
+                    start_period = session.get('startPeriod')
+                    end_period = session.get('endPeriod')
+                    if start_period is not None and end_period is not None:
+                        return max(1, end_period - start_period + 1)
+                    else:
+                        return PERIODS_PER_FULL_DAY
+                else:
+                    # Unknown session type, assume full day
+                    return PERIODS_PER_FULL_DAY
+        
+        # Legacy fallback: Check if date is in scheduled_iss_dates (older format)
+        scheduled_dates = placement.get('scheduledIssDates') or []
+        if date_str in scheduled_dates:
+            return PERIODS_PER_FULL_DAY
+        
+        # Check if date falls within placement date range (implicit scheduling)
+        start_date = placement.get('startDate') or placement.get('issStartDate')
+        end_date = placement.get('endDate')
+        if start_date and end_date:
+            if start_date <= date_str <= end_date:
+                # Date is in range, default to full day for legacy placements
+                return PERIODS_PER_FULL_DAY
+        
+        # No scheduled session found for this date
+        return 0
+    
+    def get_iss_status(self, placement: dict) -> str:
+        """Get ISS status based on periods served and placement flags.
+        
+        Args:
+            placement: Placement dict
+            
+        Returns:
+            - 'Not Started': periods_served == 0 and not checked in
+            - 'In Progress': periods_served > 0 AND remaining > 0
+            - 'Needs Makeup': needs_makeup flag is set (authoritative, until cleared)
+            - 'Completed': placement status is completed OR closed_early with waiver
+        
+        Respects placement progress_status, needs_makeup, and closed_early flags.
+        needs_makeup is authoritative - stays until explicitly cleared.
+        """
+        if not placement:
+            return 'Not Started'
+        
+        # Check explicit flags
+        placement_status = placement.get('status', '')
+        progress_status = placement.get('progressStatus', '')
+        is_closed_early = placement.get('closedEarly', False)
+        
+        # needs_makeup is authoritative - stays until explicitly cleared
+        # This takes priority over period calculations
+        if placement_status == 'needs_makeup':
+            return 'Needs Makeup'
+        
+        # Explicit completed status
+        if placement_status == 'completed' or progress_status == 'COMPLETED':
+            return 'Completed'
+        
+        # Closed early = Completed (periods were waived)
+        if is_closed_early:
+            return 'Completed'
+        
+        # Get period calculations for remaining cases
+        periods_remaining = self.get_iss_periods_remaining(placement)
+        periods_served = self.get_iss_periods_served(placement)
+        
+        # Calculate based on periods
+        if periods_remaining == 0 and periods_served > 0:
+            return 'Completed'
+        elif periods_served > 0 or progress_status == 'IN_PROGRESS':
+            return 'In Progress'
+        else:
+            return 'Not Started'
+    
     # Daily Log operations
     def get_daily_log(self, placement_id: str, log_date: str) -> Optional[Dict[str, Any]]:
         """Get a daily log for a placement on a specific date (read-only, no create).

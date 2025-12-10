@@ -1,0 +1,162 @@
+Wire Complete Button to Update Periods Served / Remaining
+
+Title: Update ISS Periods Served / Remaining on Daily Completion
+
+Now that the ISS periods logic is normalized (from Prompt 3A), please wire the Complete button so that each time a day is completed, periods served and periods remaining are updated correctly.
+
+Scope
+
+Applies only to ISS placements.
+
+This is about what happens when the user clicks Complete for a specific ISS date on the Daily Log / Dashboard.
+
+Do not implement make-up day prompts or workflows here (that will be Prompt #4 later).
+Right now we only want accurate math when completing each scheduled day.
+
+Required Behavior When “Complete” Is Pressed (ISS Only)
+
+For any given ISS date in a placement:
+
+Determine the scheduled_periods_for_date using the normalized helper from Prompt 3A:
+
+If the date is a full-day ISS, this must return 10.
+
+If the date is a partial-day ISS, it must return the exact number of scheduled periods for that date.
+
+When the user clicks Complete for that date:
+
+If the day is not already completed:
+
+Increase session_periods_served by scheduled_periods_for_date.
+
+Recalculate session_periods_remaining as:
+
+session_periods_remaining = session_total_periods_required - session_periods_served
+
+Clamp session_periods_remaining at 0 minimum (no negative values).
+
+Mark that specific date as completed so we don’t double-count it if the user clicks Complete again.
+
+Handle double-click / repeat Complete safely:
+
+If the day is already marked completed:
+
+Do not add periods again.
+
+Either:
+
+Disable the Complete button, or
+
+Make the handler idempotent by checking a “day_completed” flag first.
+
+This prevents inflating session_periods_served by repeated clicks.
+
+Visual updates:
+
+Wherever periods served / remaining are displayed for the ISS session (Dashboard, detail page, etc.), ensure they immediately reflect:
+
+Increased session_periods_served
+
+Decreased session_periods_remaining
+
+Do not change the status-circle behavior here (Green/Yellow/Red) unless it already depends on completion; that logic should remain as-is.
+
+Full-Day Example
+
+Placement: 3-day full-day ISS (10 periods per day) → session_total_periods_required = 30.
+
+Day 1:
+
+scheduled_periods_for_date = 10.
+
+Before completion:
+
+session_periods_served = 0
+
+session_periods_remaining = 30
+
+After clicking Complete for Day 1:
+
+session_periods_served = 10
+
+session_periods_remaining = 20
+
+Day 2:
+
+After Complete:
+
+session_periods_served = 20
+
+session_periods_remaining = 10
+
+Day 3:
+
+After Complete:
+
+session_periods_served = 30
+
+session_periods_remaining = 0
+
+No negative values, no double-counting.
+
+Partial-Day Example
+
+Placement: 3-day ISS, with mixed schedules:
+
+Day 1: partial, 4 periods.
+
+Day 2: full, 10 periods.
+
+Day 3: partial, 6 periods.
+
+Total required:
+
+session_total_periods_required = 4 + 10 + 6 = 20.
+
+Behavior:
+
+Complete Day 1:
+
+scheduled_periods_for_date = 4
+
+session_periods_served = 4
+
+session_periods_remaining = 16
+
+Complete Day 2:
+
+scheduled_periods_for_date = 10
+
+session_periods_served = 14
+
+session_periods_remaining = 6
+
+Complete Day 3:
+
+scheduled_periods_for_date = 6
+
+session_periods_served = 20
+
+session_periods_remaining = 0
+
+Acceptance Criteria
+
+This prompt is complete when:
+
+Clicking Complete for a specific ISS date:
+
+Subtracts exactly 10 periods for a full-day ISS date.
+
+Subtracts exactly the number of scheduled periods for a partial-day ISS date.
+
+session_periods_served and session_periods_remaining are always accurate and consistent with the actual attendance/completion history.
+
+Days cannot be double-counted; multiple clicks on the same day do not further change the totals.
+
+ISS period counts behave correctly in both:
+
+Single-day ISS placements.
+
+Multiday ISS placements with combinations of full and partial days.
+
+Non-ISS placement types are unaffected.

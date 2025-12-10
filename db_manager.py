@@ -3294,7 +3294,7 @@ class DatabaseManager:
     def complete_iss_full_day_session(self, placement_id: str, log_date: str, completed_by: str, 
                                        is_override: bool = False, override_note: str = None,
                                        points_earned: int = None) -> bool:
-        """Complete a Full Day ISS session, adding periods_covered to issPeriodsServed.
+        """Complete a Full Day ISS session, adding scheduled periods to issPeriodsServed.
         
         Args:
             placement_id: ID of the placement
@@ -3308,9 +3308,9 @@ class DatabaseManager:
             True if successful, False otherwise
             
         Note:
-            Uses the stored periods_covered from the daily log (set during check-in)
-            to determine how many periods to credit. For full days this is typically 10,
-            but the system now respects what was actually stored at check-in time.
+            Uses the normalized get_iss_scheduled_periods_for_date helper to determine
+            how many periods to credit. For full days this is 10 (PERIODS_PER_FULL_DAY).
+            Idempotent: Multiple clicks on same day do not double-count periods.
         """
         session = self.get_session()
         try:
@@ -3320,6 +3320,15 @@ class DatabaseManager:
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
             if not placement:
                 return False
+            
+            # Convert placement to dict for helper functions
+            placement_dict = self._placement_to_dict(placement)
+            
+            # Use normalized helper to get scheduled periods for this date
+            periods_to_credit = self.get_iss_scheduled_periods_for_date(placement_dict, date_obj)
+            if periods_to_credit == 0:
+                # Fallback to full day default (10) if no schedule found
+                periods_to_credit = PERIODS_PER_FULL_DAY
             
             # Get student for the label
             student = session.query(Student).filter(Student.id == placement.student_id).first()
@@ -3334,21 +3343,26 @@ class DatabaseManager:
             should_add_periods = False
             
             # Read periods_covered from the daily log (set during check-in)
-            # Default to 10 for full day if not set
-            if log and log.periods_covered:
+            # Priority: daily log coverage > scheduled periods > default 10
+            if log and log.periods_covered and len(log.periods_covered) > 0:
                 periods_covered = log.periods_covered
-                periods_to_credit = len(periods_covered)
-                start_period = min(periods_covered) if periods_covered else 1
-                end_period = max(periods_covered) if periods_covered else 10
+                periods_to_credit = len(periods_covered)  # Use actual coverage, not scheduled
+                start_period = min(periods_covered)
+                end_period = max(periods_covered)
+            elif periods_to_credit > 0:
+                # Use scheduled periods from helper as fallback
+                periods_covered = list(range(1, periods_to_credit + 1))
+                start_period = 1
+                end_period = periods_to_credit
             else:
-                # Fallback to full day defaults
+                # Final fallback to full day defaults
+                periods_to_credit = PERIODS_PER_FULL_DAY
                 periods_covered = list(range(1, 11))
-                periods_to_credit = 10
                 start_period = 1
                 end_period = 10
             
             # Read required_points from daily log (for points_target in session log)
-            required_points = log.required_points if log and log.required_points else 10
+            required_points = log.required_points if log and log.required_points else periods_to_credit
             
             if not log:
                 log_id = self.generate_id()
@@ -3504,7 +3518,7 @@ class DatabaseManager:
                                           required_points: int = None,
                                           is_override: bool = False, override_note: str = None,
                                           points_earned: int = None) -> bool:
-        """Complete a Partial Day ISS session, adding planned periods to issPeriodsServed.
+        """Complete a Partial Day ISS session, adding scheduled periods to issPeriodsServed.
         
         Args:
             placement_id: ID of the placement
@@ -3520,28 +3534,48 @@ class DatabaseManager:
             
         Returns:
             True if successful, False otherwise
+            
+        Note:
+            Uses the normalized get_iss_scheduled_periods_for_date helper to determine
+            how many periods to credit. Falls back to passed-in parameters if helper returns 0.
+            Idempotent: Multiple clicks on same day do not double-count periods.
         """
         session = self.get_session()
         try:
             date_obj = datetime.fromisoformat(log_date).date() if isinstance(log_date, str) else log_date
             
-            # Calculate planned periods - prefer explicit list if provided
-            if periods_covered_list:
-                planned_periods = len(periods_covered_list)
-                # Set start/end from list for backward compatibility
-                start_period = min(periods_covered_list)
-                end_period = max(periods_covered_list)
-            else:
-                # Validate period range
-                if end_period < start_period:
-                    end_period = start_period
-                # Calculate planned periods from range
-                planned_periods = end_period - start_period + 1
-            
             # Get placement to update issPeriodsServed
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
             if not placement:
                 return False
+            
+            # Convert placement to dict for helper functions
+            placement_dict = self._placement_to_dict(placement)
+            
+            # Use normalized helper to get scheduled periods for this date
+            scheduled_periods = self.get_iss_scheduled_periods_for_date(placement_dict, date_obj)
+            
+            # Calculate planned periods - priority: explicit list > passed params > scheduled > default
+            if periods_covered_list and len(periods_covered_list) > 0:
+                # Explicit list takes highest priority (actual coverage)
+                planned_periods = len(periods_covered_list)
+                start_period = min(periods_covered_list)
+                end_period = max(periods_covered_list)
+            elif start_period is not None and end_period is not None:
+                # Use passed-in period range (from UI)
+                if end_period < start_period:
+                    end_period = start_period
+                planned_periods = end_period - start_period + 1
+            elif scheduled_periods > 0:
+                # Use scheduled periods from helper as fallback
+                planned_periods = scheduled_periods
+                start_period = 1
+                end_period = planned_periods
+            else:
+                # Final fallback
+                start_period = 1
+                end_period = 1
+                planned_periods = 1
             
             # Get student for the label
             student = session.query(Student).filter(Student.id == placement.student_id).first()
@@ -4159,13 +4193,34 @@ class DatabaseManager:
                 if day_type in ['full', 'partial'] and placement.iss_remaining_days > 0:
                     placement.iss_remaining_days -= 1
                     
+                    # Use normalized helper to get scheduled periods for this date (as fallback)
+                    placement_dict = self._placement_to_dict(placement)
+                    scheduled_periods = self.get_iss_scheduled_periods_for_date(placement_dict, date_obj)
+                    
                     # Also update period-based tracking
+                    # Priority: actual periods_covered > scheduled > default
                     if day_type == 'full':
-                        periods_credited = 10
-                        actual_periods = list(range(1, 11))
+                        # Full day: Use periods_covered if exists, else scheduled, else default 10
+                        if periods_covered and len(periods_covered) > 0:
+                            periods_credited = len(periods_covered)
+                            actual_periods = sorted(periods_covered)
+                        elif scheduled_periods > 0:
+                            periods_credited = scheduled_periods
+                            actual_periods = list(range(1, periods_credited + 1))
+                        else:
+                            periods_credited = PERIODS_PER_FULL_DAY
+                            actual_periods = list(range(1, 11))
                     else:
-                        periods_credited = len(periods_covered) if periods_covered else 0
-                        actual_periods = sorted(periods_covered) if periods_covered else []
+                        # Partial day: Use periods_covered if exists, else scheduled
+                        if periods_covered and len(periods_covered) > 0:
+                            periods_credited = len(periods_covered)
+                            actual_periods = sorted(periods_covered)
+                        elif scheduled_periods > 0:
+                            periods_credited = scheduled_periods
+                            actual_periods = list(range(1, periods_credited + 1))
+                        else:
+                            periods_credited = 0
+                            actual_periods = []
                     
                     placement.iss_periods_served = (placement.iss_periods_served or 0) + periods_credited
                     placement.days_completed = (placement.days_completed or 0) + 1
@@ -4177,10 +4232,10 @@ class DatabaseManager:
                         session_date=date_obj,
                         session_type='Full Day' if day_type == 'full' else 'Partial Day',
                         start_period=min(actual_periods) if actual_periods else 1,
-                        end_period=max(actual_periods) if actual_periods else 10,
+                        end_period=max(actual_periods) if actual_periods else periods_credited,
                         periods_covered=actual_periods,
                         periods_credited=periods_credited,
-                        points_target=10 if day_type == 'full' else len(periods_covered),
+                        points_target=periods_credited,
                         points_earned=log.daily_total,
                         completion_method='Complete',
                         notes=log.notes,

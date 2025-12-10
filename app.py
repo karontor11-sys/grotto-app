@@ -1811,13 +1811,12 @@ if page == "Dashboard":
                 stored_end_period = daily_log.get('endPeriod') if daily_log else None
                 
                 if day_type_key not in st.session_state:
-                    # Use stored value if available, else default based on is_full_day
+                    # Use stored value if available, else no default (user must choose)
                     if stored_day_type == 'full':
                         st.session_state[day_type_key] = "Full Day"
                     elif stored_day_type == 'partial':
                         st.session_state[day_type_key] = "Partial Day"
-                    else:
-                        st.session_state[day_type_key] = "Full Day" if is_full_day else "Partial Day"
+                    # If no stored value, don't set any default - user must choose
                 
                 # Preload start/end periods if stored
                 if start_period_key not in st.session_state and stored_start_period:
@@ -1830,12 +1829,22 @@ if page == "Dashboard":
                 day_type_col, periods_col = st.columns([1, 2])
                 
                 with day_type_col:
+                    # Determine index - None if no selection yet
+                    current_selection = st.session_state.get(day_type_key)
+                    if current_selection == "Full Day":
+                        radio_index = 0
+                    elif current_selection == "Partial Day":
+                        radio_index = 1
+                    else:
+                        radio_index = None  # No default selection
+                    
                     day_type = st.radio(
                         "Select Day Type",
                         options=["Full Day", "Partial Day"],
                         key=day_type_key,
                         horizontal=True,
-                        label_visibility="collapsed"
+                        label_visibility="collapsed",
+                        index=radio_index
                     )
                 
                 with periods_col:

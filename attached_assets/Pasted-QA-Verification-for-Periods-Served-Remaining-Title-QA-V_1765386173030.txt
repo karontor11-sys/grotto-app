@@ -1,0 +1,119 @@
+QA / Verification for Periods Served / Remaining
+
+Title: QA – Verify ISS Periods Served / Remaining on Daily Completion
+
+Please run the following QA scenarios to confirm that the periods served / remaining logic for ISS works correctly for full days, partial days, and multiday sessions.
+
+Use test students like Buddy Holly, Jane Doe, and John Smith.
+
+Scenario 1 – Single Full-Day ISS
+
+Create a 1-day full-day ISS placement for Buddy Holly (10 periods).
+
+Confirm:
+
+session_total_periods_required = 10.
+
+session_periods_served = 0.
+
+session_periods_remaining = 10.
+
+Click Complete for that ISS date.
+
+Verify:
+
+session_periods_served = 10.
+
+session_periods_remaining = 0.
+
+Click Complete again for the same date (if possible).
+
+Verify that the totals do not change (no double-counting).
+
+Scenario 2 – Single Partial-Day ISS (4 Periods)
+
+Create a 1-day partial-day ISS placement for Jane Doe with 4 scheduled periods.
+
+Confirm:
+
+session_total_periods_required = 4.
+
+session_periods_served = 0.
+
+session_periods_remaining = 4.
+
+Click Complete for that date.
+
+Verify:
+
+session_periods_served = 4.
+
+session_periods_remaining = 0.
+
+Confirm that the system did not subtract 10, but correctly subtracted 4.
+
+Scenario 3 – Multiday ISS (All Full Days)
+
+Create a 3-day full-day ISS placement for John Smith.
+
+Confirm:
+
+session_total_periods_required = 30.
+
+session_periods_served = 0.
+
+session_periods_remaining = 30.
+
+Complete Day 1, then verify:
+
+Served = 10, Remaining = 20.
+
+Complete Day 2, then verify:
+
+Served = 20, Remaining = 10.
+
+Complete Day 3, then verify:
+
+Served = 30, Remaining = 0.
+
+Scenario 4 – Multiday ISS with Mixed Full and Partial Days
+
+Create a 3-day ISS placement for Jane Doe with:
+
+Day 1: partial (4 periods).
+
+Day 2: full (10 periods).
+
+Day 3: partial (6 periods).
+
+Confirm:
+
+session_total_periods_required = 4 + 10 + 6 = 20.
+
+session_periods_served = 0.
+
+session_periods_remaining = 20.
+
+Complete Day 1:
+
+Served = 4, Remaining = 16.
+
+Complete Day 2:
+
+Served = 14, Remaining = 6.
+
+Complete Day 3:
+
+Served = 20, Remaining = 0.
+
+Scenario 5 – Regression Check
+
+Create a Lunch Detention placement and a Class Period Referral placement.
+
+Confirm that:
+
+Their behavior and any counters related to periods are unchanged.
+
+No ISS-specific period logic has accidentally affected non-ISS placements.
+
+If all scenarios pass exactly as described, then the Periods Served / Remaining on Daily Completion feature can be considered ✅ correct and stable, and the system is ready for the Make-Up Days Workflow (#4) to be layered on top.

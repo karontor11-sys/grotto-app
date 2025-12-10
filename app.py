@@ -298,16 +298,25 @@ display_page = st.session_state.current_page if st.session_state.current_page in
 # Get the index for the current page to control sidebar selection
 current_page_index = PAGE_OPTIONS.index(display_page) if display_page in PAGE_OPTIONS else 0
 
-# Sidebar page selector - uses index to control selection, no key to avoid widget state conflicts
+# Sidebar page selector - uses key to store selection in session state
+if 'sidebar_page_selection' not in st.session_state:
+    st.session_state.sidebar_page_selection = display_page
+# Sync sidebar selection with current_page when programmatic navigation happens
+if st.session_state.sidebar_page_selection != display_page:
+    st.session_state.sidebar_page_selection = display_page
+
 sidebar_page = st.sidebar.selectbox(
     "Select a page:",
     PAGE_OPTIONS,
-    index=current_page_index
+    index=PAGE_OPTIONS.index(st.session_state.sidebar_page_selection) if st.session_state.sidebar_page_selection in PAGE_OPTIONS else 0,
+    key="sidebar_page_widget"
 )
 
 # Update current_page when user manually selects a different page from sidebar
-if sidebar_page != st.session_state.current_page and sidebar_page in PAGE_OPTIONS:
+# Check against sidebar_page_selection to detect actual user changes
+if sidebar_page != st.session_state.sidebar_page_selection:
     st.session_state.current_page = sidebar_page
+    st.session_state.sidebar_page_selection = sidebar_page
     st.rerun()
 
 # Use current_page as the source of truth for rendering

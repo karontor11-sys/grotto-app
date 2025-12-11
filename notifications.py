@@ -259,53 +259,262 @@ class NotificationManager:
         
         return notifications
     
-    def get_iss_no_show_notifications(self, days_back: int = 7) -> List[Dict[str, Any]]:
-        """Get notifications for ISS sessions marked as no-show during end-of-day processing.
+    def get_placement_no_show_notifications(self, days_back: int = 7) -> List[Dict[str, Any]]:
+        """Get unified no-show notifications for all placement types.
+        
+        Detects no-shows for ISS, Lunch Detention, Class Period Referral (and subtypes)
+        by checking scheduled placement days against attendance records.
         
         Args:
-            days_back: Number of days to look back for no-show sessions
+            days_back: Number of days to look back for no-show events
             
         Returns:
-            List of notifications for ISS no-show sessions
+            List of Placement No-Show notifications for all placement types
         """
         session = self.db.get_session()
         notifications = []
         
         try:
-            from db_manager import PartialDaySession, Placement, Student, SessionType, SessionStatus
+            from db_manager import (
+                Placement, Student, DailyLog, PartialDaySession,
+                PlacementCategory, PlacementStatus, SessionStatus
+            )
+            from sqlalchemy import or_
             
             today = date.today()
             cutoff_date = today - timedelta(days=days_back)
             
+            # Helper to get readable placement type name
+            def get_placement_type_display(placement):
+                if placement.placement_type == PlacementCategory.ISS:
+                    return "ISS"
+                elif placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+                    return "Lunch Detention"
+                elif placement.placement_type == PlacementCategory.CLASS_REFERRAL:
+                    subtype = placement.referral_subtype or 'behavior'
+                    if subtype == 'pre_planned':
+                        return "Pre-Planned Referral"
+                    elif subtype == 'cool_down':
+                        return "Cool-Down Referral"
+                    else:
+                        return "Behavior Referral"
+                elif placement.placement_type == PlacementCategory.COOL_DOWN:
+                    return "Cool-Down"
+                elif placement.placement_type == PlacementCategory.PRE_PLANNED_REFERRAL:
+                    return "Pre-Planned Referral"
+                else:
+                    return "Placement"
+            
+            # Track already-notified combinations to avoid duplicates
+            notified_keys = set()
+            
+            # 1. Check DailyLogs with explicit no_show flag or absent/not checked in on scheduled dates
+            no_show_logs = session.query(DailyLog).filter(
+                DailyLog.date >= cutoff_date,
+                DailyLog.date < today,
+                or_(
+                    DailyLog.no_show == True,
+                    DailyLog.day_type == 'absent'
+                )
+            ).all()
+            
+            for log in no_show_logs:
+                placement = session.query(Placement).filter(Placement.id == log.placement_id).first()
+                if not placement:
+                    continue
+                    
+                # Skip completed placements
+                if placement.status == PlacementStatus.completed:
+                    continue
+                    
+                student = session.query(Student).filter(Student.id == placement.student_id).first()
+                if not student:
+                    continue
+                
+                # Create unique key to avoid duplicates
+                key = (placement.id, log.date.isoformat())
+                if key in notified_keys:
+                    continue
+                notified_keys.add(key)
+                
+                student_name = f"{student.first_name} {student.last_name}"
+                placement_type = get_placement_type_display(placement)
+                date_str = log.date.strftime('%m/%d/%Y')
+                
+                notifications.append({
+                    'type': 'placement_no_show',
+                    'severity': 'warning',
+                    'timestamp': datetime.combine(log.date, datetime.min.time()),
+                    'title': f"No-Show: {student_name} – {placement_type}",
+                    'message': f"{student_name} did not attend their scheduled {placement_type} on {date_str}.",
+                    'student_id': student.id,
+                    'student_name': student_name,
+                    'placement_id': placement.id,
+                    'placement_type': placement_type,
+                    'date': log.date.isoformat()
+                })
+            
+            # 2. Check PartialDaySessions with no_show status
             no_show_sessions = session.query(PartialDaySession).filter(
                 PartialDaySession.date >= cutoff_date,
                 PartialDaySession.date < today,
-                PartialDaySession.type == SessionType.iss_full_day,
-                PartialDaySession.status == SessionStatus.no_show,
-                PartialDaySession.alert_sent == True
+                PartialDaySession.status == SessionStatus.no_show
             ).all()
             
             for sess in no_show_sessions:
                 placement = session.query(Placement).filter(Placement.id == sess.placement_id).first()
-                if placement:
-                    student = session.query(Student).filter(Student.id == placement.student_id).first()
-                    if student:
-                        notifications.append({
-                            'type': 'iss_no_show',
-                            'severity': 'warning',
-                            'timestamp': sess.alert_timestamp or datetime.combine(sess.date, datetime.min.time()),
-                            'title': f'ISS Session Not Completed - {sess.date.strftime("%m/%d/%Y")}',
-                            'message': f"{student.first_name} {student.last_name}'s ISS session was not completed on {sess.date.strftime('%m/%d/%Y')}. Session marked as Not Completed.",
-                            'student_id': student.id,
-                            'student_name': f"{student.first_name} {student.last_name}",
-                            'session_id': sess.id,
-                            'date': sess.date.isoformat(),
-                            'recipients': ['Aaron Toronto', 'Matthew Christie']
-                        })
+                if not placement:
+                    continue
+                    
+                # Skip completed placements
+                if placement.status == PlacementStatus.completed:
+                    continue
+                    
+                student = session.query(Student).filter(Student.id == placement.student_id).first()
+                if not student:
+                    continue
+                
+                # Create unique key to avoid duplicates
+                key = (placement.id, sess.date.isoformat())
+                if key in notified_keys:
+                    continue
+                notified_keys.add(key)
+                
+                student_name = f"{student.first_name} {student.last_name}"
+                placement_type = get_placement_type_display(placement)
+                date_str = sess.date.strftime('%m/%d/%Y')
+                
+                notifications.append({
+                    'type': 'placement_no_show',
+                    'severity': 'warning',
+                    'timestamp': sess.alert_timestamp or datetime.combine(sess.date, datetime.min.time()),
+                    'title': f"No-Show: {student_name} – {placement_type}",
+                    'message': f"{student_name} did not attend their scheduled {placement_type} on {date_str}.",
+                    'student_id': student.id,
+                    'student_name': student_name,
+                    'placement_id': placement.id,
+                    'placement_type': placement_type,
+                    'session_id': sess.id,
+                    'date': sess.date.isoformat()
+                })
+            
+            # 3. Check ISS scheduled dates not served (for ISS placements with scheduled_iss_dates)
+            iss_placements = session.query(Placement).filter(
+                Placement.placement_type == PlacementCategory.ISS,
+                Placement.status != PlacementStatus.completed
+            ).all()
+            
+            for placement in iss_placements:
+                scheduled_dates = placement.scheduled_iss_dates or []
+                served_dates = placement.served_dates or []
+                
+                student = session.query(Student).filter(Student.id == placement.student_id).first()
+                if not student:
+                    continue
+                
+                student_name = f"{student.first_name} {student.last_name}"
+                placement_type = "ISS"
+                
+                for date_str in scheduled_dates:
+                    try:
+                        check_date = datetime.fromisoformat(date_str).date()
+                    except:
+                        continue
+                    
+                    # Only check past dates within the window
+                    if check_date >= today or check_date < cutoff_date:
+                        continue
+                    
+                    # Skip if already served
+                    if date_str in served_dates:
+                        continue
+                    
+                    # Check if there's a daily log with check-in or valid attendance
+                    log = session.query(DailyLog).filter(
+                        DailyLog.placement_id == placement.id,
+                        DailyLog.date == check_date
+                    ).first()
+                    
+                    # If checked in, not a no-show
+                    if log and log.checked_in:
+                        continue
+                    
+                    # Create unique key
+                    key = (placement.id, date_str)
+                    if key in notified_keys:
+                        continue
+                    notified_keys.add(key)
+                    
+                    display_date = check_date.strftime('%m/%d/%Y')
+                    
+                    notifications.append({
+                        'type': 'placement_no_show',
+                        'severity': 'warning',
+                        'timestamp': datetime.combine(check_date, datetime.min.time()),
+                        'title': f"No-Show: {student_name} – {placement_type}",
+                        'message': f"{student_name} did not attend their scheduled {placement_type} on {display_date}.",
+                        'student_id': student.id,
+                        'student_name': student_name,
+                        'placement_id': placement.id,
+                        'placement_type': placement_type,
+                        'date': date_str
+                    })
+            
+            # 4. Check Lunch Detention scheduled dates not served
+            lunch_placements = session.query(Placement).filter(
+                Placement.placement_type == PlacementCategory.LUNCH_DETENTION,
+                Placement.status != PlacementStatus.completed
+            ).all()
+            
+            for placement in lunch_placements:
+                scheduled_dates = placement.scheduled_lunch_dates or []
+                served_dates = placement.served_dates or []
+                
+                student = session.query(Student).filter(Student.id == placement.student_id).first()
+                if not student:
+                    continue
+                
+                student_name = f"{student.first_name} {student.last_name}"
+                placement_type = "Lunch Detention"
+                
+                for date_str in scheduled_dates:
+                    try:
+                        check_date = datetime.fromisoformat(date_str).date()
+                    except:
+                        continue
+                    
+                    # Only check past dates within the window
+                    if check_date >= today or check_date < cutoff_date:
+                        continue
+                    
+                    # Skip if already served
+                    if date_str in served_dates:
+                        continue
+                    
+                    # Create unique key
+                    key = (placement.id, date_str)
+                    if key in notified_keys:
+                        continue
+                    notified_keys.add(key)
+                    
+                    display_date = check_date.strftime('%m/%d/%Y')
+                    
+                    notifications.append({
+                        'type': 'placement_no_show',
+                        'severity': 'warning',
+                        'timestamp': datetime.combine(check_date, datetime.min.time()),
+                        'title': f"No-Show: {student_name} – {placement_type}",
+                        'message': f"{student_name} did not attend their scheduled {placement_type} on {display_date}.",
+                        'student_id': student.id,
+                        'student_name': student_name,
+                        'placement_id': placement.id,
+                        'placement_type': placement_type,
+                        'date': date_str
+                    })
             
             return notifications
         except Exception as e:
-            print(f"Error fetching ISS no-show notifications: {e}")
+            print(f"Error fetching placement no-show notifications: {e}")
             return []
         finally:
             session.close()
@@ -321,7 +530,7 @@ class NotificationManager:
         all_notifications.extend(self.get_overdue_assignments())
         all_notifications.extend(self.get_placement_ending_soon(days_threshold=2))
         all_notifications.extend(self.get_end_of_day_incomplete_notifications(days_back=7))
-        all_notifications.extend(self.get_iss_no_show_notifications(days_back=7))
+        all_notifications.extend(self.get_placement_no_show_notifications(days_back=7))
         
         # Sort by timestamp (most recent first)
         all_notifications.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)

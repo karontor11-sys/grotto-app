@@ -77,6 +77,33 @@ The UI features a **Dashboard** with:
 - **Session State-Based Tab Navigation**: Placements page uses session state-controlled conditional rendering (replacing `st.tabs()`) to enable programmatic tab selection and direct navigation to specific sections.
 - **Programmatic Navigation Handling**: Navigation handlers sync widget states (`sidebar_page_widget`, `sidebar_page_selection`, `placements_tab_radio`) to prevent widget key conflicts during programmatic navigation.
 
+### Notification System
+The Notifications page provides dynamically-generated alerts for placement events. Notifications are NOT stored persistently but are computed on-demand from database queries.
+
+**Notification Types** (8 total):
+1. **New Placement**: When a new placement is created.
+2. **Placement Completed**: When a placement is marked complete.
+3. **Daily Log Finalized**: When a daily log is marked as complete.
+4. **Daily Log Pending**: Outstanding daily logs needing attention.
+5. **Assignment Overdue**: Assignments past their due date.
+6. **Placement Ending Soon**: Placements ending within the next few days.
+7. **End-of-Day Incomplete**: Past incomplete records from EOD processing.
+8. **Placement No-Show**: Unified detection across ALL placement types.
+
+**Unified Placement No-Show Notifications**:
+- `get_placement_no_show_notifications()` method detects no-shows for ISS, Lunch Detention, and Class Period Referral (including Behavior, Cool-Down, Pre-Planned subtypes).
+- Uses two detection methods:
+  - DailyLog-based: Checks `no_show=True` or `day_type='absent'` flags.
+  - PartialDaySession-based: Checks for sessions with `status=SessionStatus.no_show`.
+- Deduplication ensures no duplicate notifications for the same placement/date combination.
+- Displays type-specific labels (e.g., "ISS", "Lunch Detention", "Pre-Planned Referral").
+
+**Implementation Details**:
+- `notifications.py` contains `NotificationManager` class with all notification fetching methods.
+- `get_all_notifications()` aggregates notifications from all 8 sources.
+- `get_notifications_by_severity()` groups notifications into 'warning', 'info', 'success' categories.
+- Sidebar badge shows warning count calculated from the same notification system.
+
 ## External Dependencies
 
 ### Core Framework

@@ -1,0 +1,74 @@
+Prompt: Standardized Placement No-Show Notifications for All Placement Types
+
+Please update the Notifications system to use one unified no-show notification for all placement types, including ISS, Lunch Detention, Class Period Referral (and its subtypes), and any others.
+
+1. Standardized No-Show Notification
+
+Create (or update) a single notification type:
+
+Name / Label: Placement No-Show
+
+Severity: Warning
+
+Purpose: Alert staff when a student was scheduled for a placement but did not attend / check in.
+
+If there is currently an ISS No-Show notification, please replace or refactor it so that it becomes this standardized Placement No-Show notification and works for all placement types, not just ISS.
+
+2. Detection Logic (All Placement Types)
+
+In notifications.py (inside NotificationManager), update or add logic so that:
+
+For the existing no-show / end-of-day time window (follow the current ISS no-show or EOD pattern, e.g., last 7 days), the system:
+
+Finds all scheduled placement days for every placement type.
+
+Checks whether the student actually attended/served that day using the existing mechanisms (DailyLogs, PartialDaySession, served-day flags, completion markers, etc.).
+
+If a scheduled placement day:
+
+is not marked as attended/served, and
+
+is not completed or overridden in another valid way,
+then generate a Placement No-Show notification for that student and placement date.
+
+Please reuse as much of the existing ISS no-show logic as possible; just generalize it to all placement types.
+
+3. Notification Content & Display
+
+For each no-show, create a notification with at least:
+
+Title (example):
+No-Show: {student_name} – {placement_type}
+
+Message (example):
+"{student_name} did not attend their scheduled {placement_type} on {date_str}."
+
+Timestamp: Use the existing pattern (e.g., detection time or placement date, whichever you currently use for no-shows).
+
+This Placement No-Show notification should appear:
+
+On the Notifications page under:
+
+All
+
+Warnings
+
+In the sidebar warning badge count (included with other Warning notifications).
+
+4. Cleanup and Standardization
+
+Remove or rename any old ISS-specific no-show notification types, so there is only the single standardized Placement No-Show type.
+
+Update any internal mapping/comments in notifications.py to reflect the new, unified no-show behavior.
+
+5. Scope Control
+
+Limit changes to:
+
+notifications.py and any minimal helper/database query code needed to:
+
+Detect no-shows for all placement types, and
+
+Generate the unified Placement No-Show notification.
+
+Do not modify unrelated pages, components, or business logic.

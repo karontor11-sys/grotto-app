@@ -308,24 +308,32 @@ elif st.session_state.get('navigate_to_iss_detail'):
 # Ensure current_page is in valid options for sidebar display (fallback to Dashboard for hidden pages)
 display_page = st.session_state.current_page if st.session_state.current_page in PAGE_OPTIONS else "Dashboard"
 
-# Get the index for the current page to control sidebar selection
+# Sidebar page selector - use on_change callback for reliable navigation
+def handle_page_change():
+    """Callback when sidebar page selection changes."""
+    new_page = st.session_state.sidebar_page_widget
+    if new_page != st.session_state.get('current_page'):
+        st.session_state.current_page = new_page
+        print(f"[DEBUG NAV CHANGE] User selected: {new_page}")
+
+# Get the index for current page
 current_page_index = PAGE_OPTIONS.index(display_page) if display_page in PAGE_OPTIONS else 0
 
-# Sidebar page selector
-# Use index-based selection to ensure widget syncs with current_page
+# For programmatic navigation, we need to pre-set the widget value
+if programmatic_nav_just_happened:
+    st.session_state.sidebar_page_widget = display_page
+
 sidebar_page = st.sidebar.selectbox(
     "Select a page:",
     PAGE_OPTIONS,
-    index=current_page_index,
-    key="sidebar_page_widget"
+    index=current_page_index if 'sidebar_page_widget' not in st.session_state else None,
+    key="sidebar_page_widget",
+    on_change=handle_page_change
 )
 
-# Detect when user manually selects a different page from sidebar
-# Use widget value as the source of truth when it differs from current_page
+# Sync current_page with sidebar selection (handles edge cases)
 if sidebar_page != st.session_state.current_page and not programmatic_nav_just_happened:
-    print(f"[DEBUG NAV CHANGE] User selected: {sidebar_page}, current was: {st.session_state.current_page}")
     st.session_state.current_page = sidebar_page
-    st.rerun()
 
 # Use current_page as the source of truth for rendering
 page = st.session_state.current_page
@@ -4022,7 +4030,16 @@ elif page == "Notifications":
     st.write("Stay informed about placement events, daily summaries, and important updates.")
     
     # Get all notifications grouped by severity
-    grouped_notifications = notifications.get_notifications_by_severity()
+    with st.spinner("Loading notifications..."):
+        try:
+            grouped_notifications = notifications.get_notifications_by_severity()
+            print(f"[DEBUG NOTIFICATIONS] Loaded {len(grouped_notifications.get('warning', []))} warnings, {len(grouped_notifications.get('info', []))} info, {len(grouped_notifications.get('success', []))} success")
+        except Exception as e:
+            st.error(f"Error loading notifications: {e}")
+            print(f"[DEBUG NOTIFICATIONS ERROR] {e}")
+            import traceback
+            traceback.print_exc()
+            grouped_notifications = {'warning': [], 'info': [], 'success': []}
     
     # Summary metrics
     col1, col2, col3 = st.columns(3)

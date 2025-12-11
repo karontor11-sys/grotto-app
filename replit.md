@@ -65,6 +65,7 @@ The UI features a **Dashboard** with:
 - **Absent Logic**: Marking a day as Absent uses `day_type='absent'` in DailyLog. Absent does NOT change `progress_status` - it simply records the absence without affecting completion progress.
 - **Check In / Absent Mutual Exclusivity**: Check In and Absent controls are mutually exclusive - when Absent is checked, Check In is disabled; when already checked in, Absent is disabled.
 - **Multiday Absent Handling**: For multiday placements (ISS, Lunch Detention), absent days are skipped in day/period counting. The served counter resumes from where it left off when the student checks in again.
+- **Day X of Y Display Logic**: Uses completion-based counting (days actually served) rather than calendar-based counting. Helper functions (`get_iss_days_served_info`, `get_lunch_detention_days_served_info`, `get_preplanned_days_served_info`) count only days where the student was present (checked_in=True, day_type!='absent') AND the day was completed (daily_fulfillment='yes'). Absent days freeze the counter; Day X advances only when days are actually served. Future-dated completions are excluded from the count for earlier dates.
 
 ## External Dependencies
 

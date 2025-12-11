@@ -26,19 +26,17 @@ A centralized **Point System Architecture** enforces business rules for behavior
 A consistent date handling strategy uses ISO format for storage, date objects for calculations, and formatted strings for display. Utilities abstract presentation concerns and handle business logic like calculating remaining placement days and status-based UI theming.
 
 ### UI Components
-The UI features a **Dashboard** with:
-- **Date Selector**: Allows viewing placements for any date (past, present, or future).
-- **Active Placements**: Card-based student overviews for active placements, displaying placement type, progress indicator, student details, today's points, and quick action buttons.
-- **Placement Manager**: Manages placement lifecycles via "Create Placement" and "Completed Placements" tabs, allowing manual student entry and featuring a streamlined single-selector interface for three main placement types:
+The UI features the following navigation pages:
+1. **Dashboard**: Main view with date selector, active placement cards, quick navigation buttons.
+2. **Placements**: Create and manage placements with streamlined single-selector interface for three main placement types:
     - **In-School Suspension (ISS)**: Simplified placement with period-based tracking, two check-in options ("Full Day" and "Partial Day"). Supports editing existing ISS daily logs and recalculating totals.
     - **Lunch Detention**: Multi-day lunch detention placement.
     - **Class Period Referral**: Umbrella category with sub-types (Behavior, Cool-Down, Pre-Planned). Simplified creation forms and an "Add Periods" feature for same-day referrals.
-- **Daily Logs**: Interface for point tracking.
-- **Assignments**: Manages academic tasks.
-- **Notes**: For general documentation.
-- **Notifications**: Provides real-time event alerts.
-- **Reports & Analytics**: Dashboards for placement statistics and behavior patterns.
-- **Import/Export**: Facilitates bulk data operations via CSV.
+3. **Completed Placements**: Archive of completed placements with school year hierarchy.
+4. **Assignments**: Placeholder page for future development. Currently displays only header with no functionality.
+5. **Notifications**: Provides real-time event alerts for placement events.
+
+**Removed Pages** (Dec 2025): Notes, Reports & Analytics, and Import/Export pages were removed from navigation.
 
 ### System Design Choices
 - **Manual Student Entry**: Students are created manually during placement creation.

@@ -4604,68 +4604,6 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def get_completed_iss_placements(self, student_id: str = None) -> List[Dict]:
-        """Get all completed ISS placements, optionally filtered by student.
-        
-        Args:
-            student_id: Optional student ID to filter by
-            
-        Returns:
-            List of completed ISS placement dictionaries with session logs
-        """
-        session = self.get_session()
-        try:
-            query = session.query(Placement, Student).join(
-                Student, Placement.student_id == Student.id
-            ).filter(
-                Placement.placement_type == PlacementCategory.ISS,
-                Placement.status == PlacementStatus.completed
-            )
-            
-            if student_id:
-                query = query.filter(Placement.student_id == student_id)
-            
-            results = query.order_by(Placement.end_date.desc()).all()
-            
-            placements = []
-            for placement, student in results:
-                # Get session logs for this placement
-                logs = session.query(ISSSessionLog).filter(
-                    ISSSessionLog.placement_id == placement.id
-                ).order_by(ISSSessionLog.session_date.asc()).all()
-                
-                session_logs = [{
-                    'sessionDate': log.session_date.isoformat() if log.session_date else None,
-                    'sessionType': log.session_type,
-                    'startPeriod': log.start_period,
-                    'endPeriod': log.end_period,
-                    'periodsCovered': log.periods_covered or [],
-                    'periodsCredited': log.periods_credited,
-                    'pointsTarget': log.points_target,
-                    'pointsEarned': log.points_earned,
-                    'completionMethod': log.completion_method,
-                    'notes': log.notes,
-                    'overrideReason': log.override_reason
-                } for log in logs]
-                
-                placements.append({
-                    'id': placement.id,
-                    'studentId': placement.student_id,
-                    'studentName': f"{student.first_name} {student.last_name}",
-                    'issLabel': placement.iss_label or f"{placement.iss_days_assigned or 0}-day ISS for {student.first_name} {student.last_name}",
-                    'issDaysAssigned': placement.iss_days_assigned,
-                    'issPeriodsServed': placement.iss_periods_served,
-                    'issTotalRequiredPeriods': placement.iss_total_required_periods,
-                    'startDate': placement.start_date.isoformat() if placement.start_date else None,
-                    'endDate': placement.end_date.isoformat() if placement.end_date else None,
-                    'reason': placement.reason,
-                    'sessionLogs': session_logs
-                })
-            
-            return placements
-        finally:
-            session.close()
-    
     def update_iss_day_type(self, placement_id: str, log_date: str, day_type: str,
                            start_period: int = 1, end_period: int = 10) -> bool:
         """Set ISS day type configuration without marking the day as complete.

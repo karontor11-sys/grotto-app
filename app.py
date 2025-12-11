@@ -282,11 +282,25 @@ if 'current_page' not in st.session_state:
 
 # Handle navigation requests BEFORE rendering sidebar
 # These flags are set by various parts of the app to request page changes
+programmatic_nav_just_happened = False
 if st.session_state.get('navigate_to_create_placement'):
     st.session_state.current_page = "Placements"
+    st.session_state.sidebar_page_widget = "Placements"  # Sync widget state
+    st.session_state.sidebar_page_selection = "Placements"
+    programmatic_nav_just_happened = True
     del st.session_state.navigate_to_create_placement
+elif st.session_state.get('navigate_to_completed_placements'):
+    st.session_state.current_page = "Placements"
+    st.session_state.sidebar_page_widget = "Placements"  # Sync widget state
+    st.session_state.sidebar_page_selection = "Placements"
+    st.session_state.completed_placements_tab_selected = True
+    programmatic_nav_just_happened = True
+    del st.session_state.navigate_to_completed_placements
 elif st.session_state.get('navigate_to_dashboard'):
     st.session_state.current_page = "Dashboard"
+    st.session_state.sidebar_page_widget = "Dashboard"  # Sync widget state
+    st.session_state.sidebar_page_selection = "Dashboard"
+    programmatic_nav_just_happened = True
     del st.session_state.navigate_to_dashboard
 elif st.session_state.get('navigate_to_iss_detail'):
     st.session_state.current_page = "ISS Detail"
@@ -314,7 +328,8 @@ sidebar_page = st.sidebar.selectbox(
 
 # Update current_page when user manually selects a different page from sidebar
 # Check against sidebar_page_selection to detect actual user changes
-if sidebar_page != st.session_state.sidebar_page_selection:
+# Skip this logic when programmatic navigation just happened to avoid overriding
+if sidebar_page != st.session_state.sidebar_page_selection and not programmatic_nav_just_happened:
     st.session_state.current_page = sidebar_page
     st.session_state.sidebar_page_selection = sidebar_page
     st.rerun()
@@ -330,11 +345,15 @@ if warning_count > 0:
 
 # Dashboard Page
 if page == "Dashboard":
-    # Create New Placement button - left-aligned and prominent at the very top
-    btn_col1, btn_col2 = st.columns([2, 2])
+    # Navigation buttons - Create New Placement and Completed Placements
+    btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
     with btn_col1:
-        if st.button("Create New Placement", type="primary", use_container_width=True):
+        if st.button("Create New Placement", type="primary", use_container_width=True, key="dash_create_placement_btn"):
             st.session_state.navigate_to_create_placement = True
+            st.rerun()
+    with btn_col2:
+        if st.button("Completed Placements", type="secondary", use_container_width=True, key="dash_completed_placements_btn"):
+            st.session_state.navigate_to_completed_placements = True
             st.rerun()
     
     st.header("Dashboard")
@@ -2387,8 +2406,21 @@ if page == "Dashboard":
             else:
                 status_circle = "🟢"  # Green circle for NOT_STARTED
             
-            with st.expander(f"{status_circle} {student_name}", expanded=False):
-                render_iss_session_card(iss_session, selected_date)
+            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
+            if progress_status == "COMPLETED":
+                iss_days = iss_session.get('iss_days_assigned') or iss_session.get('issDaysAssigned', 1)
+                st.markdown(
+                    f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
+                    background-color: #fafafa; margin-bottom: 8px;">
+                    <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
+                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {iss_days}-Day</span>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            else:
+                # Active/In Progress: Use expandable card with full functionality
+                with st.expander(f"{status_circle} {student_name}", expanded=False):
+                    render_iss_session_card(iss_session, selected_date)
         
         # Then show scheduled (future) placements as locked cards
         for scheduled_placement in scheduled_iss_placements:
@@ -2434,6 +2466,7 @@ if page == "Dashboard":
             student = placement['student']
             student_name = f"{student['firstName']} {student['lastName']}"
             progress_status = placement.get('progressStatus', 'NOT_STARTED')
+            days_assigned = placement.get('daysAssigned', 1)
             
             # Create colored circle based on progress_status
             if progress_status == "COMPLETED":
@@ -2443,8 +2476,20 @@ if page == "Dashboard":
             else:
                 status_circle = "🟢"  # Green circle for NOT_STARTED
             
-            with st.expander(f"{status_circle} {student_name}", expanded=False):
-                render_lunch_detention_card(placement, selected_date)
+            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
+            if progress_status == "COMPLETED":
+                st.markdown(
+                    f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
+                    background-color: #fafafa; margin-bottom: 8px;">
+                    <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
+                    <span style="color: #666; margin-left: 12px;">Lunch Detention · {days_assigned}-Day</span>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            else:
+                # Active/In Progress: Use expandable card with full functionality
+                with st.expander(f"{status_circle} {student_name}", expanded=False):
+                    render_lunch_detention_card(placement, selected_date)
     
     st.divider()
     
@@ -2458,6 +2503,15 @@ if page == "Dashboard":
             student = placement['student']
             student_name = f"{student['firstName']} {student['lastName']}"
             progress_status = placement.get('progressStatus', 'NOT_STARTED')
+            referral_subtype = placement.get('referralSubtype', '')
+            
+            # Get subtype display name
+            subtype_labels = {
+                'behavior': 'Behavior',
+                'cool_down': 'Cool-Down',
+                'pre_planned': 'Pre-Planned'
+            }
+            subtype_display = subtype_labels.get(referral_subtype.lower() if referral_subtype else '', referral_subtype or 'Referral')
             
             # Create colored circle based on progress_status
             if progress_status == "COMPLETED":
@@ -2467,8 +2521,20 @@ if page == "Dashboard":
             else:
                 status_circle = "🟢"  # Green circle for NOT_STARTED
             
-            with st.expander(f"{status_circle} {student_name}", expanded=False):
-                render_unified_class_referral_card(placement, selected_date)
+            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
+            if progress_status == "COMPLETED":
+                st.markdown(
+                    f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
+                    background-color: #fafafa; margin-bottom: 8px;">
+                    <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
+                    <span style="color: #666; margin-left: 12px;">Class Period Referral – {subtype_display}</span>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            else:
+                # Active/In Progress: Use expandable card with full functionality
+                with st.expander(f"{status_circle} {student_name}", expanded=False):
+                    render_unified_class_referral_card(placement, selected_date)
 
 # Placements Page
 elif page == "Placements":
@@ -2482,14 +2548,57 @@ elif page == "Placements":
     completed_iss_placements = dm.get_completed_iss_placements()
     iss_history_count = len(completed_iss_placements)
     
-    tab1, tab2, tab3 = st.tabs([
+    # Initialize tab selection state
+    if 'placements_tab_selection' not in st.session_state:
+        st.session_state.placements_tab_selection = "Create Placement"
+    
+    # Handle programmatic navigation to Completed Placements
+    if st.session_state.get('completed_placements_tab_selected'):
+        st.session_state.placements_tab_selection = "Completed Placements"
+        # Also sync the radio button widget state to override its cached value
+        st.session_state.placements_tab_radio = f"Completed Placements ({completed_count})"
+        del st.session_state.completed_placements_tab_selected
+    
+    # Tab selection using radio buttons styled as tabs
+    tab_options = [
         "Create Placement", 
         f"Completed Placements ({completed_count})",
         f"ISS History ({iss_history_count})"
-    ])
+    ]
     
-    # Tab 1: Create Placement
-    with tab1:
+    # Map display names to internal names
+    tab_display_to_internal = {
+        "Create Placement": "Create Placement",
+        f"Completed Placements ({completed_count})": "Completed Placements",
+        f"ISS History ({iss_history_count})": "ISS History"
+    }
+    tab_internal_to_display = {
+        "Create Placement": "Create Placement",
+        "Completed Placements": f"Completed Placements ({completed_count})",
+        "ISS History": f"ISS History ({iss_history_count})"
+    }
+    
+    # Get current display name
+    current_display = tab_internal_to_display.get(st.session_state.placements_tab_selection, "Create Placement")
+    current_index = tab_options.index(current_display) if current_display in tab_options else 0
+    
+    selected_tab_display = st.radio(
+        "Select section:",
+        tab_options,
+        index=current_index,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="placements_tab_radio"
+    )
+    
+    # Update internal tab selection
+    selected_tab = tab_display_to_internal.get(selected_tab_display, "Create Placement")
+    st.session_state.placements_tab_selection = selected_tab
+    
+    st.divider()
+    
+    # Render content based on selected tab
+    if selected_tab == "Create Placement":
         students = dm.get_all_students()
         
         st.subheader("Create New Placement")
@@ -2979,92 +3088,235 @@ elif page == "Placements":
                         st.session_state.preplanned_schedule.pop()
                         st.rerun()
             
-    # Tab 2: Completed Placements
-    with tab2:
+    # Tab 2: Completed Placements - Master Archive
+    elif selected_tab == "Completed Placements":
+        from utils import (get_school_year_for_date, get_current_school_year, 
+                          group_placements_by_school_year_month_day, get_placement_type_with_subtype,
+                          format_ordinal_day)
+        
+        st.subheader("Completed Placements Archive")
+        st.caption("Master archive of all completed placements organized by school year")
+        
         if completed_placements:
-            # Search filters
-            st.subheader("Search Completed Placements")
-            col1, col2 = st.columns(2)
-            with col1:
-                search_name = st.text_input("Search by Name", "")
-            with col2:
-                search_reason = st.text_input("Search by Reason", "")
+            # Search and Print controls
+            search_col, print_col = st.columns([3, 1])
+            with search_col:
+                search_query = st.text_input("🔍 Search by name or reason", "", key="archive_search")
+            with print_col:
+                print_mode = st.selectbox("📄 Print", ["", "Print by Day", "Print by Month"], key="print_mode")
             
-            # Filter placements
+            # Filter placements based on search
             filtered_placements = completed_placements
-            if search_name:
+            if search_query:
                 filtered_placements = [p for p in filtered_placements 
-                                     if search_name.lower() in f"{p['student']['firstName']} {p['student']['lastName']}".lower()]
-            if search_reason:
-                filtered_placements = [p for p in filtered_placements 
-                                     if search_reason.lower() in p['reason'].lower()]
+                    if search_query.lower() in f"{p['student']['firstName']} {p['student']['lastName']}".lower()
+                    or search_query.lower() in (p.get('reason', '') or '').lower()]
             
-            st.write(f"**Showing {len(filtered_placements)} of {completed_count} completed placements**")
+            # Group by school year, month, day
+            grouped = group_placements_by_school_year_month_day(filtered_placements)
+            current_school_year = get_current_school_year()
+            
+            st.write(f"**{len(filtered_placements)} completed placements**")
             st.divider()
             
-            # Display completed placements
-            for placement in filtered_placements:
-                student = placement['student']
-                placement_type_display = get_placement_type_display_name(placement.get('placementType', ''))
-                referral_subtype = placement.get('referralSubtype', '')
+            # Print by Day UI
+            if print_mode == "Print by Day":
+                st.markdown("### 📄 Print by Day")
+                print_date = st.date_input("Select date to print", value=date.today(), key="print_day_date")
                 
-                with st.expander(f"{student['firstName']} {student['lastName']} - {placement['reason']}"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Name:** {student['firstName']} {student['lastName']}")
-                        st.write(f"**Placement Type:** {placement_type_display}")
-                        st.write(f"**Start Date:** {format_date(placement['startDate'])}")
-                        st.write(f"**Reason:** {placement['reason']}")
-                    with col2:
-                        st.write(f"**Number of Days:** {placement['daysAssigned']}")
-                        st.write(f"**End Date:** {format_date(placement.get('endDate', 'N/A'))}")
-                        st.write(f"**Total Points Earned:** {placement.get('totalPoints', 0)}")
+                # Get placements for that day
+                placements_for_print_day = [p for p in filtered_placements 
+                    if (p.get('endDate') or p.get('startDate', ''))[:10] == print_date.isoformat()]
+                
+                if placements_for_print_day:
+                    st.write(f"**{len(placements_for_print_day)} placements on {format_date(print_date.isoformat())}**")
                     
-                    # Pre-Planned specific: Show date, periods, and attendance for each day
-                    if referral_subtype == 'pre_planned':
-                        st.divider()
-                        st.markdown("**Session Details:**")
-                        scheduled_slots = placement.get('scheduledSlots', [])
-                        
-                        # Group slots by date
-                        from collections import defaultdict
-                        slots_by_date = defaultdict(list)
-                        for slot in scheduled_slots:
-                            slot_date = slot.get('date', '')
-                            slot_period = slot.get('period', 0)
-                            slots_by_date[slot_date].append(slot_period)
-                        
-                        # Get daily logs for attendance info
-                        placement_id = placement.get('_id')
-                        for slot_date in sorted(slots_by_date.keys()):
-                            periods = sorted(slots_by_date[slot_date])
-                            if len(periods) == 1:
-                                period_label = f"Period {periods[0]}"
-                            else:
-                                period_label = f"Periods {', '.join(map(str, periods))}"
-                            
-                            # Get check-in status for this date
-                            checkin_status = dm.get_preplanned_checkin_status(placement_id, slot_date)
-                            was_checked_in = checkin_status.get('checked_in', False)
-                            
-                            # Display attendance
-                            if was_checked_in:
-                                attendance_badge = "✅ Attended"
-                            else:
-                                attendance_badge = "❌ Absent"
-                            
-                            st.caption(f"📅 {format_date(slot_date)} · {period_label} · {attendance_badge}")
+                    # Print-friendly layout
+                    st.markdown("---")
+                    st.markdown(f"## Completed Placements Report: {format_date(print_date.isoformat())}")
                     
-                    # Restore button
-                    if st.button(f"Restore to Active", key=f"restore_{placement['_id']}"):
-                        dm.restore_placement_to_active(placement['_id'])
-                        st.success("✅ Placement restored to active!")
-                        st.rerun()
+                    for p in placements_for_print_day:
+                        student = p['student']
+                        type_display = get_placement_type_with_subtype(p)
+                        st.markdown(f"""
+**{student['firstName']} {student['lastName']}** | {type_display}  
+Reason: {p.get('reason', 'N/A')}  
+Dates: {format_date(p.get('startDate', ''))} – {format_date(p.get('endDate', ''))}
+""")
+                        st.markdown("---")
+                    
+                    st.info("💡 Use your browser's Print function (Ctrl+P / Cmd+P) to print this report.")
+                else:
+                    st.info(f"No completed placements found for {format_date(print_date.isoformat())}")
+            
+            # Print by Month UI
+            elif print_mode == "Print by Month":
+                st.markdown("### 📄 Print by Month")
+                month_col1, month_col2 = st.columns(2)
+                with month_col1:
+                    print_year = st.selectbox("Year", list(range(date.today().year, 2020, -1)), key="print_month_year")
+                with month_col2:
+                    month_names_list = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                       'July', 'August', 'September', 'October', 'November', 'December']
+                    print_month_name = st.selectbox("Month", month_names_list, index=date.today().month - 1, key="print_month")
+                    print_month = month_names_list.index(print_month_name) + 1
+                
+                # Get placements for that month
+                placements_for_print_month = [p for p in filtered_placements 
+                    if (p.get('endDate') or p.get('startDate', ''))[:7] == f"{print_year}-{print_month:02d}"]
+                
+                if placements_for_print_month:
+                    st.write(f"**{len(placements_for_print_month)} placements in {print_month_name} {print_year}**")
+                    
+                    # Print-friendly layout
+                    st.markdown("---")
+                    st.markdown(f"## Completed Placements Report: {print_month_name} {print_year}")
+                    
+                    for p in sorted(placements_for_print_month, key=lambda x: x.get('endDate') or x.get('startDate', '')):
+                        student = p['student']
+                        type_display = get_placement_type_with_subtype(p)
+                        end_date_str = p.get('endDate') or p.get('startDate', '')
+                        st.markdown(f"""
+**{format_date(end_date_str)}** | {student['firstName']} {student['lastName']} | {type_display}  
+Reason: {p.get('reason', 'N/A')}
+""")
+                    
+                    st.markdown("---")
+                    st.info("💡 Use your browser's Print function (Ctrl+P / Cmd+P) to print this report.")
+                else:
+                    st.info(f"No completed placements found for {print_month_name} {print_year}")
+            
+            # Normal hierarchical view (when not printing)
+            else:
+                # Render School Year → Month → Day hierarchy
+                for school_year, year_data in grouped.items():
+                    is_current_year = (school_year == current_school_year)
+                    year_label = year_data['label']
+                    
+                    # Count total placements in this school year
+                    year_total = sum(
+                        len(day_placements) 
+                        for month_data in year_data['months'].values() 
+                        for day_placements in month_data['days'].values()
+                    )
+                    
+                    with st.expander(f"📅 {year_label} ({year_total})", expanded=is_current_year):
+                        for month_num, month_data in year_data['months'].items():
+                            month_label = month_data['label']
+                            
+                            # Count placements in this month
+                            month_total = sum(len(day_placements) for day_placements in month_data['days'].values())
+                            
+                            st.markdown(f"##### {month_label} ({month_total})")
+                            
+                            for day_num, day_placements in month_data['days'].items():
+                                day_ordinal = format_ordinal_day(day_num)
+                                
+                                st.markdown(f"###### {day_ordinal}")
+                                
+                                for placement in day_placements:
+                                    student = placement['student']
+                                    student_name = f"{student['firstName']} {student['lastName']}"
+                                    type_display = get_placement_type_with_subtype(placement)
+                                    placement_id = placement.get('_id')
+                                    placement_type = (placement.get('placementType') or '').upper()
+                                    referral_subtype = placement.get('referralSubtype', '')
+                                    
+                                    # Collapsed card header
+                                    with st.expander(f"🔴 {student_name} – {type_display}", expanded=False):
+                                        # Expanded read-only detail view
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            st.write(f"**Student:** {student_name}")
+                                            st.write(f"**Grade:** {student.get('grade', 'N/A')}")
+                                            st.write(f"**Homeroom:** {student.get('homeroomTeacher', 'N/A')}")
+                                            st.write(f"**Placement Type:** {type_display}")
+                                        with col2:
+                                            st.write(f"**Start Date:** {format_date(placement.get('startDate', 'N/A'))}")
+                                            st.write(f"**End Date:** {format_date(placement.get('endDate', 'N/A'))}")
+                                            st.write(f"**Days Assigned:** {placement.get('daysAssigned', 'N/A')}")
+                                        
+                                        st.divider()
+                                        st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
+                                        
+                                        # ISS-specific details
+                                        if placement_type == 'ISS':
+                                            st.divider()
+                                            st.markdown("**ISS Details:**")
+                                            iss_days = placement.get('issDaysAssigned') or placement.get('daysAssigned', 0)
+                                            iss_periods_served = placement.get('issPeriodsServed', 0)
+                                            iss_total_periods = placement.get('issTotalRequiredPeriods') or (iss_days * 10)
+                                            total_points = placement.get('totalPoints', 0)
+                                            
+                                            col1, col2 = st.columns(2)
+                                            with col1:
+                                                st.write(f"**Days:** {iss_days}-Day ISS ({iss_total_periods} periods)")
+                                                st.write(f"**Periods Served:** {iss_periods_served} of {iss_total_periods}")
+                                            with col2:
+                                                st.write(f"**Total Points Earned:** {total_points}")
+                                                
+                                                # Make-up info
+                                                makeup_days = placement.get('makeupDaysUsed', 0)
+                                                if makeup_days > 0:
+                                                    makeup_periods = placement.get('makeupPeriodsServed', 0)
+                                                    st.write(f"**Make-Up Days:** {makeup_days} ({makeup_periods} periods)")
+                                            
+                                            # Make-up note if exists
+                                            makeup_note = placement.get('makeupNote')
+                                            if makeup_note:
+                                                st.caption(f"📋 {makeup_note}")
+                                        
+                                        # Lunch Detention specific details
+                                        elif placement_type == 'LUNCH_DETENTION':
+                                            st.divider()
+                                            st.markdown("**Lunch Detention Details:**")
+                                            served_dates = placement.get('servedDates', [])
+                                            if served_dates:
+                                                st.write(f"**Served Dates:** {', '.join([format_date(d) for d in served_dates[:5]])}" + 
+                                                        (f" (+{len(served_dates)-5} more)" if len(served_dates) > 5 else ""))
+                                        
+                                        # Class Period Referral specific details
+                                        elif placement_type == 'CLASS_REFERRAL':
+                                            st.divider()
+                                            st.markdown("**Referral Details:**")
+                                            st.write(f"**Subtype:** {referral_subtype.replace('_', ' ').title() if referral_subtype else 'N/A'}")
+                                            
+                                            # Pre-Planned specific: Show sessions
+                                            if referral_subtype == 'pre_planned':
+                                                scheduled_slots = placement.get('scheduledSlots', [])
+                                                if scheduled_slots:
+                                                    st.markdown("**Sessions:**")
+                                                    from collections import defaultdict
+                                                    slots_by_date = defaultdict(list)
+                                                    for slot in scheduled_slots:
+                                                        slots_by_date[slot.get('date', '')].append(slot.get('period', 0))
+                                                    
+                                                    for slot_date in sorted(slots_by_date.keys()):
+                                                        periods = sorted(slots_by_date[slot_date])
+                                                        period_label = f"Period {periods[0]}" if len(periods) == 1 else f"Periods {', '.join(map(str, periods))}"
+                                                        checkin_status = dm.get_preplanned_checkin_status(placement_id, slot_date)
+                                                        badge = "✅ Attended" if checkin_status.get('checked_in') else "❌ Absent"
+                                                        st.caption(f"📅 {format_date(slot_date)} · {period_label} · {badge}")
+                                        
+                                        # Notes if available
+                                        notes = placement.get('notes')
+                                        if notes:
+                                            st.divider()
+                                            st.write(f"**Notes:** {notes}")
+                                        
+                                        # Restore button (admin function)
+                                        st.divider()
+                                        if st.button(f"↩️ Restore to Active", key=f"restore_{placement_id}"):
+                                            dm.restore_placement_to_active(placement_id)
+                                            st.success("✅ Placement restored to active!")
+                                            st.rerun()
+                            
+                            st.markdown("---")
         else:
             st.info("No completed placements found.")
     
     # Tab 3: ISS History
-    with tab3:
+    elif selected_tab == "ISS History":
         st.subheader("Completed ISS Sessions")
         st.caption("View detailed session logs for all completed ISS placements")
         

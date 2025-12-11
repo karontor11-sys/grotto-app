@@ -66,6 +66,16 @@ The UI features a **Dashboard** with:
 - **Check In / Absent Mutual Exclusivity**: Check In and Absent controls are mutually exclusive - when Absent is checked, Check In is disabled; when already checked in, Absent is disabled.
 - **Multiday Absent Handling**: For multiday placements (ISS, Lunch Detention), absent days are skipped in day/period counting. The served counter resumes from where it left off when the student checks in again.
 - **Day X of Y Display Logic**: Uses completion-based counting (days actually served) rather than calendar-based counting. Helper functions (`get_iss_days_served_info`, `get_lunch_detention_days_served_info`, `get_preplanned_days_served_info`) count only days where the student was present (checked_in=True, day_type!='absent') AND the day was completed (daily_fulfillment='yes'). Absent days freeze the counter; Day X advances only when days are actually served. Future-dated completions are excluded from the count for earlier dates.
+- **Completed Placements Archive**: Master archive of all completed placements with:
+    - **School Year Hierarchy**: Organized by School Year (Aug 1 – Jul 31) → Month → Day, with current school year expanded by default.
+    - **School Year Helper Functions**: `get_school_year_for_date()`, `get_current_school_year()`, `group_placements_by_school_year_month_day()` in utils.py.
+    - **Search/Filter**: Filter placements by student name or reason.
+    - **Print Features**: Print by Day or Print by Month with browser print dialog.
+    - **Collapsed Cards**: Expandable read-only detail views for each completed placement with type-specific details (ISS periods/make-up info, Lunch Detention served dates, CPR session attendance).
+    - **Restore Function**: Admin button to restore completed placements back to active status.
+- **Dashboard Navigation Buttons**: Quick navigation buttons ("Create New Placement" and "Completed Placements") at the top of the Dashboard for easy access to placement management.
+- **Session State-Based Tab Navigation**: Placements page uses session state-controlled conditional rendering (replacing `st.tabs()`) to enable programmatic tab selection and direct navigation to specific sections.
+- **Programmatic Navigation Handling**: Navigation handlers sync widget states (`sidebar_page_widget`, `sidebar_page_selection`, `placements_tab_radio`) to prevent widget key conflicts during programmatic navigation.
 
 ## External Dependencies
 

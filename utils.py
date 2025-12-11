@@ -644,3 +644,226 @@ def get_school_days(start_date: date, days_needed: int) -> list:
         current_date += timedelta(days=1)
     
     return school_dates
+
+
+def get_school_year_for_date(target_date: date) -> tuple:
+    """Determine which school year a date belongs to.
+    
+    School year runs from August 1 to July 31.
+    For example:
+    - August 15, 2025 → 2025-2026 school year
+    - January 10, 2026 → 2025-2026 school year
+    - July 20, 2026 → 2025-2026 school year
+    - August 1, 2026 → 2026-2027 school year
+    
+    Args:
+        target_date: Date to check (can be date object or ISO string)
+        
+    Returns:
+        Tuple of (start_year, end_year) representing the school year
+        e.g., (2025, 2026) for the 2025-2026 school year
+    """
+    if isinstance(target_date, str):
+        try:
+            target_date = datetime.fromisoformat(target_date).date()
+        except (ValueError, TypeError):
+            target_date = date.today()
+    
+    if target_date.month >= 8:
+        return (target_date.year, target_date.year + 1)
+    else:
+        return (target_date.year - 1, target_date.year)
+
+
+def get_school_year_label(start_year: int, end_year: int) -> str:
+    """Generate a display label for a school year.
+    
+    Args:
+        start_year: Starting year (e.g., 2025)
+        end_year: Ending year (e.g., 2026)
+        
+    Returns:
+        Formatted string like "2025–2026 School Year"
+    """
+    return f"{start_year}–{end_year} School Year"
+
+
+def get_current_school_year() -> tuple:
+    """Get the current school year.
+    
+    Returns:
+        Tuple of (start_year, end_year) for the current school year
+    """
+    return get_school_year_for_date(date.today())
+
+
+def group_placements_by_school_year_month_day(placements: list) -> dict:
+    """Group completed placements by school year, month, and day.
+    
+    Creates a hierarchical structure for displaying placements in the archive.
+    Uses the placement's end_date (completion date) for grouping.
+    
+    Args:
+        placements: List of placement dictionaries with 'endDate' or 'startDate' fields
+        
+    Returns:
+        Nested dictionary structure:
+        {
+            (2025, 2026): {  # school year tuple
+                'label': '2025–2026 School Year',
+                'months': {
+                    8: {  # month number
+                        'label': 'August',
+                        'days': {
+                            15: [placement1, placement2, ...],  # day of month
+                            16: [...],
+                        }
+                    },
+                    ...
+                }
+            },
+            ...
+        }
+    """
+    from collections import defaultdict
+    
+    month_names = {
+        1: 'January', 2: 'February', 3: 'March', 4: 'April',
+        5: 'May', 6: 'June', 7: 'July', 8: 'August',
+        9: 'September', 10: 'October', 11: 'November', 12: 'December'
+    }
+    
+    grouped = {}
+    
+    for placement in placements:
+        placement_date_str = placement.get('endDate') or placement.get('end_date') or \
+                            placement.get('startDate') or placement.get('start_date')
+        
+        if not placement_date_str:
+            continue
+        
+        try:
+            if isinstance(placement_date_str, str):
+                placement_date = datetime.fromisoformat(placement_date_str).date()
+            else:
+                placement_date = placement_date_str
+        except (ValueError, TypeError):
+            continue
+        
+        school_year = get_school_year_for_date(placement_date)
+        month = placement_date.month
+        day = placement_date.day
+        
+        if school_year not in grouped:
+            grouped[school_year] = {
+                'label': get_school_year_label(school_year[0], school_year[1]),
+                'start_year': school_year[0],
+                'end_year': school_year[1],
+                'months': {}
+            }
+        
+        if month not in grouped[school_year]['months']:
+            grouped[school_year]['months'][month] = {
+                'label': month_names[month],
+                'month_num': month,
+                'days': {}
+            }
+        
+        if day not in grouped[school_year]['months'][month]['days']:
+            grouped[school_year]['months'][month]['days'][day] = []
+        
+        grouped[school_year]['months'][month]['days'][day].append(placement)
+    
+    sorted_grouped = dict(sorted(grouped.items(), key=lambda x: x[0], reverse=True))
+    
+    for school_year in sorted_grouped:
+        sorted_months = dict(sorted(
+            sorted_grouped[school_year]['months'].items(),
+            key=lambda x: (0 if x[0] >= 8 else 1, x[0] if x[0] >= 8 else x[0] + 12),
+            reverse=True
+        ))
+        sorted_grouped[school_year]['months'] = sorted_months
+        
+        for month in sorted_grouped[school_year]['months']:
+            sorted_days = dict(sorted(
+                sorted_grouped[school_year]['months'][month]['days'].items(),
+                reverse=True
+            ))
+            sorted_grouped[school_year]['months'][month]['days'] = sorted_days
+    
+    return sorted_grouped
+
+
+def get_placement_type_with_subtype(placement: dict) -> str:
+    """Get a display string for placement type including subtype if applicable.
+    
+    Args:
+        placement: Placement dictionary
+        
+    Returns:
+        Display string like "In-School Suspension (ISS)", "Lunch Detention",
+        "Class Period Referral - Behavior", etc.
+    """
+    placement_type = placement.get('placementType') or placement.get('placement_type', '')
+    if isinstance(placement_type, str):
+        placement_type = placement_type.upper()
+    
+    referral_subtype = placement.get('referralSubtype') or placement.get('referral_subtype', '')
+    
+    type_labels = {
+        'ISS': 'In-School Suspension (ISS)',
+        'LUNCH_DETENTION': 'Lunch Detention',
+        'CLASS_REFERRAL': 'Class Period Referral',
+        'COOL_DOWN': 'Cool-Down Referral',
+        'PRE_PLANNED_REFERRAL': 'Pre-Planned Referral'
+    }
+    
+    base_label = type_labels.get(placement_type, placement_type)
+    
+    if placement_type == 'CLASS_REFERRAL' and referral_subtype:
+        subtype_labels = {
+            'behavior': 'Behavior',
+            'cool_down': 'Cool-Down',
+            'pre_planned': 'Pre-Planned'
+        }
+        subtype_display = subtype_labels.get(referral_subtype.lower(), referral_subtype)
+        return f"{base_label} – {subtype_display}"
+    
+    return base_label
+
+
+def format_date_short(date_obj: date) -> str:
+    """Format a date for short display (e.g., 'Dec 15').
+    
+    Args:
+        date_obj: Date object or ISO string
+        
+    Returns:
+        Short formatted date string
+    """
+    if isinstance(date_obj, str):
+        try:
+            date_obj = datetime.fromisoformat(date_obj).date()
+        except (ValueError, TypeError):
+            return date_obj
+    
+    if isinstance(date_obj, date):
+        return date_obj.strftime("%b %d")
+    
+    return str(date_obj)
+
+
+def format_ordinal_day(day: int) -> str:
+    """Format a day number with ordinal suffix (1st, 2nd, 3rd, etc.).
+    
+    Args:
+        day: Day of month (1-31)
+        
+    Returns:
+        Formatted string like '1st', '2nd', '3rd', '15th'
+    """
+    if 11 <= day <= 13:
+        suffix = 'th'
+    else:
+        suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+    return f"{day}{suffix}"

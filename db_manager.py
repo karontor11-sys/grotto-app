@@ -2592,10 +2592,10 @@ class DatabaseManager:
                     DailyLog.date < target_date_obj,
                     DailyLog.checked_in == True,
                     DailyLog.daily_fulfillment == 'yes',
-                    DailyLog.day_type != 'absent'
+                    or_(DailyLog.day_type != 'absent', DailyLog.day_type.is_(None))
                 ).all()
                 
-                days_served_before_today = len([log for log in prior_completed_logs if log.day_type != 'absent'])
+                days_served_before_today = len(prior_completed_logs)
                 
                 today_log = db_session.query(DailyLog).filter(
                     DailyLog.placement_id == placement_id,
@@ -2762,10 +2762,10 @@ class DatabaseManager:
                     DailyLog.date < target_date_obj,
                     DailyLog.checked_in == True,
                     DailyLog.daily_fulfillment == 'yes',
-                    DailyLog.day_type != 'absent'
+                    or_(DailyLog.day_type != 'absent', DailyLog.day_type.is_(None))
                 ).all()
                 
-                days_served_before_today = len([log for log in prior_completed_logs if log.day_type != 'absent'])
+                days_served_before_today = len(prior_completed_logs)
                 
                 today_log = db_session.query(DailyLog).filter(
                     DailyLog.placement_id == placement_id,

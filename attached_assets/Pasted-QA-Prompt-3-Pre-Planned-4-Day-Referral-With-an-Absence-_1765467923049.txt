@@ -1,0 +1,66 @@
+QA Prompt 3 – Pre-Planned 4-Day Referral With an Absence
+
+Title (optional):
+QA – Pre-Planned Class Period Referral (4 Days, Served vs Skipped)
+
+Prompt text:
+
+Please run this as a manual QA test using the existing Grotto App UI. Do not change any code. Use any test student name.
+
+Goal: Verify that for a Pre-Planned Class Period Referral with 4 scheduled days, “Day X of 4” is based on served and completed days, not simply calendar slot position.
+
+Step 1 – Create a 4-day Pre-Planned referral
+
+Create a Class Period Referral with subtype Pre-Planned.
+
+Use the schedule builder to schedule 4 separate school days for this placement.
+
+Confirm it appears correctly on the Dashboard for the first scheduled date.
+
+Step 2 – Day 1 (Served + Completed)
+
+On the first scheduled Pre-Planned date:
+
+Check In the student for the referral.
+
+Complete the Pre-Planned day/slot as normal.
+
+Record what the card displays for “Day X of 4”.
+
+Step 3 – Day 2 (Absent or Not Completed)
+
+On the second scheduled date:
+
+Mark the student Absent, or leave the day uncompleted (do not fully serve it).
+
+Note:
+
+How the app records this date (absent / not served).
+
+Whether “Day X of 4” appears and what it shows, if visible.
+
+Step 4 – Next served day (Day 2 served)
+
+On the next scheduled date that you fully serve and complete:
+
+Check In the student.
+
+Complete the Pre-Planned slot.
+
+Record what the card displays for “Day X of 4” on this date.
+
+Expected behavior:
+
+First served date: should show “Day 1 of 4.”
+
+The skipped/absent second date should not increment the served-day counter.
+
+The next served date (the third or fourth calendar slot, depending on how you do it) should show “Day 2 of 4.”
+
+Please respond with a QA Summary table like this:
+Question	Answer	Notes
+Did the 4-day Pre-Planned referral create correctly?		
+What did the first served date display for Day X of 4?		
+How did the app record the second (absent/unserved) date?		
+What did the next served date display for Day X of 4?		
+Does Pre-Planned Day-of-Days now reflect only served & completed days?

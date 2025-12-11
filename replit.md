@@ -39,6 +39,9 @@ The UI features the following navigation pages:
 **Removed Pages** (Dec 2025): Notes, Reports & Analytics, and Import/Export pages were removed from navigation.
 
 ### System Design Choices
+- **Simplified Single-Role System**: Only "Staff" role exists; Supervisor and Admin roles removed. No authentication required - app is open for viewing by all users.
+- **Restricted Placement Creation**: Only four authorized staff members can create/edit placements: Aaron Toronto, Matthew Christie, Todd Foster, Chad Adamson. The "Add Staff" option appears in the dropdown as a non-functional placeholder for future expansion.
+- **Staff List Constant**: `STAFF_OPTIONS` constant in app.py defines the authorized staff list plus placeholder.
 - **Manual Student Entry**: Students are created manually during placement creation.
 - **Weekend-Skipping Logic**: Weekends are automatically excluded from all duration calculations and displays for multi-day placements.
 - **Partial-Day Session Tracking**: Tracks student activities during partial days and various session types, including session-scoped behavior tracking.

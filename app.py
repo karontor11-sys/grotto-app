@@ -31,6 +31,10 @@ analytics = st.session_state.analytics_engine
 import_export = st.session_state.import_export_manager
 notifications = st.session_state.notification_manager
 
+# Authorized staff list for placement creation/editing
+AUTHORIZED_STAFF = ["Aaron Toronto", "Matthew Christie", "Todd Foster", "Chad Adamson"]
+STAFF_OPTIONS = AUTHORIZED_STAFF + ["Add Staff"]  # "Add Staff" is a non-functional placeholder
+
 # ===== CACHING LAYER =====
 # Cached wrappers for expensive read-only operations to improve Dashboard performance.
 # TTL of 60 seconds balances responsiveness with data freshness.
@@ -264,12 +268,8 @@ with col_title:
 # Sidebar navigation
 st.sidebar.title("Navigation")
 
-# Role selector
-user_role = st.sidebar.selectbox(
-    "User Role",
-    ["Staff", "Supervisor", "Admin"],
-    index=1  # Default to Supervisor
-)
+# Staff role is the only role - no selector needed
+user_role = "Staff"
 
 st.sidebar.divider()
 
@@ -2603,12 +2603,19 @@ elif page == "Placements":
         with sched_col2:
             iss_total_days = st.number_input("Number of ISS Days*", min_value=1, value=1, step=1, help="Total ISS days assigned", key="iss_total_days")
         
-        created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="iss_created_by")
+        created_by = st.selectbox("Created By*", STAFF_OPTIONS, key="iss_created_by")
         
-        if st.button("Create ISS Placement", type="primary", use_container_width=True, key="iss_submit"):
-            print(f"[DEBUG] ISS button clicked - First: '{first_name}', Last: '{last_name}', Homeroom: '{homeroom_teacher}', Reason: '{reason[:20] if reason else 'empty'}...'")
+        # Show warning if "Add Staff" placeholder is selected
+        if created_by == "Add Staff":
+            st.warning("Note: 'Add Staff' is a placeholder for future use. Please select a valid staff member to create a placement.")
+        
+        iss_submit = st.button("Create ISS Placement", type="primary", use_container_width=True, key="iss_submit")
+        
+        if iss_submit:
             if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                 st.error("Please fill in all required fields marked with *")
+            elif created_by == "Add Staff":
+                st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
             else:
                 try:
                     new_student_data = {
@@ -2675,12 +2682,17 @@ elif page == "Placements":
         with sched_col2:
             lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days", key="ld_lunch_days")
         
-        created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="ld_created_by")
+        created_by = st.selectbox("Created By*", STAFF_OPTIONS, key="ld_created_by")
+        
+        # Show warning if "Add Staff" placeholder is selected
+        if created_by == "Add Staff":
+            st.warning("Note: 'Add Staff' is a placeholder for future use. Please select a valid staff member to create a placement.")
         
         if st.button("Create Lunch Detention", type="primary", use_container_width=True, key="ld_submit"):
-            print(f"[DEBUG] Lunch Detention button clicked - First: '{first_name}', Last: '{last_name}', Homeroom: '{homeroom_teacher}', Reason: '{reason[:20] if reason else 'empty'}...'")
             if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                 st.error("Please fill in all required fields marked with *")
+            elif created_by == "Add Staff":
+                st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
             else:
                 try:
                     new_student_data = {
@@ -2751,12 +2763,17 @@ elif page == "Placements":
             with sched_col2:
                 selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="br_period")
             
-            created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="br_created_by")
+            created_by = st.selectbox("Created By*", STAFF_OPTIONS, key="br_created_by")
+            
+            # Show warning if "Add Staff" placeholder is selected
+            if created_by == "Add Staff":
+                st.warning("Note: 'Add Staff' is a placeholder for future use. Please select a valid staff member to create a placement.")
             
             if st.button("Create Behavior Referral", type="primary", use_container_width=True, key="br_submit"):
-                print(f"[DEBUG] Behavior Referral button clicked - First: '{first_name}', Last: '{last_name}'")
                 if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                     st.error("Please fill in all required fields marked with *")
+                elif created_by == "Add Staff":
+                    st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
                 else:
                     try:
                         new_student_data = {
@@ -2823,12 +2840,17 @@ elif page == "Placements":
             with sched_col2:
                 selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_period")
             
-            created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="cd_created_by")
+            created_by = st.selectbox("Created By*", STAFF_OPTIONS, key="cd_created_by")
+            
+            # Show warning if "Add Staff" placeholder is selected
+            if created_by == "Add Staff":
+                st.warning("Note: 'Add Staff' is a placeholder for future use. Please select a valid staff member to create a placement.")
             
             if st.button("Create Cool-Down Referral", type="primary", use_container_width=True, key="cd_submit"):
-                print(f"[DEBUG] Cool-Down Referral button clicked - First: '{first_name}', Last: '{last_name}'")
                 if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                     st.error("Please fill in all required fields marked with *")
+                elif created_by == "Add Staff":
+                    st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
                 else:
                     try:
                         new_student_data = {
@@ -2952,7 +2974,9 @@ elif page == "Placements":
                 
                 add_row_button = st.form_submit_button("+ Add Day", use_container_width=False)
                 
-                created_by = st.selectbox("Created By*", ["Matthew Christie", "Aaron Toronto", "Todd Foster", "Chad Adamson"], key="pp_created_by")
+                created_by = st.selectbox("Created By*", STAFF_OPTIONS, key="pp_created_by")
+                
+                # Note: Can't show dynamic st.warning inside st.form, but validation below handles it
                 
                 submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)
                 
@@ -2966,6 +2990,9 @@ elif page == "Placements":
                     
                     if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
                         st.error("Please fill in all required fields marked with *")
+                        validation_error = True
+                    elif created_by == "Add Staff":
+                        st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
                         validation_error = True
                     
                     valid_schedule = [s for s in schedule_data if s.get("periods")]

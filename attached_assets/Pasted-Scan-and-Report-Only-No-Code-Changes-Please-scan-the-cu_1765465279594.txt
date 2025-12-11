@@ -1,0 +1,53 @@
+Scan and Report Only (No Code Changes)
+
+Please scan the current Grotto App codebase and answer the following questions without changing any code yet. This is about multi-day sessions and how “Day of Days” and attendance behave for:
+
+ISS
+
+Lunch Detention
+
+Class Period Referral with Pre-Planned subtype only
+
+1. Where is this logic currently implemented?
+• Identify the files, components, and functions that handle:
+  – Multi-day sessions (Day of Days)
+  – Check In / Absent buttons
+  – Complete / Override actions
+  – Period counting for ISS / Lunch Detention / Pre-Planned Referrals
+• Please list the key files and function names you find.
+
+2. Daily activation of Check In / Absent
+For the three cases above (ISS, Lunch Detention, Pre-Planned Referrals), please tell me:
+• Does the app currently reactivate the Check In and Absent buttons at the start of each new day in a multi-day session?
+• What actually triggers them to become active: a date check at midnight, a page load the next day, or something else?
+• Does this activation happen regardless of whether the student was present or absent the previous day?
+
+3. Day of Days behavior (session progression)
+For ISS, Lunch Detention, and Pre-Planned Referrals only, answer:
+• Under what condition does the Day of Days counter advance?
+  – Is it tied to clicking Complete or Override for that day?
+  – Or is it tied to the calendar date changing?
+• What happens in the current logic when a student is marked Absent?
+  – Does Day of Days stay the same (frozen), or does it still advance?
+  – Is there any special handling for weekends (no advancement on Saturday/Sunday)?
+
+4. Period counter behavior
+• Where is the Period counting logic implemented (files/functions)?
+• Does it currently:
+  – Add periods only for days the student is actually present and the day is Completed/Overridden?
+  – Skip period counting for days marked Absent?
+  – Respect the “partial vs full day” logic we previously defined?
+• Please confirm if the existing period math is already aligned with presence/absence and completion, or if it simply counts based on the planned schedule.
+
+5. Comparison to desired behavior
+Based on the current implementation, compare it to the following desired behavior:
+• For multi-day ISS, Lunch Detention, and Pre-Planned Referrals:
+  – Each new school day in the session should have Check In and Absent active again.
+  – Day of Days should only advance when the student is present and the user clicks Complete or Override for that day.
+  – If the student is Absent, Day of Days should not advance; it should wait until the next school day when the student is present and the day is completed/overridden.
+  – The Period counter should only count periods actually served (present + completed/overridden), and not count days marked Absent.
+
+6. Gap analysis
+• Please clearly list which parts of the desired behavior are already implemented and working as described.
+• Then list which parts are missing, incorrect, or incomplete, along with the relevant files and functions that would need to be updated.
+• Do not make any changes yet; I only want an analysis and a proposed plan of what to change.

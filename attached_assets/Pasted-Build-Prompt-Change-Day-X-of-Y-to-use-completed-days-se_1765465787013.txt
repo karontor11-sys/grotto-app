@@ -1,0 +1,200 @@
+Build Prompt: Change “Day X of Y” to use completed days (served days) instead of calendar position
+
+Please implement the following changes, based on your previous Plan analysis of the Grotto App code.
+
+Important: Do NOT change the following behaviors:
+
+Leave the Check In / Absent daily activation behavior as it is:
+
+Each new date automatically allows Check In / Absent for active placements via the DailyLog logic.
+
+Do NOT change existing ISS period counting logic:
+
+Keep get_iss_periods_served(), get_iss_total_periods_required(), get_iss_scheduled_periods_for_date(), and the complete_iss_day() behavior as they are.
+
+Preserve the existing weekend skipping behavior.
+
+The only thing I want to change is how “Day X of Y” is calculated and displayed for:
+
+ISS
+
+Lunch Detention
+
+Class Period Referral with the Pre-Planned subtype
+
+1) New “days served” logic (completion-based)
+
+Please introduce helper logic that counts days actually served, NOT calendar days.
+
+Definition of a served day for multi-day placements:
+
+The student is present (not marked absent), and
+
+The user has clicked Complete or used Override for that day (i.e., the day is fully fulfilled for that placement), and
+
+That date is part of the scheduled range for that placement.
+
+Use the existing data model for each type:
+
+ISS: Use DailyLogs and existing completion flags / fields (e.g., daily_fulfillment='yes' and day_type!='absent').
+
+Lunch Detention: Use whatever you’re currently using for presence, likely served_dates / attendance-related fields.
+
+Pre-Planned multi-day Referrals: Use the scheduled slots and their completion status.
+
+Create a reusable approach (can be helper functions) that returns, for a given placement:
+
+days_served_completed = number of previous days in this placement that were served and completed.
+
+Optionally is_today_in_progress = whether the current date is a scheduled day, the student is present (checked in), and the day is not yet completed.
+
+You can place these helpers where it makes the most sense, given your earlier Plan analysis (likely db_manager.py or utils.py).
+
+2) New Day-of-Days display rules
+
+Update the “Day X of Y” display logic in:
+
+app.py: render_iss_full_card()
+
+app.py: render_lunch_detention_card()
+
+app.py: render_unified_class_referral_card() (for Pre-Planned subtype)
+
+Replace the current calendar-based logic (which uses calculate_school_day_number() or schedule position only) with logic based on served days, as defined above.
+
+For a multi-day session:
+
+Let:
+
+D_completed = count of prior days that are present + completed (days served).
+
+D_total = total number of required days in the placement (unchanged from current logic).
+
+today = the current date being rendered on the dashboard.
+
+Then:
+
+If today is a scheduled day and the student is present and not yet completed:
+
+Display:
+
+Day X of Y where
+
+X = D_completed + 1
+
+Y = D_total
+
+This means today is the next day to be served.
+
+If today is a scheduled day and has already been completed (present + Completed/Override):
+
+Display:
+
+Day X of Y where
+
+X = D_completed (because today is now part of the completed count)
+
+Y = D_total
+
+If today is scheduled but the student is marked Absent:
+
+The Day-of-Days value should NOT advance because this day is not served.
+
+For display on an absent day, you can either:
+
+Still show the same Day X of Y as the last served day, OR
+
+Show Day (D_completed + 1) of Y but be clear that this day was not served (e.g., label as absent).
+
+The key rule: do not treat an absent day as “served” for X.
+
+If the session extends due to absences (Lunch Detention adding extra dates, etc.):
+
+Keep the existing extension behavior (like scheduled_lunch_dates extension).
+
+But still compute Day X strictly from completed days, not from calendar day counts.
+
+3) Behavior per placement type
+
+a) ISS
+
+Stop using calculate_school_day_number() directly for the Day-of-Days label for ISS.
+
+Instead, base Day X of Y on the served-days logic:
+
+X = number of completed ISS days (student present with daily_fulfillment='yes' and not absent)
+plus current in-progress day if appropriate.
+
+Y = required ISS days or day-equivalent, consistent with how you currently derive total.
+
+Make sure this logic applies to both full-day and partial-day ISS multi-day sessions, but do NOT change how periods are counted; just how the day number label is computed.
+
+b) Lunch Detention
+
+Change render_lunch_detention_card() so that:
+
+X = count of served/completed lunch detention days (presence + completion)
+plus current in-progress day if today is being served.
+
+Y = total number of lunch detention days required for the placement.
+
+Keep the existing behavior where absences extend the schedule, but do NOT let absences increase X.
+
+c) Pre-Planned multi-day Class Period Referrals (Pre-Planned subtype only)
+
+In render_unified_class_referral_card() for Pre-Planned subtype:
+
+For multi-day schedules, use completed slots/dates to derive X.
+
+X = count of pre-planned dates/slots where the student was present and the day/slot was fully completed.
+
+Y = total number of scheduled Pre-Planned dates/slots for that placement.
+
+Make sure that:
+
+Absent days/slots do not increase X.
+
+The label reflects served progression, not just where today falls in the calendar.
+
+4) Keep School-Day / Weekend Handling
+
+You can leave calculate_school_day_number() in place for other uses if needed.
+
+For the Day-of-Days label on these three placement types, rely on the new completion-based logic.
+
+Continue to skip weekends as you currently do for scheduling and attendance; the new logic should just count served days, not dates.
+
+5) Basic sanity checks after your changes
+
+After implementing, please confirm in your response:
+
+For a 3-day ISS placement where:
+
+Day 1: Absent
+
+Day 2: Present + Completed
+
+Day 3: Present + Completed
+
+The Day-of-Days labels should read:
+
+Day 2: “Day 1 of 3”
+
+Day 3: “Day 2 of 3”
+
+(The absent day does NOT advance the counter.)
+
+For a 5-day Lunch Detention where:
+
+2 days served and completed
+
+1 day absent (which extends the schedule)
+
+The next served day should display “Day 3 of 5”.
+
+For a multi-day Pre-Planned referral with 4 scheduled days:
+
+If only 1 has been actually served + completed so far,
+the next in-progress served day should appear as “Day 2 of 4,” even if calendar-wise it is the 3rd or 4th date in the schedule.
+
+Please summarize any code changes you make (files + key functions) and confirm that Check In / Absent behavior and ISS period counting remain unchanged.

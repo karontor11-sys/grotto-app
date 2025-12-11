@@ -2543,6 +2543,265 @@ class DatabaseManager:
             db_session.close()
     
     # ==========================================
+    # DAYS SERVED HELPER FUNCTIONS
+    # ==========================================
+    # These helpers count days actually served (present + completed),
+    # NOT calendar days. Used for "Day X of Y" display.
+    
+    def get_iss_days_served_info(self, placement_id: str, target_date: str = None) -> Dict[str, Any]:
+        """Get ISS days served information for Day X of Y display.
+        
+        A day is counted as "served" when:
+        - Student was present (checked_in=True AND day_type != 'absent')
+        - The day was completed (daily_fulfillment='yes')
+        
+        Args:
+            placement_id: ID of the placement
+            target_date: ISO format date string for the current/target date (optional)
+            
+        Returns:
+            Dict with:
+            - days_served_completed: Count of previous days that are present + completed
+            - total_days: Total required ISS days
+            - is_today_in_progress: True if target_date is checked in but not completed
+            - is_today_absent: True if target_date is marked absent
+            - is_today_completed: True if target_date is completed
+            - current_day_number: The X in "Day X of Y" to display
+        """
+        db_session = self.get_session()
+        try:
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'days_served_completed': 0, 'total_days': 0, 'is_today_in_progress': False, 
+                        'is_today_absent': False, 'is_today_completed': False, 'current_day_number': 1}
+            
+            total_days = placement.iss_days_assigned or placement.iss_total_days or placement.days_assigned or 1
+            
+            target_date_obj = None
+            if target_date:
+                target_date_obj = datetime.fromisoformat(target_date).date() if isinstance(target_date, str) else target_date
+            
+            days_served_before_today = 0
+            is_today_in_progress = False
+            is_today_absent = False
+            is_today_completed = False
+            
+            if target_date_obj:
+                prior_completed_logs = db_session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date < target_date_obj,
+                    DailyLog.checked_in == True,
+                    DailyLog.daily_fulfillment == 'yes',
+                    DailyLog.day_type != 'absent'
+                ).all()
+                
+                days_served_before_today = len([log for log in prior_completed_logs if log.day_type != 'absent'])
+                
+                today_log = db_session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == target_date_obj
+                ).first()
+                
+                if today_log:
+                    is_today_absent = today_log.day_type == 'absent'
+                    is_today_completed = (today_log.checked_in == True and 
+                                         today_log.daily_fulfillment == 'yes' and 
+                                         today_log.day_type != 'absent')
+                    is_today_in_progress = (today_log.checked_in == True and 
+                                           today_log.daily_fulfillment != 'yes' and 
+                                           today_log.day_type != 'absent')
+            
+            if is_today_completed:
+                current_day_number = days_served_before_today + 1
+            elif is_today_in_progress:
+                current_day_number = days_served_before_today + 1
+            elif is_today_absent:
+                current_day_number = days_served_before_today + 1
+            else:
+                current_day_number = min(days_served_before_today + 1, total_days)
+            
+            return {
+                'days_served_completed': days_served_before_today,
+                'total_days': total_days,
+                'is_today_in_progress': is_today_in_progress,
+                'is_today_absent': is_today_absent,
+                'is_today_completed': is_today_completed,
+                'current_day_number': current_day_number
+            }
+        finally:
+            db_session.close()
+    
+    def get_lunch_detention_days_served_info(self, placement_id: str, target_date: str = None) -> Dict[str, Any]:
+        """Get Lunch Detention days served information for Day X of Y display.
+        
+        A day is counted as "served" when:
+        - The date is in served_dates (student was present)
+        - The day was completed (daily_fulfillment='yes')
+        
+        Args:
+            placement_id: ID of the placement
+            target_date: ISO format date string for the current/target date (optional)
+            
+        Returns:
+            Dict with:
+            - days_served_completed: Count of previous days that are present + completed
+            - total_days: Total required Lunch Detention days
+            - is_today_in_progress: True if target_date is checked in but not completed
+            - is_today_absent: True if target_date is marked absent
+            - is_today_completed: True if target_date is completed
+            - current_day_number: The X in "Day X of Y" to display
+        """
+        db_session = self.get_session()
+        try:
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'days_served_completed': 0, 'total_days': 0, 'is_today_in_progress': False,
+                        'is_today_absent': False, 'is_today_completed': False, 'current_day_number': 1}
+            
+            total_days = placement.days_assigned or 1
+            served_dates = list(placement.served_dates) if placement.served_dates else []
+            
+            target_date_obj = None
+            target_date_str = None
+            if target_date:
+                target_date_obj = datetime.fromisoformat(target_date).date() if isinstance(target_date, str) else target_date
+                target_date_str = target_date_obj.isoformat() if hasattr(target_date_obj, 'isoformat') else str(target_date_obj)
+            
+            days_served_before_today = 0
+            is_today_in_progress = False
+            is_today_absent = False
+            is_today_completed = False
+            
+            if target_date_obj:
+                for served_date_str in served_dates:
+                    served_date_obj = datetime.fromisoformat(served_date_str).date()
+                    if served_date_obj < target_date_obj:
+                        log = db_session.query(DailyLog).filter(
+                            DailyLog.placement_id == placement_id,
+                            DailyLog.date == served_date_obj
+                        ).first()
+                        
+                        if log and log.daily_fulfillment == 'yes' and log.day_type != 'absent':
+                            days_served_before_today += 1
+                
+                today_log = db_session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == target_date_obj
+                ).first()
+                
+                if today_log:
+                    is_today_absent = today_log.day_type == 'absent'
+                    is_today_completed = today_log.daily_fulfillment == 'yes' and today_log.day_type != 'absent'
+                
+                is_today_present = target_date_str in served_dates if target_date_str else False
+                
+                if is_today_present and not is_today_completed and not is_today_absent:
+                    is_today_in_progress = True
+            
+            if is_today_completed:
+                current_day_number = days_served_before_today + 1
+            elif is_today_in_progress:
+                current_day_number = days_served_before_today + 1
+            elif is_today_absent:
+                current_day_number = days_served_before_today + 1
+            else:
+                current_day_number = min(days_served_before_today + 1, total_days)
+            
+            return {
+                'days_served_completed': days_served_before_today,
+                'total_days': total_days,
+                'is_today_in_progress': is_today_in_progress,
+                'is_today_absent': is_today_absent,
+                'is_today_completed': is_today_completed,
+                'current_day_number': current_day_number
+            }
+        finally:
+            db_session.close()
+    
+    def get_preplanned_days_served_info(self, placement_id: str, target_date: str = None) -> Dict[str, Any]:
+        """Get Pre-Planned referral days served information for Day X of Y display.
+        
+        A day/slot is counted as "served" when:
+        - Student was present (checked_in=True AND day_type != 'absent')
+        - The day was completed (daily_fulfillment='yes')
+        
+        Args:
+            placement_id: ID of the placement
+            target_date: ISO format date string for the current/target date (optional)
+            
+        Returns:
+            Dict with:
+            - days_served_completed: Count of previous days that are present + completed
+            - total_days: Total required Pre-Planned days
+            - is_today_in_progress: True if target_date is checked in but not completed
+            - is_today_absent: True if target_date is marked absent
+            - is_today_completed: True if target_date is completed
+            - current_day_number: The X in "Day X of Y" to display
+        """
+        db_session = self.get_session()
+        try:
+            placement = db_session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'days_served_completed': 0, 'total_days': 0, 'is_today_in_progress': False,
+                        'is_today_absent': False, 'is_today_completed': False, 'current_day_number': 1}
+            
+            total_days = placement.days_assigned or 1
+            
+            target_date_obj = None
+            if target_date:
+                target_date_obj = datetime.fromisoformat(target_date).date() if isinstance(target_date, str) else target_date
+            
+            days_served_before_today = 0
+            is_today_in_progress = False
+            is_today_absent = False
+            is_today_completed = False
+            
+            if target_date_obj:
+                prior_completed_logs = db_session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date < target_date_obj,
+                    DailyLog.checked_in == True,
+                    DailyLog.daily_fulfillment == 'yes',
+                    DailyLog.day_type != 'absent'
+                ).all()
+                
+                days_served_before_today = len([log for log in prior_completed_logs if log.day_type != 'absent'])
+                
+                today_log = db_session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == target_date_obj
+                ).first()
+                
+                if today_log:
+                    is_today_absent = today_log.day_type == 'absent'
+                    is_today_completed = (today_log.checked_in == True and 
+                                         today_log.daily_fulfillment == 'yes' and 
+                                         today_log.day_type != 'absent')
+                    is_today_in_progress = (today_log.checked_in == True and 
+                                           today_log.daily_fulfillment != 'yes' and 
+                                           today_log.day_type != 'absent')
+            
+            if is_today_completed:
+                current_day_number = days_served_before_today + 1
+            elif is_today_in_progress:
+                current_day_number = days_served_before_today + 1
+            elif is_today_absent:
+                current_day_number = days_served_before_today + 1
+            else:
+                current_day_number = min(days_served_before_today + 1, total_days)
+            
+            return {
+                'days_served_completed': days_served_before_today,
+                'total_days': total_days,
+                'is_today_in_progress': is_today_in_progress,
+                'is_today_absent': is_today_absent,
+                'is_today_completed': is_today_completed,
+                'current_day_number': current_day_number
+            }
+        finally:
+            db_session.close()
+    
+    # ==========================================
     # ISS PERIOD HELPER FUNCTIONS (Normalized)
     # ==========================================
     # These helpers provide a single, consistent logic path for ISS period tracking.

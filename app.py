@@ -407,10 +407,10 @@ if page == "Dashboard":
         iss_periods_served = placement.get('issPeriodsServed', 0) or 0
         days_completed = placement.get('daysCompleted', 0) or 0
         
-        # Calculate current day based on completed check-in days (not periods)
-        # Current day = days_completed + 1 (if within scheduled days)
-        # Make-up days do NOT increment the day counter
-        current_day = min(days_completed + 1, iss_days_assigned)
+        # Get days served info for Day X of Y display (completion-based, not calendar-based)
+        days_served_info = dm.get_iss_days_served_info(placement_id, date_str)
+        current_day = days_served_info.get('current_day_number', 1)
+        is_today_absent = days_served_info.get('is_today_absent', False)
         
         # Check if ISS Session is complete
         is_session_complete = iss_periods_served >= iss_total_required_periods
@@ -1179,7 +1179,7 @@ if page == "Dashboard":
         
         Uses lazy loading for daily logs.
         """
-        from utils import get_daily_status_color, calculate_school_day_number
+        from utils import get_daily_status_color
         
         student = placement['student']
         placement_id = placement['_id']
@@ -1212,9 +1212,11 @@ if page == "Dashboard":
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         
-        # Day X of Y for multi-day lunch detention
+        # Day X of Y for multi-day lunch detention (completion-based, not calendar-based)
         total_days = placement.get('daysAssigned', 0)
-        day_number = calculate_school_day_number(placement['startDate'], date_str)
+        days_served_info = dm.get_lunch_detention_days_served_info(placement_id, date_str)
+        day_number = days_served_info.get('current_day_number', 1)
+        is_today_absent = days_served_info.get('is_today_absent', False)
         
         # Check attendance
         served_dates = placement.get('servedDates', [])
@@ -1417,6 +1419,19 @@ if page == "Dashboard":
                 st.caption(f"🧘 **{subtype_display}**")
             else:
                 st.caption(f"📅 **{subtype_display}**")
+            
+            # Day X of Y for Pre-Planned multi-day referrals (completion-based, not calendar-based)
+            if subtype_key == 'pre_planned':
+                days_assigned = placement.get('daysAssigned', 1)
+                if days_assigned > 1:
+                    preplanned_days_info = dm.get_preplanned_days_served_info(placement_id, date_str)
+                    preplanned_day_number = preplanned_days_info.get('current_day_number', 1)
+                    preplanned_total_days = preplanned_days_info.get('total_days', days_assigned)
+                    preplanned_is_absent = preplanned_days_info.get('is_today_absent', False)
+                    if preplanned_is_absent:
+                        st.caption(f"📅 Day {preplanned_day_number} of {preplanned_total_days} (Absent)")
+                    else:
+                        st.caption(f"📅 Day {preplanned_day_number} of {preplanned_total_days}")
             
             # Reason
             st.caption(f"**Reason:** {reason}")
@@ -3187,14 +3202,13 @@ elif page == "ISS Detail":
         st.header(f"ISS Daily Log - {student_name}")
         st.caption(f"{format_date(date_str)} · Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
     
-    # Calculate Day X of Y
-    from utils import calculate_school_day_number
-    iss_start_date = placement.get('issStartDate')
-    iss_total_days = placement.get('issTotalDays', 0)
+    # Calculate Day X of Y (completion-based, not calendar-based)
+    iss_total_days = placement.get('issDaysAssigned') or placement.get('issTotalDays', 0)
     iss_remaining_days = placement.get('issRemainingDays', 0)
     
-    if iss_start_date:
-        day_number = calculate_school_day_number(iss_start_date, date_str)
+    if iss_total_days > 0:
+        days_served_info = dm.get_iss_days_served_info(placement_id, date_str)
+        day_number = days_served_info.get('current_day_number', 1)
         if day_number > 0:
             st.info(f"📅 Day {day_number} of {iss_total_days} · {iss_remaining_days} days remaining")
     

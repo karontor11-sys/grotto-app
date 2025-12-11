@@ -1,0 +1,78 @@
+QA Prompt 2 – Lunch Detention 5-Day Placement With an Absence
+
+Title (optional):
+QA – Lunch Detention 5-Day Session (Served Days and Extension After Absence)
+
+Prompt text:
+
+Please run this as a manual QA test using the existing Grotto App UI. Do not change any code. Use any test student name.
+
+Goal: Verify that for a 5-day Lunch Detention, “Day X of 5” is based on served days (present + completed), and that an Absent day does not advance X, even if the schedule extends.
+
+Step 1 – Create the placement
+
+Create a 5-day Lunch Detention placement for a test student, starting today (or the next convenient school day).
+
+Confirm it appears on the Dashboard.
+
+Step 2 – Day 1 (Present + Completed)
+
+On Day 1:
+
+Check In the student for Lunch Detention.
+
+Complete the session for that day as you normally would.
+
+Record what the card displays for “Day X of 5”.
+
+Step 3 – Day 2 (Present + Completed)
+
+On Day 2:
+
+Check In again.
+
+Complete the day as normal.
+
+Record what the card displays for “Day X of 5”.
+
+Step 4 – Day 3 (Absent)
+
+On Day 3:
+
+Mark the student Absent for Lunch Detention.
+
+Note:
+
+What does the app display for that day?
+
+Does the placement’s schedule extend (if visible) to add an extra date?
+
+Step 5 – Next served day (Day 3 served)
+
+On the next day the student actually serves Lunch Detention (the first school day after the absence):
+
+Check In.
+
+Complete the Lunch Detention session.
+
+Record what the card displays for “Day X of 5”.
+
+Expected behavior:
+
+Day 1 served: should show “Day 1 of 5”.
+
+Day 2 served: should show “Day 2 of 5”.
+
+Day 3 (Absent): should not advance X; it may extend the schedule, but not count as served.
+
+Next served day after the absence: should show “Day 3 of 5”, even if it is the 4th calendar date.
+
+Please respond with a QA Summary table like this:
+Question	Answer	Notes
+Did the 5-day Lunch Detention placement create correctly?		
+What did Day 1 (served) display for Day X of 5?		
+What did Day 2 (served) display for Day X of 5?		
+What happened on the Absent day (Day 3) – did X advance?		
+Did the schedule extend by at least one date after the absence?		
+What did the next served day display for Day X of 5?		
+Does Lunch Detention Day-of-Days now reflect only served days?

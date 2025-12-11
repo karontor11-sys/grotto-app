@@ -1,0 +1,313 @@
+Replit Build Mode Prompt — Unified Completed Placements System
+
+Please implement the unified Completed Placements system according to the target spec below, using your previous Plan analysis as a guide.
+
+Important constraints:
+
+Do NOT change existing business logic for:
+
+How placements are created (ISS, Lunch Detention, CPR types and subtypes)
+
+How/when a placement is marked Completed
+
+ISS period math, days served, or points calculations
+
+Focus only on:
+
+How completed records are rendered, grouped, and accessed
+
+Dashboard behavior for completed cards
+
+Structure and display on the Completed Placements tab
+
+Navigation buttons
+
+Printing by day / month
+
+Use the existing Completed Placements tab (under Placements) as the master archive.
+
+A. Dashboard behavior for completed placements
+
+Always show completed placements on their served dates
+
+Keep the existing behavior where completed placements appear when viewing past dates via get_active_placements_for_date().
+
+Make sure completed placements are still visible indefinitely on their served date (no time-based trimming).
+
+Differentiate completed cards visually & behaviorally
+
+When rendering placements on the Dashboard:
+
+If progressStatus == COMPLETED (or equivalent flag):
+
+Render the card in a collapsed, non-interactive format:
+
+Show:
+
+Student Name
+
+Placement Type (ISS, Lunch, CPR + subtype)
+
+Red Completed status circle
+
+Do NOT allow:
+
+Expanding the card
+
+Editing any fields
+
+Triggering any actions that modify the placement
+
+This should apply to:
+
+ISS
+
+Lunch Detention
+
+Class Period Referrals (Behavior, Cool-Down, Pre-Planned)
+
+For In Progress or Not Started records, keep current expandable, editable behavior.
+
+Old In Progress records
+
+Keep the existing behavior where past-dated In Progress placements:
+
+Still show as interactive/expandable
+
+Can be Completed or Overridden retroactively
+
+After the user completes such a placement, it should:
+
+Immediately re-render as the collapsed, non-interactive completed card described above.
+
+Dashboard navigation button: “Completed Placements”
+
+On the Dashboard, add a visible button or link labeled:
+
+Completed Placements
+
+Clicking this should navigate to the Placements → Completed Placements tab, which will function as the master archive.
+
+Use the existing routing/navigation patterns in app.py (e.g., same style as how “Create New Placement” navigation works).
+
+B. Completed Placements tab → Master archive (single system)
+
+Turn the existing Completed Placements tab (under Placements) into the single master archive for all completed placements.
+
+Scope of records
+
+The Completed Placements tab should show all completed placements, not just a recent subset.
+
+Use existing queries but ensure they encompass all historical completed records.
+
+School Year → Month → Day hierarchy
+
+Restructure the UI of the Completed Placements tab as:
+
+Completed Placements (tab)
+   ▼ School Year 2025–2026  (current school year expanded by default)
+      ▼ August
+         ▼ 15th
+            - [Collapsed record card #1]
+            - [Collapsed record card #2]
+      ▼ September
+      ▼ October
+   ▼ School Year 2024–2025  (collapsed)
+   ▼ School Year 2023–2024  (collapsed)
+
+
+Implement helper logic (in utils.py or db_manager.py) to:
+
+Assign each completed placement to a school year (e.g., Aug 1 – Jul 31 for that academic year).
+
+Group placements by:
+
+School year
+
+Month (within that school year)
+
+Day (within that month)
+
+Current school year should be expanded by default.
+
+Previous school years should start collapsed but expandable.
+
+Collapsed vs expanded cards in the Completed Placements tab
+
+For each completed placement in the archive:
+
+Collapsed view (per record card):
+
+Student Name
+
+Placement Type (include CPR subtype)
+
+Red Completed status icon / circle
+
+Expanded view (read-only):
+
+Student name
+
+Grade
+
+Homeroom teacher
+
+Placement type & subtype
+
+Date started / date completed (if applicable)
+
+All scheduled dates (if available)
+
+All served dates
+
+Reason
+
+Notes
+
+ISS-specific (reuse data from ISS History as much as possible):
+
+Total days assigned
+
+Day-of-Days summary (e.g., “3 days ISS (30 periods)”)
+
+Make-up days and make-up periods
+
+Total periods served
+
+Any daily point totals and total points for the session
+
+Partial-day details if available (e.g., which dates were partial)
+
+Lunch Detention:
+
+Scheduled dates
+
+Served dates
+
+Reason
+
+Notes
+
+Class Period Referrals (Behavior, Cool-Down, Pre-Planned):
+
+Subtype (Behavior, Cool-Down, Pre-Planned)
+
+Scheduled days and periods (if tracked)
+
+Served days
+
+Reason
+
+Notes
+
+These expanded views should be read-only; no editing here, just viewing.
+
+You may reuse or refactor existing logic from:
+
+The current Completed Placements tab
+
+The ISS History tab (for richer ISS detail)
+
+C. Create New Placement page → “Completed Placements” access
+
+Add navigation button
+
+On the Create New Placement tab/page (Placements → Tab 1):
+
+Add a visible button or link labeled:
+
+Completed Placements
+
+Clicking it should navigate to the same Completed Placements tab (master archive).
+
+When the user arrives at that tab:
+
+The current school year should be expanded by default.
+
+Use the same navigation patterns as other internal tab links.
+
+D. Printing capabilities (on Completed Placements tab)
+
+Add basic reporting/printing options to the Completed Placements master archive.
+
+Print by Day
+
+Add UI controls to the Completed Placements tab to:
+
+Select a specific date (or click a day in the hierarchy)
+
+Print all completed placements for that day
+
+Implement a print-friendly layout (HTML or Streamlit layout) that includes at least:
+
+Student name
+
+Placement type & subtype
+
+Relevant dates (served and/or scheduled)
+
+Reason
+
+Notes
+
+For ISS: a condensed summary of days/periods/points
+
+Use the browser’s print dialog (or similar) to actually print; no need to generate PDFs in code unless that’s already a pattern in the app.
+
+Print by Month
+
+Similarly, allow the user to:
+
+Select a month within a school year
+
+Print all completed placements in that month
+
+Print view should include:
+
+At least one line or block per placement with:
+
+Date
+
+Student
+
+Placement type/subtype
+
+Reason
+
+Key ISS/Lunch/CPR info
+
+It’s okay for the month report to be somewhat summarized, as long as it’s useful for admin/parent meetings and pattern analysis.
+
+E. After changes: please summarize
+
+When you’re done, please respond with a summary that includes:
+
+Files and components modified
+
+e.g., app.py, db_manager.py, utils.py, etc.
+
+Dashboard behavior
+
+How completed cards are now rendered vs In Progress cards
+
+Confirmation that completed cards are collapsed, non-interactive, and always visible on their served dates
+
+Completed Placements tab behavior
+
+How records are grouped (school year → month → day)
+
+What fields are displayed in collapsed vs expanded views
+
+Navigation
+
+How the “Completed Placements” button works on:
+
+Dashboard
+
+Create New Placement page
+
+Printing
+
+How “Print by Day” and “Print by Month” are implemented
+
+Any limitations or assumptions

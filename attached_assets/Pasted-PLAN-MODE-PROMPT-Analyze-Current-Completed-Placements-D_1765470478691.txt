@@ -1,0 +1,222 @@
+PLAN MODE PROMPT – Analyze Current Completed Placements + Dashboard Behavior
+
+Paste this into Plan:
+
+Please analyze the current implementation of:
+
+The Dashboard calendar view for placements
+
+The Completed Placements page
+
+The Create New Placement page
+
+Do not change any code yet. I want a clear picture of what exists and how it behaves compared to the specification below.
+
+TARGET BEHAVIOR SPEC (for comparison)
+
+A. DASHBOARD BEHAVIOR FOR COMPLETED PLACEMENTS
+
+Completed records must always appear on their original dates
+
+When a placement (ISS, Lunch Detention, or any Class Period Referral subtype) is marked Completed, it must always appear on the Dashboard when the user clicks the date it was served, indefinitely (even across months or years).
+
+Completed cards on the Dashboard are non-interactive
+
+On the Dashboard, a completed placement card should:
+
+Appear collapsed only
+
+Show:
+
+Student Name
+
+Placement Type
+
+A red Completed status circle
+
+NOT expand
+
+NOT allow editing
+
+Their sole purpose is to indicate who served a placement on that day.
+
+Old, incomplete records
+
+If a placement is still In Progress but the date is in the past:
+
+The user must still be able to expand it, complete it, or override it.
+
+Once completed, it becomes a collapsed, non-expandable red card on that date.
+
+Dashboard access button
+
+The Dashboard should have a visible button or link labeled:
+
+“Completed Placements”
+
+Clicking this should navigate to the Completed Placements page (which will function as the master archive).
+
+B. COMPLETED PLACEMENTS PAGE – MASTER ARCHIVE
+
+Single master archive
+
+The existing Completed Placements page should serve as the only long-term archive for all completed placements.
+
+Structure
+
+The archive should be organized as:
+
+Completed Placements (page)
+▼ 2025–2026 School Year (current year expanded by default)
+▼ January
+▼ 10th
+- [Collapsed record card]
+→ Expand to view full record details
+▼ February
+▼ March
+▼ 2024–2025 (collapsed)
+▼ 2023–2024 (collapsed)
+
+The current school year should be expanded by default.
+
+Prior school years should be collapsed.
+
+Card behavior in the archive
+
+Each record in the archive should appear as a collapsed card showing:
+
+Student Name
+
+Placement Type (ISS, Lunch Detention, CPR + subtype)
+
+Red Completed Circle
+
+When expanded, the card should show full record details, including:
+
+Student name
+
+Grade
+
+Homeroom teacher
+
+Placement type & subtype
+
+All dates scheduled (if applicable)
+
+All dates served
+
+Reason
+
+Notes
+
+For ISS:
+
+Total days assigned
+
+Day-of-Days summary
+
+Make-up days & periods
+
+Periods served
+
+Daily points earned
+
+Total points earned
+
+Partial-day info if relevant
+
+For Lunch Detention:
+
+Scheduled dates
+
+Served dates
+
+Reason
+
+Notes
+
+For Class Period Referrals:
+
+Subtype (Behavior, Cool-Down, Pre-Planned)
+
+Scheduled days and periods (if relevant)
+
+Served days
+
+Reason
+
+Notes
+
+Master archive navigation from Create New Placement
+
+The Create New Placement page should also have a visible button labeled:
+
+“Completed Placements”
+
+Clicking it takes the user to the Completed Placements page (master archive), with the current school year expanded.
+
+Printing
+
+From the Completed Placements page, the system should support:
+
+Print by Day: Print all completed placements for a chosen date.
+
+Print by Month: Print all completed placements for a selected month.
+
+Printed output should include all the key fields listed above.
+
+WHAT I WANT FROM YOU IN THIS PLAN STEP
+
+For the Dashboard:
+
+Where and how are completed placements currently rendered?
+
+Are completed cards currently:
+
+Collapsed only?
+
+Non-expandable and non-editable?
+
+Always visible on their original date?
+
+How are old In Progress records currently handled?
+
+Does a “Completed Placements” button currently exist on the Dashboard? If so, what does it do?
+
+For the Completed Placements page:
+
+How is it currently populated and displayed?
+
+Does it already function as a long-term archive?
+
+How (if at all) is it grouped (by date, by type, etc.)?
+
+Is there any existing year/month/day structure?
+
+What data fields are currently shown for each record?
+
+For the Create New Placement page:
+
+Does a “Completed Placements” button or link already exist?
+
+If so, what does it do?
+
+Gap analysis:
+
+Compare the current behavior to the target spec above.
+
+List which parts of the spec are already satisfied.
+
+List which parts are missing, incomplete, or different.
+
+Outline a high-level plan of which files and components you would modify to:
+
+Make the Completed Placements page the master archive with the School Year → Month → Day structure
+
+Ensure Dashboard completed cards are collapsed, non-interactive, and always visible on their served date
+
+Add “Completed Placements” navigation buttons to the Dashboard and Create New Placement page
+
+Add or wire up printing by day/month if not already supported.
+
+Do not make any changes yet. I only want analysis and a proposed implementation plan.

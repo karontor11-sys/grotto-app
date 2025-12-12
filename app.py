@@ -1843,7 +1843,13 @@ if page == "Dashboard":
                     if st.button("Check In", key=f"iss_checkin_{session_id}", 
                                type="primary" if not checkin_disabled else "secondary",
                                disabled=checkin_disabled):
-                        dm.check_in_student(placement_id, date_str)
+                        # Honor the persisted day configuration (partial vs full)
+                        checkin_day_type = stored_day_type or 'full'
+                        checkin_start = stored_start_period if checkin_day_type == 'partial' else None
+                        checkin_end = stored_end_period if checkin_day_type == 'partial' else None
+                        dm.check_in_student(placement_id, date_str, day_type=checkin_day_type,
+                                          start_period=checkin_start, end_period=checkin_end)
+                        clear_dashboard_caches()
                         st.rerun()
             
             # ISS Session Summary - Period tracking display

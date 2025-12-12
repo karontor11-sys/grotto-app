@@ -1876,22 +1876,14 @@ if page == "Dashboard":
                 day_type_col, periods_col = st.columns([1, 2])
                 
                 with day_type_col:
-                    # Determine index - None if no selection yet
-                    current_selection = st.session_state.get(day_type_key)
-                    if current_selection == "Full Day":
-                        radio_index = 0
-                    elif current_selection == "Partial Day":
-                        radio_index = 1
-                    else:
-                        radio_index = None  # No default selection
-                    
+                    # Widget uses session state via key - no index parameter needed
+                    # Session state was initialized earlier (lines 1790-1796)
                     day_type = st.radio(
                         "Select Day Type",
                         options=["Full Day", "Partial Day"],
                         key=day_type_key,
                         horizontal=True,
                         label_visibility="collapsed",
-                        index=radio_index,
                         disabled=is_day_type_locked
                     )
                     
@@ -1911,24 +1903,25 @@ if page == "Dashboard":
                         # Show Start and End Period dropdowns (only if not locked)
                         period_options = list(range(1, 11))  # 1-10
                         
-                        # Determine default index from stored values or defaults
-                        default_start_idx = (stored_start_period - 1) if stored_start_period else 0
-                        default_end_idx = (stored_end_period - 1) if stored_end_period else (len(period_options) - 1)
+                        # Initialize session state for period selectboxes if not set
+                        # This prevents conflicts between key= and index= parameters
+                        if start_period_key not in st.session_state:
+                            st.session_state[start_period_key] = stored_start_period if stored_start_period else 1
+                        if end_period_key not in st.session_state:
+                            st.session_state[end_period_key] = stored_end_period if stored_end_period else 10
                         
                         period_col1, period_col2, confirm_col = st.columns([1, 1, 1])
                         with period_col1:
                             selected_start_period = st.selectbox(
                                 "Start Period*",
                                 options=period_options,
-                                key=start_period_key,
-                                index=default_start_idx if start_period_key not in st.session_state else None
+                                key=start_period_key
                             )
                         with period_col2:
                             selected_end_period = st.selectbox(
                                 "End Period*",
                                 options=period_options,
-                                key=end_period_key,
-                                index=default_end_idx if end_period_key not in st.session_state else None
+                                key=end_period_key
                             )
                         
                         # Validate Start/End Period

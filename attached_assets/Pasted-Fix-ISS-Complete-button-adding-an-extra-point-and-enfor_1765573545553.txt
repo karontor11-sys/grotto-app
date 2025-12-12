@@ -1,0 +1,80 @@
+Fix ISS Complete button adding an extra point (and enforce proper collapse/inactive state)
+
+We have a bug in the ISS Dashboard completion flow.
+
+Current Incorrect Behavior
+
+For an ISS daily record:
+
+Staff adds points up to the required threshold (e.g., 10/10 for a full day, or N/N for partial).
+
+The Complete button becomes available.
+
+When staff clicks Complete, the system adds an extra point to the daily points total (e.g., 10 becomes 11) instead of simply completing the day.
+
+The record does not reliably “close out” into the collapsed, inactive completed display.
+
+Expected Behavior
+
+When the Complete button is pressed:
+
+Do not add or modify points at all.
+Completion must be a pure status transition, not a point-award action.
+
+Mark the day/record as Completed immediately (set completed status + completed timestamp).
+
+The Dashboard card should immediately:
+
+Collapse to the completed, minimal view (Student name + red Completed circle)
+
+Become inactive / non-interactive (no expanding, no editing, no point changes)
+
+Completed records must remain visible on the correct date for historical reference, but should not be editable.
+
+Requirements / Guardrails
+
+Do not change database schema unless absolutely necessary.
+
+Do not alter the points system rules except to remove the unintended extra point being added on completion.
+
+This must work for both:
+
+Full Day ISS (10 periods/points)
+
+Partial Day ISS (N periods/points based on start/end)
+
+What to Investigate and Fix
+
+Find where the Complete button handler is calling any function that:
+
+increments points, logs a point, or recalculates points in a way that adds an extra point.
+
+Ensure the Complete handler does NOT call the “add behavior/point” logic path.
+
+If the Complete handler currently “re-saves” points, ensure it saves the existing total unchanged (and ideally caps it at required points if needed for display consistency, but do not add a new point event).
+
+Acceptance Tests
+
+Full Day ISS:
+
+Reach exactly 10/10 points.
+
+Click Complete.
+
+Points must remain 10/10 (no 11).
+
+Card collapses to completed (red circle) and is non-expandable.
+
+Partial Day ISS (e.g., 3–10 = 8):
+
+Reach exactly 8/8 points.
+
+Click Complete.
+
+Points remain 8/8 (no extra).
+
+Card collapses to completed (red circle) and is non-expandable.
+
+Refresh page and navigate away/back to the date:
+
+Completed card remains collapsed + inactive.

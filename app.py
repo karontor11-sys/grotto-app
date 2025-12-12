@@ -1965,9 +1965,9 @@ if page == "Dashboard":
                         positive_menu = ps.get_positive_point_menu()
                         positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
                         pos_key = f"iss_pos_{session_id}"
+                        pending_pos_key = f"pending_pos_{session_id}"
                         
                         # Check if we need to process a pending selection (from previous render)
-                        pending_pos_key = f"pending_pos_{session_id}"
                         if pending_pos_key in st.session_state:
                             pending_label = st.session_state[pending_pos_key]
                             del st.session_state[pending_pos_key]
@@ -1988,24 +1988,32 @@ if page == "Dashboard":
                             clear_dashboard_caches()
                             st.rerun()
                         
-                        selected_positive = st.selectbox(
+                        # Always reset selectbox key before rendering to force default
+                        # This prevents stale selections from persisting
+                        if pos_key in st.session_state and st.session_state[pos_key] != "+ Positive":
+                            del st.session_state[pos_key]
+                        
+                        def on_positive_change():
+                            """Store selection in pending key when user changes dropdown."""
+                            selected = st.session_state.get(pos_key, "+ Positive")
+                            if selected != "+ Positive":
+                                st.session_state[pending_pos_key] = selected
+                        
+                        st.selectbox(
                             "Positive",
                             positive_options,
                             key=pos_key,
-                            label_visibility="collapsed"
+                            label_visibility="collapsed",
+                            on_change=on_positive_change
                         )
-                        if selected_positive != "+ Positive":
-                            # Store pending selection and trigger rerun
-                            st.session_state[pending_pos_key] = selected_positive
-                            st.rerun()
                     
                     with neg_col:
                         negative_menu = ps.get_negative_point_menu()
                         negative_options = ["- Negative"] + [item['label'] for item in negative_menu]
                         neg_key = f"iss_neg_{session_id}"
+                        pending_neg_key = f"pending_neg_{session_id}"
                         
                         # Check if we need to process a pending selection (from previous render)
-                        pending_neg_key = f"pending_neg_{session_id}"
                         if pending_neg_key in st.session_state:
                             pending_label = st.session_state[pending_neg_key]
                             del st.session_state[pending_neg_key]
@@ -2026,16 +2034,24 @@ if page == "Dashboard":
                             clear_dashboard_caches()
                             st.rerun()
                         
-                        selected_negative = st.selectbox(
+                        # Always reset selectbox key before rendering to force default
+                        # This prevents stale selections from persisting
+                        if neg_key in st.session_state and st.session_state[neg_key] != "- Negative":
+                            del st.session_state[neg_key]
+                        
+                        def on_negative_change():
+                            """Store selection in pending key when user changes dropdown."""
+                            selected = st.session_state.get(neg_key, "- Negative")
+                            if selected != "- Negative":
+                                st.session_state[pending_neg_key] = selected
+                        
+                        st.selectbox(
                             "Negative",
                             negative_options,
                             key=neg_key,
-                            label_visibility="collapsed"
+                            label_visibility="collapsed",
+                            on_change=on_negative_change
                         )
-                        if selected_negative != "- Negative":
-                            # Store pending selection and trigger rerun
-                            st.session_state[pending_neg_key] = selected_negative
-                            st.rerun()
                 
                 with points_col:
                     st.markdown("**Points Total**")
@@ -2097,6 +2113,15 @@ if page == "Dashboard":
                     complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
                     if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary", 
                                  use_container_width=True, disabled=not can_complete, help=complete_help):
+                        # IMPORTANT: Clear any pending behavior keys to prevent ghost point additions
+                        # This fixes the bug where Complete button would add an extra point
+                        pending_pos_key = f"pending_pos_{session_id}"
+                        pending_neg_key = f"pending_neg_{session_id}"
+                        if pending_pos_key in st.session_state:
+                            del st.session_state[pending_pos_key]
+                        if pending_neg_key in st.session_state:
+                            del st.session_state[pending_neg_key]
+                        
                         # Use stored values from daily_log (source of truth after Check In)
                         if is_checked_in and stored_day_type_display is not None:
                             selected_day_type = "Full Day" if stored_day_type_display == 'full' else "Partial Day"
@@ -2149,6 +2174,14 @@ if page == "Dashboard":
                     override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
                     if st.button(override_label, key=f"iss_override_btn_{session_id}", 
                                  use_container_width=True, type="secondary"):
+                        # IMPORTANT: Clear any pending behavior keys to prevent ghost point additions
+                        pending_pos_key = f"pending_pos_{session_id}"
+                        pending_neg_key = f"pending_neg_{session_id}"
+                        if pending_pos_key in st.session_state:
+                            del st.session_state[pending_pos_key]
+                        if pending_neg_key in st.session_state:
+                            del st.session_state[pending_neg_key]
+                        
                         print(f"[DEBUG] Override button clicked for session_id={session_id}, placement_id={placement_id}")
                         override_note = "Retroactive override: session marked complete after the fact." if is_past_session else "Supervisor override: student released early due to positive behavior; remaining periods waived."
                         
@@ -2442,22 +2475,29 @@ if page == "Dashboard":
             student_name = iss_session['student_name']
             progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
             
-            # Create colored circle based on progress_status
-            if progress_status == "COMPLETED":
+            # Check if this day is completed (session status = 'fulfilled' or dailyFulfillment = 'yes')
+            session_status = iss_session.get('status', 'scheduled')
+            is_day_completed = session_status == 'fulfilled'
+            
+            # Create colored circle based on progress_status and day completion
+            # Red circle for COMPLETED (placement) or fulfilled (day)
+            if progress_status == "COMPLETED" or is_day_completed:
                 status_circle = "🔴"  # Red circle for COMPLETED
             elif progress_status == "IN_PROGRESS":
                 status_circle = "🟡"  # Yellow circle for IN_PROGRESS
             else:
                 status_circle = "🟢"  # Green circle for NOT_STARTED
             
-            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
-            if progress_status == "COMPLETED":
+            # COMPLETED placements or COMPLETED days: Show as non-interactive collapsed card (no expander)
+            if progress_status == "COMPLETED" or is_day_completed:
                 iss_days = iss_session.get('iss_days_assigned') or iss_session.get('issDaysAssigned', 1)
+                # Show completed day info
+                completion_label = "Completed" if progress_status == "COMPLETED" else "Day Completed"
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
                     background-color: #fafafa; margin-bottom: 8px;">
                     <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
-                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {iss_days}-Day</span>
+                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {iss_days}-Day · {completion_label}</span>
                     </div>""",
                     unsafe_allow_html=True
                 )

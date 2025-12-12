@@ -3599,8 +3599,6 @@ elif page == "Assignments":
 elif page == "Notifications":
     st.header("🔔 Notifications")
     
-    st.write("Stay informed about placement events, daily summaries, and important updates.")
-    
     # Get all notifications grouped by severity (active only)
     with st.spinner("Loading notifications..."):
         try:

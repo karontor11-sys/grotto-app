@@ -4663,11 +4663,13 @@ class DatabaseManager:
             log.start_period = start_period
             log.end_period = end_period
             
-            # Calculate periods covered for Full Day
+            # Calculate periods covered and required points
             if day_type == 'full':
                 log.periods_covered = list(range(1, 11))  # Periods 1-10
+                log.required_points = 10
             else:
                 log.periods_covered = list(range(start_period, end_period + 1))
+                log.required_points = end_period - start_period + 1
             
             session.commit()
             return True

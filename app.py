@@ -1964,14 +1964,14 @@ if page == "Dashboard":
                     with pos_col:
                         positive_menu = ps.get_positive_point_menu()
                         positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
-                        selected_positive = st.selectbox(
-                            "Positive",
-                            positive_options,
-                            key=f"iss_pos_{session_id}",
-                            label_visibility="collapsed"
-                        )
-                        if selected_positive != "+ Positive":
-                            item = next((i for i in positive_menu if i['label'] == selected_positive), None)
+                        pos_key = f"iss_pos_{session_id}"
+                        
+                        # Check if we need to process a pending selection (from previous render)
+                        pending_pos_key = f"pending_pos_{session_id}"
+                        if pending_pos_key in st.session_state:
+                            pending_label = st.session_state[pending_pos_key]
+                            del st.session_state[pending_pos_key]
+                            item = next((i for i in positive_menu if i['label'] == pending_label), None)
                             if item:
                                 dm.add_point_event({
                                     'placementId': placement_id,
@@ -1982,19 +1982,34 @@ if page == "Dashboard":
                                     'value': item['value'],
                                     'date': date_str
                                 })
-                                st.rerun()
+                            # Reset the selectbox key before widget creation
+                            if pos_key in st.session_state:
+                                del st.session_state[pos_key]
+                            clear_dashboard_caches()
+                            st.rerun()
+                        
+                        selected_positive = st.selectbox(
+                            "Positive",
+                            positive_options,
+                            key=pos_key,
+                            label_visibility="collapsed"
+                        )
+                        if selected_positive != "+ Positive":
+                            # Store pending selection and trigger rerun
+                            st.session_state[pending_pos_key] = selected_positive
+                            st.rerun()
                     
                     with neg_col:
                         negative_menu = ps.get_negative_point_menu()
                         negative_options = ["- Negative"] + [item['label'] for item in negative_menu]
-                        selected_negative = st.selectbox(
-                            "Negative",
-                            negative_options,
-                            key=f"iss_neg_{session_id}",
-                            label_visibility="collapsed"
-                        )
-                        if selected_negative != "- Negative":
-                            item = next((i for i in negative_menu if i['label'] == selected_negative), None)
+                        neg_key = f"iss_neg_{session_id}"
+                        
+                        # Check if we need to process a pending selection (from previous render)
+                        pending_neg_key = f"pending_neg_{session_id}"
+                        if pending_neg_key in st.session_state:
+                            pending_label = st.session_state[pending_neg_key]
+                            del st.session_state[pending_neg_key]
+                            item = next((i for i in negative_menu if i['label'] == pending_label), None)
                             if item:
                                 dm.add_point_event({
                                     'placementId': placement_id,
@@ -2005,7 +2020,22 @@ if page == "Dashboard":
                                     'value': item['value'],
                                     'date': date_str
                                 })
-                                st.rerun()
+                            # Reset the selectbox key before widget creation
+                            if neg_key in st.session_state:
+                                del st.session_state[neg_key]
+                            clear_dashboard_caches()
+                            st.rerun()
+                        
+                        selected_negative = st.selectbox(
+                            "Negative",
+                            negative_options,
+                            key=neg_key,
+                            label_visibility="collapsed"
+                        )
+                        if selected_negative != "- Negative":
+                            # Store pending selection and trigger rerun
+                            st.session_state[pending_neg_key] = selected_negative
+                            st.rerun()
                 
                 with points_col:
                     st.markdown("**Points Total**")

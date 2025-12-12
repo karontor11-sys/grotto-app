@@ -919,6 +919,7 @@ if page == "Dashboard":
                                                    start_period=partial_start, end_period=partial_end,
                                                    is_makeup=needs_makeup)
                                 st.session_state[show_partial_form_key] = False
+                                clear_dashboard_caches()  # Clear cache to show fresh partial day data
                                 st.rerun()
                         with col_cancel:
                             if st.button("Cancel", key=f"cancel_partial_{placement_id}_{date_str}", 
@@ -933,6 +934,7 @@ if page == "Dashboard":
                             btn_label = "Make-Up – Full Day" if needs_makeup else "Check-In – Full Day"
                             if st.button(btn_label, key=f"checkin_full_{placement_id}_{date_str}", type="primary", use_container_width=True):
                                 dm.check_in_student(placement_id, date_str, day_type='full', is_makeup=needs_makeup)
+                                clear_dashboard_caches()  # Clear cache to show fresh check-in data
                                 st.rerun()
                         with col_checkin2:
                             # Adjust button label for make-up sessions

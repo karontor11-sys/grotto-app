@@ -1,0 +1,74 @@
+Add Dismiss Functionality to Notifications Page
+Please add support for dismissing notifications on the Notifications page, so that users can clear items from the active list after they’ve handled them, while still being able to review them later.
+1. Dismiss Action on Notifications
+On the Notifications page, add a “Dismiss” control to each notification in the active list (All / Warnings / Info / Success).
+
+
+When the user clicks Dismiss on a notification:
+
+
+Mark that notification as inactive/dismissed.
+
+
+Record a dismissed_at timestamp (date/time the user dismissed it).
+
+
+Remove it from the current active notifications list (the “needs to be taken care of” list).
+
+
+2. Persisting Dismissed Notifications
+Currently, notifications are dynamically generated on page load and not stored permanently.
+ Please add a simple persistence mechanism so that:
+Each generated notification can be uniquely identified (e.g., by type + record id + date, or an explicit notification_id).
+
+
+When a notification is dismissed, its “dismissed” state and dismissed_at timestamp are stored (e.g., in a notifications table or similar structure).
+
+
+When building the active notifications list, exclude any notifications that have been dismissed.
+
+
+3. Viewing Dismissed Notifications
+Add a way on the Notifications page to view dismissed notifications, separate from the active list.
+ A simple approach is to add a new tab:
+
+
+Dismissed — shows all dismissed notifications.
+
+
+For each dismissed notification, display:
+
+
+The original notification title/message.
+
+
+The original timestamp.
+
+
+The dismissed_at date/time (labeled clearly, e.g., “Dismissed on: {datetime}”).
+
+
+The overall effect:
+Active tabs (All / Warnings / Info / Success) show only non-dismissed notifications.
+
+
+The Dismissed tab shows the historical notifications that have been dismissed, with their dismissal date.
+
+
+4. Scope Control
+Keep the existing notification types and generation logic intact as much as possible.
+
+
+Only extend the system to:
+
+
+Track dismissed state,
+
+
+Filter active vs dismissed notifications,
+
+
+Provide the Dismiss button and Dismissed view.
+
+
+Do not change other app pages or unrelated business logic.

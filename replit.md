@@ -79,7 +79,7 @@ The UI features the following navigation pages:
 - **Programmatic Navigation Handling**: Navigation handlers sync widget states (`sidebar_page_widget`, `sidebar_page_selection`, `placements_tab_radio`) to prevent widget key conflicts during programmatic navigation.
 
 ### Notification System
-The Notifications page provides dynamically-generated alerts for placement events. Notifications are NOT stored persistently but are computed on-demand from database queries.
+The Notifications page provides dynamically-generated alerts for placement events. Notifications are computed on-demand from database queries, with dismissed notifications stored persistently.
 
 **Notification Types** (8 total):
 1. **New Placement**: When a new placement is created.
@@ -99,11 +99,27 @@ The Notifications page provides dynamically-generated alerts for placement event
 - Deduplication ensures no duplicate notifications for the same placement/date combination.
 - Displays type-specific labels (e.g., "ISS", "Lunch Detention", "Pre-Planned Referral").
 
+**Dismiss Functionality** (Dec 2025):
+- Each notification has a unique `notification_id` (format: `type:record_id:date`).
+- "Dismiss" button on each active notification removes it from the active list.
+- Dismissed notifications are stored in `dismissed_notifications` table with:
+  - `notification_id`: Unique identifier for the notification.
+  - `notification_type`, `notification_title`, `notification_message`, `notification_severity`: Original notification data for historical display.
+  - `original_timestamp`: When the notification was originally generated.
+  - `dismissed_at`: When the user dismissed it.
+- **Dismissed Tab**: Shows all dismissed notifications with original info and dismissal date.
+- **Restore Button**: Allows restoring dismissed notifications back to active state.
+- Active tabs (All, Warnings, Info, Success) show only non-dismissed notifications.
+
 **Implementation Details**:
 - `notifications.py` contains `NotificationManager` class with all notification fetching methods.
-- `get_all_notifications()` aggregates notifications from all 8 sources.
-- `get_notifications_by_severity()` groups notifications into 'warning', 'info', 'success' categories.
-- Sidebar badge shows warning count calculated from the same notification system.
+- `_generate_notification_id()` creates unique, consistent IDs for each notification.
+- `get_all_notifications()` aggregates notifications from all 8 sources, filtering out dismissed.
+- `get_notifications_by_severity()` groups active notifications into 'warning', 'info', 'success' categories.
+- `get_dismissed_notifications()` retrieves dismissed notifications for the Dismissed tab.
+- `dismiss_notification()` and `restore_notification()` manage dismissal state.
+- `DismissedNotification` model in db_manager.py persists dismissed state.
+- Sidebar badge shows warning count calculated from active (non-dismissed) notifications.
 
 ## External Dependencies
 

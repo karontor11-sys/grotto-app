@@ -253,6 +253,20 @@ class ISSSessionLog(Base):
     completed_by = Column(String, nullable=True)  # Who completed the session
     created_at = Column(DateTime, default=datetime.now)
 
+class DismissedNotification(Base):
+    """Track dismissed notifications to filter them from the active list."""
+    __tablename__ = 'dismissed_notifications'
+    
+    id = Column(String, primary_key=True)  # UUID
+    notification_id = Column(String, nullable=False, unique=True, index=True)  # Unique notification identifier (type:record_id:date)
+    notification_type = Column(String, nullable=False)  # e.g., 'placement_created', 'placement_no_show'
+    notification_title = Column(String, nullable=True)  # Original title for display in dismissed list
+    notification_message = Column(Text, nullable=True)  # Original message for display
+    notification_severity = Column(String, nullable=True)  # warning, info, success
+    original_timestamp = Column(DateTime, nullable=True)  # When the original notification was generated
+    dismissed_at = Column(DateTime, default=datetime.now, nullable=False)  # When user dismissed it
+    dismissed_by = Column(String, nullable=True)  # Who dismissed (optional for future use)
+
 class DatabaseManager:
     def __init__(self):
         """Initialize the database manager."""
@@ -5477,5 +5491,127 @@ class DatabaseManager:
                         })
             
             return results
+        finally:
+            session.close()
+    
+    def dismiss_notification(self, notification_id: str, notification_data: Dict[str, Any], dismissed_by: str = None) -> bool:
+        """Dismiss a notification by storing its dismissed state.
+        
+        Args:
+            notification_id: Unique identifier for the notification (type:record_id:date format)
+            notification_data: Dictionary containing notification details for historical display
+            dismissed_by: Optional - who dismissed the notification
+            
+        Returns:
+            True if successfully dismissed, False otherwise
+        """
+        session = self.get_session()
+        try:
+            # Check if already dismissed
+            existing = session.query(DismissedNotification).filter(
+                DismissedNotification.notification_id == notification_id
+            ).first()
+            
+            if existing:
+                return True  # Already dismissed
+            
+            dismissed = DismissedNotification(
+                id=str(uuid.uuid4()),
+                notification_id=notification_id,
+                notification_type=notification_data.get('type', ''),
+                notification_title=notification_data.get('title', ''),
+                notification_message=notification_data.get('message', ''),
+                notification_severity=notification_data.get('severity', 'info'),
+                original_timestamp=notification_data.get('timestamp'),
+                dismissed_at=datetime.now(),
+                dismissed_by=dismissed_by
+            )
+            
+            session.add(dismissed)
+            session.commit()
+            return True
+        except Exception as e:
+            session.rollback()
+            print(f"Error dismissing notification: {e}")
+            return False
+        finally:
+            session.close()
+    
+    def is_notification_dismissed(self, notification_id: str) -> bool:
+        """Check if a notification has been dismissed.
+        
+        Args:
+            notification_id: Unique identifier for the notification
+            
+        Returns:
+            True if dismissed, False otherwise
+        """
+        session = self.get_session()
+        try:
+            exists = session.query(DismissedNotification).filter(
+                DismissedNotification.notification_id == notification_id
+            ).first() is not None
+            return exists
+        finally:
+            session.close()
+    
+    def get_dismissed_notification_ids(self) -> set:
+        """Get all dismissed notification IDs as a set for efficient lookup.
+        
+        Returns:
+            Set of dismissed notification IDs
+        """
+        session = self.get_session()
+        try:
+            dismissed = session.query(DismissedNotification.notification_id).all()
+            return {d[0] for d in dismissed}
+        finally:
+            session.close()
+    
+    def get_dismissed_notifications(self) -> List[Dict[str, Any]]:
+        """Get all dismissed notifications for display in the Dismissed tab.
+        
+        Returns:
+            List of dismissed notification dictionaries sorted by dismissed_at (most recent first)
+        """
+        session = self.get_session()
+        try:
+            dismissed_list = session.query(DismissedNotification).order_by(
+                DismissedNotification.dismissed_at.desc()
+            ).all()
+            
+            return [{
+                'notification_id': d.notification_id,
+                'type': d.notification_type,
+                'title': d.notification_title,
+                'message': d.notification_message,
+                'severity': d.notification_severity,
+                'timestamp': d.original_timestamp,
+                'dismissed_at': d.dismissed_at,
+                'dismissed_by': d.dismissed_by
+            } for d in dismissed_list]
+        finally:
+            session.close()
+    
+    def restore_notification(self, notification_id: str) -> bool:
+        """Restore a dismissed notification back to active state.
+        
+        Args:
+            notification_id: Unique identifier for the notification
+            
+        Returns:
+            True if successfully restored, False otherwise
+        """
+        session = self.get_session()
+        try:
+            deleted = session.query(DismissedNotification).filter(
+                DismissedNotification.notification_id == notification_id
+            ).delete()
+            session.commit()
+            return deleted > 0
+        except Exception as e:
+            session.rollback()
+            print(f"Error restoring notification: {e}")
+            return False
         finally:
             session.close()

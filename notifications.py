@@ -1,11 +1,28 @@
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any
+import hashlib
 
 class NotificationManager:
     """Manager for generating and displaying notifications."""
     
     def __init__(self, db_manager):
         self.db = db_manager
+    
+    def _generate_notification_id(self, notification_type: str, record_id: str, date_str: str = None) -> str:
+        """Generate a unique, consistent notification ID.
+        
+        Args:
+            notification_type: The type of notification (e.g., 'placement_created')
+            record_id: The primary record ID (e.g., placement_id, student_id)
+            date_str: Optional date string for date-specific notifications
+            
+        Returns:
+            A unique notification ID string
+        """
+        components = [notification_type, str(record_id)]
+        if date_str:
+            components.append(date_str)
+        return ":".join(components)
     
     def get_recent_placement_notifications(self, days: int = 7) -> List[Dict[str, Any]]:
         """Get notifications for recently created placements."""
@@ -23,7 +40,9 @@ class NotificationManager:
             for placement in placements:
                 student = session.query(Student).filter(Student.id == placement.student_id).first()
                 if student:
+                    notif_id = self._generate_notification_id('placement_created', placement.id)
                     notifications.append({
+                        'notification_id': notif_id,
                         'type': 'placement_created',
                         'severity': 'info',
                         'timestamp': placement.created_at,
@@ -58,10 +77,10 @@ class NotificationManager:
             for placement in placements:
                 student = session.query(Student).filter(Student.id == placement.student_id).first()
                 if student:
-                    # Get cumulative total
                     cumulative = self.db.get_cumulative_total(placement.id)
-                    
+                    notif_id = self._generate_notification_id('placement_completed', placement.id)
                     notifications.append({
+                        'notification_id': notif_id,
                         'type': 'placement_completed',
                         'severity': 'success',
                         'timestamp': placement.created_at,
@@ -100,7 +119,9 @@ class NotificationManager:
                 if placement:
                     student = session.query(Student).filter(Student.id == placement.student_id).first()
                     if student:
+                        notif_id = self._generate_notification_id('daily_log_finalized', log.id, log.date.isoformat() if log.date else None)
                         notifications.append({
+                            'notification_id': notif_id,
                             'type': 'daily_log_finalized',
                             'severity': 'info',
                             'timestamp': log.finalized_at,
@@ -140,7 +161,9 @@ class NotificationManager:
                 if placement:
                     student = session.query(Student).filter(Student.id == placement.student_id).first()
                     if student:
+                        notif_id = self._generate_notification_id('daily_log_pending', log.id, yesterday.isoformat())
                         notifications.append({
+                            'notification_id': notif_id,
                             'type': 'daily_log_pending',
                             'severity': 'warning',
                             'timestamp': datetime.now(),
@@ -176,7 +199,9 @@ class NotificationManager:
                 student = session.query(Student).filter(Student.id == assignment.student_id).first()
                 if student:
                     days_overdue = (today - assignment.due_date).days
+                    notif_id = self._generate_notification_id('assignment_overdue', assignment.id)
                     notifications.append({
+                        'notification_id': notif_id,
                         'type': 'assignment_overdue',
                         'severity': 'warning',
                         'timestamp': datetime.now(),
@@ -210,7 +235,9 @@ class NotificationManager:
                 days_remaining = (end_date - today).days
                 
                 if 0 <= days_remaining <= days_threshold:
+                    notif_id = self._generate_notification_id('placement_ending_soon', placement['_id'])
                     notifications.append({
+                        'notification_id': notif_id,
                         'type': 'placement_ending_soon',
                         'severity': 'info',
                         'timestamp': datetime.now(),
@@ -245,8 +272,9 @@ class NotificationManager:
             
             if incomplete_records:
                 student_names = [rec['student_name'] for rec in incomplete_records]
-                
+                notif_id = self._generate_notification_id('end_of_day_incomplete', 'eod', check_date.isoformat())
                 notifications.append({
+                    'notification_id': notif_id,
                     'type': 'end_of_day_incomplete',
                     'severity': 'warning',
                     'timestamp': datetime.combine(check_date, datetime.min.time()),
@@ -340,8 +368,9 @@ class NotificationManager:
                 student_name = f"{student.first_name} {student.last_name}"
                 placement_type = get_placement_type_display(placement)
                 date_str = log.date.strftime('%m/%d/%Y')
-                
+                notif_id = self._generate_notification_id('placement_no_show', placement.id, log.date.isoformat())
                 notifications.append({
+                    'notification_id': notif_id,
                     'type': 'placement_no_show',
                     'severity': 'warning',
                     'timestamp': datetime.combine(log.date, datetime.min.time()),
@@ -383,8 +412,9 @@ class NotificationManager:
                 student_name = f"{student.first_name} {student.last_name}"
                 placement_type = get_placement_type_display(placement)
                 date_str = sess.date.strftime('%m/%d/%Y')
-                
+                notif_id = self._generate_notification_id('placement_no_show', placement.id, sess.date.isoformat())
                 notifications.append({
+                    'notification_id': notif_id,
                     'type': 'placement_no_show',
                     'severity': 'warning',
                     'timestamp': sess.alert_timestamp or datetime.combine(sess.date, datetime.min.time()),
@@ -446,8 +476,9 @@ class NotificationManager:
                     notified_keys.add(key)
                     
                     display_date = check_date.strftime('%m/%d/%Y')
-                    
+                    notif_id = self._generate_notification_id('placement_no_show', placement.id, date_str)
                     notifications.append({
+                        'notification_id': notif_id,
                         'type': 'placement_no_show',
                         'severity': 'warning',
                         'timestamp': datetime.combine(check_date, datetime.min.time()),
@@ -498,8 +529,9 @@ class NotificationManager:
                     notified_keys.add(key)
                     
                     display_date = check_date.strftime('%m/%d/%Y')
-                    
+                    notif_id = self._generate_notification_id('placement_no_show', placement.id, date_str)
                     notifications.append({
+                        'notification_id': notif_id,
                         'type': 'placement_no_show',
                         'severity': 'warning',
                         'timestamp': datetime.combine(check_date, datetime.min.time()),
@@ -519,8 +551,8 @@ class NotificationManager:
         finally:
             session.close()
     
-    def get_all_notifications(self) -> List[Dict[str, Any]]:
-        """Get all notifications sorted by timestamp."""
+    def _get_all_raw_notifications(self) -> List[Dict[str, Any]]:
+        """Get all notifications without filtering dismissed ones."""
         all_notifications = []
         
         all_notifications.extend(self.get_recent_placement_notifications(days=7))
@@ -537,9 +569,27 @@ class NotificationManager:
         
         return all_notifications
     
+    def get_all_notifications(self, include_dismissed: bool = False) -> List[Dict[str, Any]]:
+        """Get all active notifications sorted by timestamp (excludes dismissed by default).
+        
+        Args:
+            include_dismissed: If True, returns all notifications including dismissed ones
+            
+        Returns:
+            List of active notification dictionaries
+        """
+        all_notifications = self._get_all_raw_notifications()
+        
+        if include_dismissed:
+            return all_notifications
+        
+        # Filter out dismissed notifications
+        dismissed_ids = self.db.get_dismissed_notification_ids()
+        return [n for n in all_notifications if n.get('notification_id') not in dismissed_ids]
+    
     def get_notifications_by_severity(self, severity: str = None) -> Dict[str, List[Dict[str, Any]]]:
-        """Get notifications grouped by severity."""
-        all_notifications = self.get_all_notifications()
+        """Get active notifications grouped by severity (excludes dismissed)."""
+        all_notifications = self.get_all_notifications(include_dismissed=False)
         
         if severity:
             return [n for n in all_notifications if n.get('severity') == severity]
@@ -556,3 +606,34 @@ class NotificationManager:
                 grouped[sev].append(notification)
         
         return grouped
+    
+    def get_dismissed_notifications(self) -> List[Dict[str, Any]]:
+        """Get all dismissed notifications from the database.
+        
+        Returns:
+            List of dismissed notification dictionaries with dismissed_at timestamps
+        """
+        return self.db.get_dismissed_notifications()
+    
+    def dismiss_notification(self, notification_id: str, notification_data: Dict[str, Any]) -> bool:
+        """Dismiss a notification.
+        
+        Args:
+            notification_id: The unique notification identifier
+            notification_data: The notification data to store for historical display
+            
+        Returns:
+            True if successfully dismissed, False otherwise
+        """
+        return self.db.dismiss_notification(notification_id, notification_data)
+    
+    def restore_notification(self, notification_id: str) -> bool:
+        """Restore a dismissed notification back to active state.
+        
+        Args:
+            notification_id: The unique notification identifier
+            
+        Returns:
+            True if successfully restored, False otherwise
+        """
+        return self.db.restore_notification(notification_id)

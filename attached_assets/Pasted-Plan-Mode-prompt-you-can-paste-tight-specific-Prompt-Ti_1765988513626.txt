@@ -1,0 +1,59 @@
+Plan Mode prompt you can paste (tight + specific)
+
+Prompt Title: Fix ghost +1 during partial-day completion (6 periods / 6 points)
+
+Context / Bug:
+When completing a partial-day ISS record (example: 6 periods served, 6 points earned), clicking Complete Day still adds +1 point to the daily total. The earlier suppression-flag fix prevented ghost points when completing at 10 points, but it does not fully cover partial-day completion flows.
+
+Steps to Reproduce:
+
+Create a placement scheduled for a partial day = 6 periods.
+
+Check student in.
+
+Award 6 points (one per period or equivalent).
+
+Click Complete Day.
+
+Observe: daily points increases to 7 (ghost +1) instead of staying at 6.
+
+Expected Behavior:
+
+Clicking Complete Day should not create any new point events.
+
+It should only:
+
+calculate periods served for that date (partial vs full)
+
+mark that day inactive/served
+
+advance multi-day session logic as needed
+
+trigger finalization questions only when appropriate
+
+Daily points and point event count must remain unchanged after completion.
+
+Root Cause Hypothesis:
+A point-write path other than the behavior dropdown section is still executing on rerun (or completion logic itself writes a point event). The suppression flag is currently applied too narrowly.
+
+Required Fix:
+
+Identify all code paths that create point events / mutate daily points, including any helper like add_point_event, create_point_event, process_behavior_points, “period served” routines, or “completion bonus” logic.
+
+Centralize the guard: add a suppression check at the lowest-level point-write function (DB insert) so that any rerun triggered by completing a day cannot accidentally write points.
+
+Ensure the suppression check covers both positive and negative point events and any “auto-award” point logic.
+
+Add debug logging printing the call site / reason whenever a point event is skipped due to suppression.
+
+Add an automated sanity test or debug assertion: after Complete Day, assert that daily_points_after == daily_points_before and point_events_count_after == point_events_count_before.
+
+Acceptance Criteria:
+
+✅ Partial day completion at 6 points remains exactly 6 after clicking Complete Day
+
+✅ Full day completion at 10 points remains exactly 10 (no regression)
+
+✅ Override completion also produces zero point mutations
+
+✅ Completion state updates correctly (served/inactive) and multi-day rollover logic remains correct

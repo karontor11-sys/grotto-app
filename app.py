@@ -3667,62 +3667,8 @@ elif page == "ISS Detail":
             st.caption(f"Periods covered: {', '.join([str(p) for p in existing_periods])}")
     else:
         st.subheader("5. Complete Day")
-        
-        col_complete, col_override = st.columns(2)
-        
-        with col_complete:
-            # Validation
-            can_complete = True
-            reasons = []
-            
-            if selected_day_type == "partial" and not periods_covered:
-                can_complete = False
-                reasons.append("Select at least one period")
-            
-            if selected_day_type == "full" and total_points < 10:
-                can_complete = False
-                reasons.append(f"Need {10 - total_points} more points")
-            
-            if st.button("✓ Complete Day", type="primary", disabled=not can_complete, use_container_width=True):
-                # Save notes first if any
-                if notes and notes != existing_notes:
-                    dm.update_daily_log_notes(placement_id, date_str, notes)
-                
-                # Update ISS daily log
-                if dm.update_iss_daily_log(placement_id, date_str, selected_day_type, periods_covered, "Admin"):
-                    st.success(f"✅ Day completed as '{selected_day_type.title()}' day!")
-                    if selected_day_type in ['full', 'partial']:
-                        new_remaining = iss_remaining_days - 1
-                        st.info(f"ISS remaining days updated: {iss_remaining_days} → {new_remaining}")
-                    st.rerun()
-                else:
-                    st.error("Failed to complete day. Please try again.")
-            
-            if not can_complete:
-                for reason in reasons:
-                    st.caption(f"⚠️ {reason}")
-        
-        with col_override:
-            with st.expander("🚨 Call It Good (Override)"):
-                st.warning("This will close the ISS placement immediately, regardless of remaining days.")
-                st.caption("Use this for early releases approved by administration.")
-                
-                override_comment = st.text_area(
-                    "Required: Explain why this placement is being closed early",
-                    key="override_comment",
-                    height=80
-                )
-                
-                if st.button("🚨 Close Placement Now", type="secondary", use_container_width=True):
-                    if not override_comment or len(override_comment.strip()) < 10:
-                        st.error("Please provide a detailed comment (at least 10 characters)")
-                    else:
-                        if dm.apply_iss_override(placement_id, override_comment, "Admin"):
-                            st.success("✅ Placement closed with override!")
-                            st.balloons()
-                            st.rerun()
-                        else:
-                            st.error("Failed to apply override. Please try again.")
+        st.info("To complete this ISS day, please use the **Dashboard**. Navigate to Dashboard and expand the student's card to access the Complete Day button.")
+        st.caption("This ensures accurate point tracking during completion.")
 
 # Assignments Page (Placeholder - to be built in the future)
 elif page == "Assignments":

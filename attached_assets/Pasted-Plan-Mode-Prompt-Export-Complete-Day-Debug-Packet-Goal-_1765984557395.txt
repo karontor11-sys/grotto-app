@@ -1,0 +1,154 @@
+Plan Mode Prompt: “Export Complete Day Debug Packet”
+Goal: Create a developer-facing “Complete Day Debug Packet” that captures the exact code path and data involved when a user clicks Complete Day on the Dashboard, so we can debug why it adds points instead of locking/finalizing the day.
+Requirements
+Add a new file at the project root (or in a /debug/ folder):
+
+
+complete_day_debug_packet.txt
+
+
+In that file, write a structured report with these sections (include code snippets verbatim):
+
+
+Section A — UI Entry Point(s)
+Identify and paste the exact Streamlit code blocks where the Complete Day button is rendered and handled.
+
+
+Include the surrounding context needed to see:
+
+
+button key
+
+
+conditional logic determining when the button shows
+
+
+what function(s) get called when it is clicked
+
+
+any session_state changes
+
+
+Section B — Function Call Chain
+Trace the call chain starting from the button click.
+
+
+For each function in the chain:
+
+
+paste the entire function definition
+
+
+indicate the file name and line numbers (if possible)
+
+
+list inputs and outputs at a high level (briefly)
+
+
+Section C — DB Read/Write Operations
+Include the exact functions/queries used to:
+
+
+read the active daily log / placement for the selected date
+
+
+update points totals
+
+
+mark a day completed / set status
+
+
+roll forward to the next day or finalize
+
+
+Paste the relevant code and note which tables/collections are affected.
+
+
+Section D — Data Shapes
+Include the schema/fields used for:
+Placement record (all relevant columns/keys)
+
+
+Daily log record (points fields, served periods fields, completion fields, status fields)
+
+
+Any “completed” archive record if separate
+
+
+This can be either:
+ORM/model definitions, OR
+
+
+SQL schema snippets, OR
+
+
+Dict keys used consistently, OR
+
+
+A printed “example record” shape
+
+
+Section E — Runtime Debug Snapshot (VERY IMPORTANT)
+Add temporary instrumentation so that when Complete Day is clicked, the app writes a JSON snapshot to:
+complete_day_runtime_snapshot_before.json
+
+
+complete_day_runtime_snapshot_after.json
+
+
+Each snapshot must include:
+placement record (as loaded from DB)
+
+
+daily log record (as loaded from DB)
+
+
+selected date on dashboard
+
+
+day type (partial/full)
+
+
+periods scheduled today
+
+
+points before/after
+
+
+any status flags before/after (completed, locked, etc.)
+
+
+a timestamp
+
+
+Also write a short “diff summary” into the text packet:
+points_before → points_after
+
+
+status_before → status_after
+
+
+served_periods_before → served_periods_after
+
+
+Section F — Safety / Cleanup
+Guard the instrumentation behind a boolean flag like:
+
+
+DEBUG_COMPLETE_DAY_EXPORT = True
+
+
+Add a note at the top of the debug packet reminding to turn it off after debugging.
+
+
+After generating these files, add a small UI link or info message (only when debug flag is on) telling the developer where to find the files.
+
+
+Acceptance Criteria
+The debug packet file exists and contains the Complete Day button handler and the full call chain.
+
+
+The runtime snapshot JSON files are created/updated each time Complete Day is clicked.
+
+
+The output clearly shows whether points are being added during completion, and where.

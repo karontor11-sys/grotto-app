@@ -1957,6 +1957,12 @@ if page == "Dashboard":
             if is_checked_in and not is_completed:
                 points_col, behaviors_col = st.columns([1, 1])
                 
+                # Check and clear suppression flag ONCE at the start of behavior processing
+                # This ensures the flag is always cleared regardless of which code paths run
+                suppress_pending_points = st.session_state.pop("suppress_pending_points_once", False)
+                if suppress_pending_points:
+                    print(f"[DEBUG SUPPRESS] Suppression flag detected and cleared - skipping all pending behavior processing this rerun")
+                
                 with behaviors_col:
                     st.markdown("**Add Behaviors**")
                     pos_col, neg_col = st.columns(2)
@@ -1968,7 +1974,10 @@ if page == "Dashboard":
                         pending_pos_key = f"pending_pos_{session_id}"
                         
                         # Check if we need to process a pending selection (from previous render)
-                        if pending_pos_key in st.session_state:
+                        # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
+                        if suppress_pending_points:
+                            pass  # Skip processing - already logged above
+                        elif pending_pos_key in st.session_state:
                             pending_label = st.session_state[pending_pos_key]
                             del st.session_state[pending_pos_key]
                             item = next((i for i in positive_menu if i['label'] == pending_label), None)
@@ -2014,7 +2023,10 @@ if page == "Dashboard":
                         pending_neg_key = f"pending_neg_{session_id}"
                         
                         # Check if we need to process a pending selection (from previous render)
-                        if pending_neg_key in st.session_state:
+                        # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
+                        if suppress_pending_points:
+                            pass  # Skip processing - already logged above
+                        elif pending_neg_key in st.session_state:
                             pending_label = st.session_state[pending_neg_key]
                             del st.session_state[pending_neg_key]
                             item = next((i for i in negative_menu if i['label'] == pending_label), None)
@@ -2113,6 +2125,10 @@ if page == "Dashboard":
                     complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
                     if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary", 
                                  use_container_width=True, disabled=not can_complete, help=complete_help):
+                        # SET SUPPRESSION FLAG FIRST - prevents any pending behavior point processing during this rerun
+                        st.session_state["suppress_pending_points_once"] = True
+                        print(f"[DEBUG COMPLETE_DAY] Suppression flag SET for session_id={session_id}")
+                        
                         # IMPORTANT: Clear any pending behavior keys to prevent ghost point additions
                         # This fixes the bug where Complete button would add an extra point
                         pending_pos_key = f"pending_pos_{session_id}"
@@ -2174,6 +2190,10 @@ if page == "Dashboard":
                     override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
                     if st.button(override_label, key=f"iss_override_btn_{session_id}", 
                                  use_container_width=True, type="secondary"):
+                        # SET SUPPRESSION FLAG FIRST - prevents any pending behavior point processing during this rerun
+                        st.session_state["suppress_pending_points_once"] = True
+                        print(f"[DEBUG OVERRIDE] Suppression flag SET for session_id={session_id}")
+                        
                         # IMPORTANT: Clear any pending behavior keys to prevent ghost point additions
                         pending_pos_key = f"pending_pos_{session_id}"
                         pending_neg_key = f"pending_neg_{session_id}"

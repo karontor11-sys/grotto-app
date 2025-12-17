@@ -341,6 +341,75 @@ if warning_count > 0:
 
 # Dashboard Page
 if page == "Dashboard":
+    # ===== GLOBAL TWO-PHASE COMPLETION HANDLER =====
+    # Process ALL deferred completions/overrides FIRST, before any cards render
+    # This ensures Phase 2 runs even if expanders are collapsed after rerun
+    deferred_keys_to_process = [k for k in st.session_state.keys() 
+                                 if k.startswith('deferred_complete_') or k.startswith('deferred_override_')]
+    
+    for deferred_key in deferred_keys_to_process:
+        deferred_data = st.session_state.pop(deferred_key)
+        is_override = 'override_note' in deferred_data
+        
+        print(f"[DEBUG GLOBAL PHASE 2] Processing deferred {'override' if is_override else 'completion'}: {deferred_key}")
+        
+        if is_override:
+            # Execute override
+            result = dm.complete_iss_day(
+                placement_id=deferred_data['placement_id'],
+                log_date=deferred_data['log_date'],
+                completed_by=deferred_data['completed_by'],
+                day_type="Full Day",
+                start_period=1,
+                end_period=10,
+                points_earned=deferred_data['points_earned'],
+                is_override=True,
+                override_note=deferred_data['override_note']
+            )
+            if result.get('success'):
+                dm.mark_session_completed(deferred_data['session_id'], "Admin", is_override=True, 
+                                         override_comment=deferred_data['override_note'])
+                if not deferred_data.get('is_present', False):
+                    dm.update_iss_attendance(deferred_data['placement_id'], deferred_data['log_date'], True)
+                st.success("Override applied! ISS Session complete." if result.get('isCompleted') else "Override applied!")
+            else:
+                st.error(result.get('message', 'Failed to apply override'))
+        else:
+            # Execute regular completion
+            result = dm.complete_iss_day(
+                placement_id=deferred_data['placement_id'],
+                log_date=deferred_data['log_date'],
+                completed_by=deferred_data['completed_by'],
+                day_type=deferred_data['day_type'],
+                start_period=deferred_data['start_period'],
+                end_period=deferred_data['end_period'],
+                points_earned=deferred_data['points_earned']
+            )
+            if result.get('success'):
+                dm.mark_session_completed(deferred_data['session_id'], "Admin")
+                if not deferred_data.get('is_present', False):
+                    dm.update_iss_attendance(deferred_data['placement_id'], deferred_data['log_date'], True)
+                if result.get('isCompleted'):
+                    st.success("ISS Session complete! All required periods served.")
+                else:
+                    makeup_check = dm.check_iss_session_needs_makeup(deferred_data['placement_id'])
+                    if makeup_check.get('needsMakeup', False):
+                        st.session_state[f"show_makeup_prompt_{deferred_data['placement_id']}"] = True
+                        st.session_state[f"makeup_info_{deferred_data['placement_id']}"] = makeup_check
+                    st.success("ISS day completed successfully!")
+            else:
+                st.error(result.get('message', 'Failed to complete ISS day'))
+        
+        # Clear caches after processing each completion
+        if hasattr(st, 'cache_data'):
+            st.cache_data.clear()
+    
+    # If we processed any deferred completions, rerun to show updated state
+    if deferred_keys_to_process:
+        print(f"[DEBUG GLOBAL PHASE 2] Processed {len(deferred_keys_to_process)} deferred operations, rerunning")
+        st.rerun()
+    # ===== END GLOBAL TWO-PHASE COMPLETION HANDLER =====
+    
     # Navigation buttons - Create New Placement and Completed Placements
     btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
     with btn_col1:
@@ -1954,86 +2023,8 @@ if page == "Dashboard":
                 
                 st.divider()
             
-            # ===== TWO-PHASE COMPLETION HANDLER =====
-            # Check for deferred completion BEFORE behavior processing to avoid ghost points
-            # This ensures pending behavior points are skipped when Complete Day was clicked
-            deferred_complete_key = f"deferred_complete_{session_id}"
-            deferred_override_key = f"deferred_override_{session_id}"
-            
-            if deferred_complete_key in st.session_state:
-                # Phase 2: Execute the deferred completion
-                deferred_data = st.session_state.pop(deferred_complete_key)
-                print(f"[DEBUG COMPLETE_DAY] Phase 2: Executing deferred completion for session_id={session_id}")
-                
-                # Execute completion
-                result = dm.complete_iss_day(
-                    placement_id=placement_id,
-                    log_date=deferred_data['log_date'],
-                    completed_by=deferred_data['completed_by'],
-                    day_type=deferred_data['day_type'],
-                    start_period=deferred_data['start_period'],
-                    end_period=deferred_data['end_period'],
-                    points_earned=deferred_data['points_earned']
-                )
-                
-                if result.get('success'):
-                    dm.mark_session_completed(session_id, "Admin")
-                    if not is_present:
-                        dm.update_iss_attendance(placement_id, date_str, True)
-                    
-                    if result.get('isCompleted'):
-                        st.success("ISS Session complete! All required periods served.")
-                    else:
-                        makeup_check = dm.check_iss_session_needs_makeup(placement_id)
-                        if makeup_check.get('needsMakeup', False):
-                            st.session_state[f"show_makeup_prompt_{placement_id}"] = True
-                            st.session_state[f"makeup_info_{placement_id}"] = makeup_check
-                        st.success("ISS day completed successfully!")
-                    
-                    if hasattr(st, 'cache_data'):
-                        st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error(result.get('message', 'Failed to complete ISS day'))
-            
-            if deferred_override_key in st.session_state:
-                # Phase 2: Execute the deferred override
-                deferred_data = st.session_state.pop(deferred_override_key)
-                print(f"[DEBUG OVERRIDE] Phase 2: Executing deferred override for session_id={session_id}")
-                
-                result = dm.complete_iss_day(
-                    placement_id=placement_id,
-                    log_date=deferred_data['log_date'],
-                    completed_by=deferred_data['completed_by'],
-                    day_type="Full Day",
-                    start_period=1,
-                    end_period=10,
-                    points_earned=deferred_data['points_earned'],
-                    is_override=True,
-                    override_note=deferred_data['override_note']
-                )
-                
-                if result.get('success'):
-                    dm.mark_session_completed(session_id, "Admin", is_override=True, 
-                                            override_comment=deferred_data['override_note'])
-                    if not is_present:
-                        dm.update_iss_attendance(placement_id, date_str, True)
-                    
-                    if result.get('isCompleted'):
-                        st.success("Override applied! ISS Session complete.")
-                    else:
-                        makeup_check = dm.check_iss_session_needs_makeup(placement_id)
-                        if makeup_check.get('needsMakeup', False):
-                            st.session_state[f"show_makeup_prompt_{placement_id}"] = True
-                            st.session_state[f"makeup_info_{placement_id}"] = makeup_check
-                        st.success("Override applied!")
-                    
-                    if hasattr(st, 'cache_data'):
-                        st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error(result.get('message', 'Failed to apply override'))
-            # ===== END TWO-PHASE COMPLETION HANDLER =====
+            # NOTE: Two-phase completion is now handled by the GLOBAL handler at the top
+            # of the Dashboard page. This ensures Phase 2 runs even when expanders are collapsed.
             
             if is_checked_in and not is_completed:
                 points_col, behaviors_col = st.columns([1, 1])
@@ -2220,14 +2211,17 @@ if page == "Dashboard":
                             selected_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
                             selected_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
                         
-                        # Store deferred completion data
+                        # Store deferred completion data (including all fields needed by global handler)
                         st.session_state[f"deferred_complete_{session_id}"] = {
+                            'placement_id': placement_id,
+                            'session_id': session_id,
                             'log_date': date_str,
                             'completed_by': "Admin",
                             'day_type': selected_day_type,
                             'start_period': selected_start,
                             'end_period': selected_end,
-                            'points_earned': total_points
+                            'points_earned': total_points,
+                            'is_present': is_present
                         }
                         
                         # Also clear any pending behavior keys for safety
@@ -2250,12 +2244,15 @@ if page == "Dashboard":
                         
                         override_note = "Retroactive override: session marked complete after the fact." if is_past_session else "Supervisor override: student released early due to positive behavior; remaining periods waived."
                         
-                        # Store deferred override data
+                        # Store deferred override data (including all fields needed by global handler)
                         st.session_state[f"deferred_override_{session_id}"] = {
+                            'placement_id': placement_id,
+                            'session_id': session_id,
                             'log_date': date_str,
                             'completed_by': "Admin",
                             'points_earned': total_points,
-                            'override_note': override_note
+                            'override_note': override_note,
+                            'is_present': is_present
                         }
                         
                         # Also clear any pending behavior keys for safety

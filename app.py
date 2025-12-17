@@ -622,6 +622,8 @@ if page == "Dashboard":
                                     'value': item['value'],
                                     'date': date_str
                                 })
+                                # Reset dropdown to prevent ghost point on rerun
+                                st.session_state[f"pos_{placement_id}_{date_str}"] = "-- Add Positive --"
                                 st.rerun()
                         
                         # Negative behaviors dropdown
@@ -645,6 +647,8 @@ if page == "Dashboard":
                                     'value': item['value'],
                                     'date': date_str
                                 })
+                                # Reset dropdown to prevent ghost point on rerun
+                                st.session_state[f"neg_{placement_id}_{date_str}"] = "-- Add Negative --"
                                 st.rerun()
                     
                     with col_right:
@@ -837,6 +841,8 @@ if page == "Dashboard":
                                     'value': item['value'],
                                     'date': date_str
                                 })
+                                # Reset dropdown to prevent ghost point on rerun
+                                st.session_state[f"pos_partial_{placement_id}_{date_str}"] = "-- Add Positive --"
                                 st.rerun()
                         
                         # Negative behaviors dropdown
@@ -860,6 +866,8 @@ if page == "Dashboard":
                                     'value': item['value'],
                                     'date': date_str
                                 })
+                                # Reset dropdown to prevent ghost point on rerun
+                                st.session_state[f"neg_partial_{placement_id}_{date_str}"] = "-- Add Negative --"
                                 st.rerun()
                     
                     with col_right:
@@ -3592,6 +3600,8 @@ elif page == "ISS Detail":
                             'value': item['value'],
                             'date': date_str
                         })
+                        # Reset dropdown to prevent ghost point on rerun
+                        st.session_state[f"add_positive_{placement_id}_{date_str}"] = "-- Add Positive Behavior --"
                         st.rerun()
                 
                 # Negative behaviors dropdown
@@ -3614,6 +3624,8 @@ elif page == "ISS Detail":
                             'value': item['value'],
                             'date': date_str
                         })
+                        # Reset dropdown to prevent ghost point on rerun
+                        st.session_state[f"add_negative_{placement_id}_{date_str}"] = "-- Add Negative Behavior --"
                         st.rerun()
             
             # Display current behaviors

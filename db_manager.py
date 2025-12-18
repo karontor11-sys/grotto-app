@@ -1609,6 +1609,17 @@ class DatabaseManager:
             result = []
             for placement in placements:
                 placement_dict = self._placement_to_dict(placement)
+
+                # NEW: For ISS placements, compute an "archiveDate" = earliest DailyLog date
+                # so Completed Placements can group by first check-in day (not completion day).
+                if placement.placement_type == PlacementCategory.ISS:
+                    from sqlalchemy import func
+                    first_log_date = session.query(func.min(DailyLog.date)).filter(
+                        DailyLog.placement_id == placement.id
+                    ).scalar()
+                    if first_log_date:
+                        placement_dict['archiveDate'] = first_log_date.isoformat()
+
                 student = students_by_id.get(placement.student_id)
                 if student:
                     placement_dict['student'] = student

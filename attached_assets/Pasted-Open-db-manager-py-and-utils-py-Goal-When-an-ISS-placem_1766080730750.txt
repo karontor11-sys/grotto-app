@@ -1,0 +1,64 @@
+Open db_manager.py and utils.py.
+
+Goal: When an ISS placement is completed, it should appear in Completed Placements grouped under the first check-in day (earliest DailyLog date), not the completion day (endDate). We will do this without schema changes by:
+
+Adding a new dictionary field archiveDate for completed ISS placements inside get_completed_placements_with_students(), computed as the earliest DailyLog.date for that placement.
+
+Updating group_placements_by_school_year_month_day() in utils.py to prefer archiveDate over endDate when grouping.
+
+Do not refactor. Do not rename functions. Make only the changes described.
+
+1) db_manager.py change
+Find this function:
+def get_completed_placements_with_students(self) -> List[Dict[str, Any]]:
+
+
+Inside it, find this existing block (it already exists in your file):
+
+placement_dict = self._placement_to_dict(placement)
+student = students_by_id.get(placement.student_id)
+if student:
+    placement_dict['student'] = student
+    placement_dict['totalPoints'] = self.get_cumulative_total(placement.id)
+    result.append(placement_dict)
+
+Replace that entire block with this (exactly):
+placement_dict = self._placement_to_dict(placement)
+
+# NEW: For ISS placements, compute an "archiveDate" = earliest DailyLog date
+# so Completed Placements can group by first check-in day (not completion day).
+if placement.placement_type == PlacementCategory.ISS:
+    from sqlalchemy import func
+    first_log_date = session.query(func.min(DailyLog.date)).filter(
+        DailyLog.placement_id == placement.id
+    ).scalar()
+    if first_log_date:
+        placement_dict['archiveDate'] = first_log_date.isoformat()
+
+student = students_by_id.get(placement.student_id)
+if student:
+    placement_dict['student'] = student
+    placement_dict['totalPoints'] = self.get_cumulative_total(placement.id)
+    result.append(placement_dict)
+
+
+Save db_manager.py.
+
+2) utils.py change
+Find this function:
+def group_placements_by_school_year_month_day(placements: list) -> dict:
+
+
+Inside that function, find this existing line:
+
+placement_date_str = placement.get('endDate') or placement.get('end_date') or \
+                    placement.get('startDate') or placement.get('start_date')
+
+Replace it with this (exactly):
+# Prefer archiveDate (first check-in day) when present; otherwise fall back to endDate/startDate.
+placement_date_str = placement.get('archiveDate') or placement.get('archive_date') or \
+                    placement.get('endDate') or placement.get('end_date') or \
+                    placement.get('startDate') or placement.get('start_date')
+
+
+Save utils.py.

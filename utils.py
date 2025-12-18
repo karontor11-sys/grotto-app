@@ -736,7 +736,9 @@ def group_placements_by_school_year_month_day(placements: list) -> dict:
     grouped = {}
     
     for placement in placements:
-        placement_date_str = placement.get('endDate') or placement.get('end_date') or \
+        # Prefer archiveDate (first check-in day) when present; otherwise fall back to endDate/startDate.
+        placement_date_str = placement.get('archiveDate') or placement.get('archive_date') or \
+                            placement.get('endDate') or placement.get('end_date') or \
                             placement.get('startDate') or placement.get('start_date')
         
         if not placement_date_str:

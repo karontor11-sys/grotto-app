@@ -1,0 +1,131 @@
+Open db_manager.py and app.py.
+
+We are implementing Option B for Lunch Detention:
+
+Clicking Check In should NOT add the date to served_dates.
+
+Instead, Check In should create (or ensure) a DailyLog exists for that placement/date with daily_fulfillment='no' so the student is considered “checked in” for today.
+
+The date should be added to served_dates only when the user clicks ✓ Complete, i.e., inside complete_placement_day() when marking the day complete.
+
+Update the Lunch Detention Dashboard card UI so “checked in” status is based on the existence of the DailyLog, not servedDates.
+
+Do not refactor. Do not rename functions. Do not change any other placement types.
+
+1) db_manager.py — Update update_lunch_detention_attendance() so Check In does NOT append to served_dates
+
+Find this function:
+
+def update_lunch_detention_attendance(self, placement_id: str, attendance_date: str, is_present: bool) -> bool:
+
+
+Inside the if is_present: block, you currently have logic that appends to served_dates. Remove that “served_dates append” behavior and replace the if is_present: block content with the following (keep everything else in the function the same):
+
+            if is_present:
+                # OPTION B: Check In should NOT count as "served".
+                # Instead, ensure a DailyLog exists for this date to represent "checked in / present today".
+                log = session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == date_obj
+                ).first()
+
+                if not log:
+                    log = DailyLog(
+                        id=str(uuid.uuid4()),
+                        placement_id=placement_id,
+                        session_id=None,
+                        date=date_obj,
+                        positive_total=0,
+                        negative_total=0,
+                        daily_total=0,
+                        readiness='continue',
+                        daily_fulfillment='no'
+                    )
+                    session.add(log)
+
+                # Transition from scheduled to active on first check-in
+                if placement.status == PlacementStatus.scheduled:
+                    placement.status = PlacementStatus.active
+
+                # Update progress_status to IN_PROGRESS when checked in
+                if placement.progress_status != PlacementProgressStatus.COMPLETED:
+                    placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+
+
+Important: This uses uuid.uuid4(). If your file already imports uuid (it likely does), leave it.
+If Build Mode complains uuid is not defined, add this near the top of db_manager.py with other imports:
+
+import uuid
+
+
+Save db_manager.py.
+
+2) db_manager.py — Update complete_placement_day() so ✓ Complete DOES append to served_dates for Lunch Detention
+
+Find this function:
+
+def complete_placement_day(self, placement_id: str, log_date: str, completed_by: str, is_override: bool = False) -> bool:
+
+
+Inside it, locate the Lunch Detention auto-complete section (you already have this block):
+
+# Auto-complete Lunch Detention when all days are completed
+if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+    days_assigned = placement.days_assigned or 1
+    if placement.days_completed >= days_assigned:
+        placement.status = PlacementStatus.completed
+        placement.progress_status = PlacementProgressStatus.COMPLETED
+        placement.end_date = date_obj
+    else:
+        ...
+
+
+Immediately after if placement.placement_type == PlacementCategory.LUNCH_DETENTION: insert this block:
+
+                        # OPTION B: Only count a Lunch Detention day as "served" when it is completed.
+                        served_dates = list(placement.served_dates) if placement.served_dates else []
+                        ds = date_obj.isoformat()
+                        if ds not in served_dates:
+                            served_dates.append(ds)
+                            placement.served_dates = served_dates
+
+
+Save db_manager.py.
+
+3) app.py — Update Lunch Detention card so “checked in” is based on DailyLog existence, not servedDates
+
+In app.py, find:
+
+def render_lunch_detention_card(placement: dict, target_date: date):
+
+
+Inside that function find this block:
+
+        # Check attendance
+        served_dates = placement.get('servedDates', [])
+        is_present = date_str in served_dates
+
+
+Replace it with:
+
+        # OPTION B: Check-in status for Lunch Detention is represented by DailyLog existence
+        # (servedDates should only reflect completed days).
+        is_checked_in = daily_log is not None
+        is_present = is_checked_in
+
+
+Then a bit lower in the same function, find:
+
+            # Check In + Absent controls
+            is_checked_in = is_present  # Use existing attendance status
+
+
+Replace that line with:
+
+            # Check In + Absent controls
+            # is_checked_in already computed from DailyLog existence above
+
+
+(Just remove the reassignment so it uses the correct value.)
+
+Save app.py.

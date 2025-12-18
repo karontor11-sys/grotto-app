@@ -1347,16 +1347,32 @@ class DatabaseManager:
             scheduled_lunch_dates = list(placement.scheduled_lunch_dates) if placement.scheduled_lunch_dates else []
             
             if is_present:
-                # Add date to served_dates if not already there
-                if date_str not in served_dates:
-                    served_dates.append(date_str)
-                    placement.served_dates = served_dates
-                
+                # OPTION B: Check In should NOT count as "served".
+                # Instead, ensure a DailyLog exists for this date to represent "checked in / present today".
+                log = session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == date_obj
+                ).first()
+
+                if not log:
+                    log = DailyLog(
+                        id=str(uuid.uuid4()),
+                        placement_id=placement_id,
+                        session_id=None,
+                        date=date_obj,
+                        positive_total=0,
+                        negative_total=0,
+                        daily_total=0,
+                        readiness='continue',
+                        daily_fulfillment='no'
+                    )
+                    session.add(log)
+
                 # Transition from scheduled to active on first check-in
                 if placement.status == PlacementStatus.scheduled:
                     placement.status = PlacementStatus.active
-                
-                # Update progress_status to IN_PROGRESS when marked present
+
+                # Update progress_status to IN_PROGRESS when checked in
                 if placement.progress_status != PlacementProgressStatus.COMPLETED:
                     placement.progress_status = PlacementProgressStatus.IN_PROGRESS
             else:
@@ -3509,6 +3525,13 @@ class DatabaseManager:
                     
                     # Auto-complete Lunch Detention when all days are completed
                     if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+                        # OPTION B: Only count a Lunch Detention day as "served" when it is completed.
+                        served_dates = list(placement.served_dates) if placement.served_dates else []
+                        ds = date_obj.isoformat()
+                        if ds not in served_dates:
+                            served_dates.append(ds)
+                            placement.served_dates = served_dates
+
                         days_assigned = placement.days_assigned or 1
                         if placement.days_completed >= days_assigned:
                             placement.status = PlacementStatus.completed

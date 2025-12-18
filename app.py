@@ -1316,13 +1316,14 @@ if page == "Dashboard":
         day_number = days_served_info.get('current_day_number', 1)
         is_today_absent = days_served_info.get('is_today_absent', False)
         
-        # Check attendance
-        served_dates = placement.get('servedDates', [])
-        is_present = date_str in served_dates
+        # OPTION B: Check-in status for Lunch Detention is represented by DailyLog existence
+        # (servedDates should only reflect completed days).
+        is_checked_in = daily_log is not None
+        is_present = is_checked_in
         
         with st.container():
             # Check In + Absent controls
-            is_checked_in = is_present  # Use existing attendance status
+            # is_checked_in already computed from DailyLog existence above
             is_completed_day = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
             
             # Absent checkbox key

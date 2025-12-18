@@ -4102,7 +4102,7 @@ class DatabaseManager:
                 return {'needsMakeup': False, 'isFinalDay': False}
             
             # Get placement dict and use shared helper for trigger logic
-            placement_dict = self._placement_to_dict(placement, session)
+            placement_dict = self._placement_to_dict(placement)
             
             # Delegate entirely to should_offer_makeup_days() for the trigger decision
             needs_makeup = self.should_offer_makeup_days(placement_dict)

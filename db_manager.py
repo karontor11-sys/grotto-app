@@ -4263,6 +4263,12 @@ class DatabaseManager:
             
             # Calculate required and remaining
             required_total = placement.iss_total_required_periods or (placement.iss_days_assigned or 0) * 10
+            # FIX: For 1-day ISS placements completed as Partial Day, the session should require
+            # only the scheduled/credited partial-day periods (not a default 10-period full day).
+            # This allows the Placement to reach "completed" and be archived to Completed Placements.
+            if (placement.iss_days_assigned == 1) and (db_day_type == 'partial'):
+                required_total = served_periods_for_day
+                placement.iss_total_required_periods = served_periods_for_day
             remaining = max(0, required_total - total_periods)
             
             # Check for auto-complete

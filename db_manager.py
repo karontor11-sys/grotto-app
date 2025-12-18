@@ -983,12 +983,21 @@ class DatabaseManager:
                     days_served = len(served_dates)
                     days_assigned = placement.days_assigned or 0
                     
-                    # Skip if all lunch detention days are served
-                    if days_served >= days_assigned:
+                    # Keep completed/served Lunch Detention visible on the Dashboard for the date it was served.
+                    target_iso = target_date.isoformat()
+                    served_set = set(served_dates or [])
+                    if target_iso in served_set:
+                        # Show it on this specific calendar day even if overall placement is finished
+                        include_for_today = True
+                    else:
+                        include_for_today = False
+                    
+                    # Skip if all lunch detention days are served AND target date wasn't a served date
+                    if days_served >= days_assigned and not include_for_today:
                         continue
                     
-                    # Check if target_date is a scheduled date (not yet served)
-                    if target_date in scheduled_date_objs:
+                    # Check if target_date is a scheduled date (not yet served) or was served on this date
+                    if target_date in scheduled_date_objs or include_for_today:
                         result.append(placement_dict)
                 
                 # Class Period Referral filtering

@@ -1,0 +1,67 @@
+Open db_manager.py.
+
+Fix Lunch Detention so that after a Lunch Detention day is completed, the placement still appears on the Dashboard for that calendar date as a completed/collapsed record (like ISS). Right now it disappears because get_active_placements_for_date() filters it out once days_served >= days_assigned.
+
+Do not refactor. Change only the Lunch Detention branch in get_active_placements_for_date().
+
+Exact change
+
+Find this function:
+
+def get_active_placements_for_date(self, target_date: date) -> List[Dict[str, Any]]:
+
+
+Inside the loop where it handles Lunch Detention placements, locate the section where it computes served_dates, days_served, days_assigned, and then skips the placement when served is complete.
+
+You will see logic equivalent to:
+
+days_served = len(served_dates)
+days_assigned = placement.days_assigned or 1
+
+# ... some logic ...
+
+if days_served >= days_assigned:
+    continue
+
+
+Replace that skip with this rule:
+
+If the target date is in served_dates, include it (even if fully served/completed), because we want completed placements to remain visible on that calendar date.
+
+Only skip it if it’s fully served and the target date is not one of the served dates.
+
+Insert/Replace Code
+
+Immediately before the if days_served >= days_assigned: continue line, insert this block:
+
+# Keep completed/served Lunch Detention visible on the Dashboard for the date it was served.
+target_iso = target_date.isoformat()
+served_set = set(served_dates or [])
+if target_iso in served_set:
+    # Show it on this specific calendar day even if overall placement is finished
+    include_for_today = True
+else:
+    include_for_today = False
+
+
+Then replace the original skip line:
+
+if days_served >= days_assigned:
+    continue
+
+
+with:
+
+if days_served >= days_assigned and not include_for_today:
+    continue
+
+
+Save and run.
+
+Expected behavior
+
+After ✓ Complete on Lunch Detention:
+
+It remains visible on that calendar day as a completed/collapsed record
+
+It still archives into Completed Placements normally

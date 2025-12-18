@@ -848,8 +848,9 @@ class DatabaseManager:
                     Placement.start_date <= target_date
                 )
             else:
+                # TODAY: include completed placements too, so they can remain visible on the calendar day they occurred.
                 base_query = session.query(Placement).filter(
-                    Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled]),
+                    Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled, PlacementStatus.completed]),
                     Placement.start_date <= target_date
                 )
             

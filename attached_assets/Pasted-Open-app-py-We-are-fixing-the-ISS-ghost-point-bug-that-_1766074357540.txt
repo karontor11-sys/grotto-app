@@ -1,0 +1,129 @@
+Open app.py.
+
+We are fixing the ISS ghost point bug that occurs when clicking Complete Day or Override, where an extra point is incorrectly added due to pending behavior dropdown processing during a rerun.
+
+Instructions (IMPORTANT):
+
+Do NOT refactor or rename anything.
+
+Do NOT modify any other files.
+
+Only replace the two button blocks described below.
+
+Insert the code exactly as written.
+
+1️⃣ Replace the COMPLETE DAY button block
+
+Find this existing code block in app.py:
+
+complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
+if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary",
+             use_container_width=True, disabled=not can_complete, help=complete_help):
+    # TWO-PHASE COMPLETION: Phase 1 - Store deferred data and rerun
+    ...
+    st.rerun()
+
+
+Replace the entire block ABOVE with the following code:
+
+complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
+
+def _defer_complete_day():
+    # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
+    st.session_state["suppress_pending_points_once"] = True
+
+    print(f"[DEBUG COMPLETE_DAY] Phase 1 (on_click): Deferring completion for session_id={session_id}")
+
+    # Use stored values from daily_log (source of truth after Check In)
+    if is_checked_in and stored_day_type_display is not None:
+        selected_day_type = "Full Day" if stored_day_type_display == 'full' else "Partial Day"
+        selected_start = stored_start
+        selected_end = stored_end
+    else:
+        selected_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
+        selected_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
+        selected_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+
+    # Store deferred completion data
+    st.session_state[f"deferred_complete_{session_id}"] = {
+        'placement_id': placement_id,
+        'session_id': session_id,
+        'log_date': date_str,
+        'completed_by': "Admin",
+        'day_type': selected_day_type,
+        'start_period': selected_start,
+        'end_period': selected_end,
+        'points_earned': total_points,
+        'is_present': is_present
+    }
+
+    # Clear any pending behavior or widget keys to prevent re-fire
+    for k in (
+        f"pending_pos_{session_id}",
+        f"pending_neg_{session_id}",
+        f"iss_pos_{session_id}",
+        f"iss_neg_{session_id}",
+    ):
+        if k in st.session_state:
+            del st.session_state[k]
+
+st.button(
+    complete_label,
+    key=f"iss_complete_{session_id}",
+    type="primary",
+    use_container_width=True,
+    disabled=not can_complete,
+    help=complete_help,
+    on_click=_defer_complete_day
+)
+
+2️⃣ Replace the OVERRIDE button block
+
+Find this existing code block in app.py:
+
+override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
+if st.button(override_label, key=f"iss_override_btn_{session_id}",
+             use_container_width=True, type="secondary"):
+    ...
+    st.rerun()
+
+
+Replace the entire block ABOVE with the following code:
+
+override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
+
+def _defer_override_day():
+    # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
+    st.session_state["suppress_pending_points_once"] = True
+
+    print(f"[DEBUG OVERRIDE] Phase 1 (on_click): Deferring override for session_id={session_id}")
+
+    override_note = "Retroactive override: Student released early due to positive behavior; remaining periods waived."
+
+    st.session_state[f"deferred_override_{session_id}"] = {
+        'placement_id': placement_id,
+        'session_id': session_id,
+        'log_date': date_str,
+        'completed_by': "Admin",
+        'points_earned': total_points,
+        'override_note': override_note,
+        'is_present': is_present
+    }
+
+    # Clear any pending behavior or widget keys to prevent re-fire
+    for k in (
+        f"pending_pos_{session_id}",
+        f"pending_neg_{session_id}",
+        f"iss_pos_{session_id}",
+        f"iss_neg_{session_id}",
+    ):
+        if k in st.session_state:
+            del st.session_state[k]
+
+st.button(
+    override_label,
+    key=f"iss_override_btn_{session_id}",
+    use_container_width=True,
+    type="secondary",
+    on_click=_defer_override_day
+)

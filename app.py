@@ -2203,12 +2203,13 @@ if page == "Dashboard":
                         complete_help = f"Requires {display_required_points}+ points"
                     
                     complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
-                    if st.button(complete_label, key=f"iss_complete_{session_id}", type="primary", 
-                                 use_container_width=True, disabled=not can_complete, help=complete_help):
-                        # TWO-PHASE COMPLETION: Phase 1 - Store deferred data and rerun
-                        # This prevents ghost points by ensuring completion runs BEFORE behavior processing
-                        print(f"[DEBUG COMPLETE_DAY] Phase 1: Deferring completion for session_id={session_id}")
-                        
+
+                    def _defer_complete_day():
+                        # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
+                        st.session_state["suppress_pending_points_once"] = True
+
+                        print(f"[DEBUG COMPLETE_DAY] Phase 1 (on_click): Deferring completion for session_id={session_id}")
+
                         # Use stored values from daily_log (source of truth after Check In)
                         if is_checked_in and stored_day_type_display is not None:
                             selected_day_type = "Full Day" if stored_day_type_display == 'full' else "Partial Day"
@@ -2218,8 +2219,8 @@ if page == "Dashboard":
                             selected_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
                             selected_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
                             selected_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
-                        
-                        # Store deferred completion data (including all fields needed by global handler)
+
+                        # Store deferred completion data
                         st.session_state[f"deferred_complete_{session_id}"] = {
                             'placement_id': placement_id,
                             'session_id': session_id,
@@ -2231,28 +2232,38 @@ if page == "Dashboard":
                             'points_earned': total_points,
                             'is_present': is_present
                         }
-                        
-                        # Also clear any pending behavior keys for safety
-                        pending_pos_key = f"pending_pos_{session_id}"
-                        pending_neg_key = f"pending_neg_{session_id}"
-                        if pending_pos_key in st.session_state:
-                            del st.session_state[pending_pos_key]
-                        if pending_neg_key in st.session_state:
-                            del st.session_state[pending_neg_key]
-                        
-                        st.rerun()  # Rerun to execute deferred completion BEFORE behavior processing
+
+                        # Clear any pending behavior or widget keys to prevent re-fire
+                        for k in (
+                            f"pending_pos_{session_id}",
+                            f"pending_neg_{session_id}",
+                            f"iss_pos_{session_id}",
+                            f"iss_neg_{session_id}",
+                        ):
+                            if k in st.session_state:
+                                del st.session_state[k]
+
+                    st.button(
+                        complete_label,
+                        key=f"iss_complete_{session_id}",
+                        type="primary",
+                        use_container_width=True,
+                        disabled=not can_complete,
+                        help=complete_help,
+                        on_click=_defer_complete_day
+                    )
                 
                 with action_col2:
                     override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
-                    if st.button(override_label, key=f"iss_override_btn_{session_id}", 
-                                 use_container_width=True, type="secondary"):
-                        # TWO-PHASE OVERRIDE: Phase 1 - Store deferred data and rerun
-                        # This prevents ghost points by ensuring override runs BEFORE behavior processing
-                        print(f"[DEBUG OVERRIDE] Phase 1: Deferring override for session_id={session_id}")
-                        
-                        override_note = "Retroactive override: session marked complete after the fact." if is_past_session else "Supervisor override: student released early due to positive behavior; remaining periods waived."
-                        
-                        # Store deferred override data (including all fields needed by global handler)
+
+                    def _defer_override_day():
+                        # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
+                        st.session_state["suppress_pending_points_once"] = True
+
+                        print(f"[DEBUG OVERRIDE] Phase 1 (on_click): Deferring override for session_id={session_id}")
+
+                        override_note = "Retroactive override: Student released early due to positive behavior; remaining periods waived."
+
                         st.session_state[f"deferred_override_{session_id}"] = {
                             'placement_id': placement_id,
                             'session_id': session_id,
@@ -2262,16 +2273,24 @@ if page == "Dashboard":
                             'override_note': override_note,
                             'is_present': is_present
                         }
-                        
-                        # Also clear any pending behavior keys for safety
-                        pending_pos_key = f"pending_pos_{session_id}"
-                        pending_neg_key = f"pending_neg_{session_id}"
-                        if pending_pos_key in st.session_state:
-                            del st.session_state[pending_pos_key]
-                        if pending_neg_key in st.session_state:
-                            del st.session_state[pending_neg_key]
-                        
-                        st.rerun()  # Rerun to execute deferred override BEFORE behavior processing
+
+                        # Clear any pending behavior or widget keys to prevent re-fire
+                        for k in (
+                            f"pending_pos_{session_id}",
+                            f"pending_neg_{session_id}",
+                            f"iss_pos_{session_id}",
+                            f"iss_neg_{session_id}",
+                        ):
+                            if k in st.session_state:
+                                del st.session_state[k]
+
+                    st.button(
+                        override_label,
+                        key=f"iss_override_btn_{session_id}",
+                        use_container_width=True,
+                        type="secondary",
+                        on_click=_defer_override_day
+                    )
             elif not is_checked_in and not is_completed and not is_no_show:
                 st.caption("Check in student to add behaviors and track points")
             elif is_no_show:

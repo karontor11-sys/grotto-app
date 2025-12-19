@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import enum
@@ -5443,15 +5444,28 @@ class DatabaseManager:
                         log.alert_flag = True
             
             processing_id = self.generate_id()
+            processed_at = central_now_naive()
             processing_record = EndOfDayProcessing(
                 id=processing_id,
                 processing_date=target_date,
-                processed_at=central_now_naive(),
+                processed_at=processed_at,
                 incomplete_count=len(incomplete_logs) + len(incomplete_sessions),
                 notification_sent=True
             )
             session.add(processing_record)
-            session.commit()
+            
+            try:
+                session.commit()
+            except IntegrityError:
+                # Another session processed the same date first (unique constraint hit).
+                # Treat as already processed and safely no-op.
+                session.rollback()
+                return {
+                    'incomplete_logs': 0,
+                    'incomplete_sessions': 0,
+                    'iss_session_ids': [],
+                    'class_referral_auto_completed': 0
+                }
             
             return {
                 'incomplete_logs': len(incomplete_logs) - class_referral_auto_completed,  # Only count non-auto-completed

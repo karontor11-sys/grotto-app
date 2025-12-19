@@ -1,0 +1,132 @@
+We already anchored backend time to Central (America/Chicago). Now add a guardrail so midnight/end-of-day processing is idempotent and cannot double-run if Streamlit reruns or multiple sessions are open.
+
+Problem
+
+check_and_process_pending_dates() can be invoked repeatedly due to Streamlit reruns. Near midnight, or with multiple concurrent users, end-of-day processing can attempt to run twice for the same processing_date. We already have EndOfDayProcessing.processing_date marked unique=True, but we should not rely on a DB error for stability.
+
+Fix
+
+Make end-of-day processing safe and idempotent:
+
+In db_manager.py inside process_end_of_day(target_date):
+
+At the very start, check if EndOfDayProcessing already exists for target_date.
+
+If yes, return a “no-op” result immediately (0 incomplete counts, etc.)
+
+When writing the EndOfDayProcessing record at the end:
+
+Wrap commit in try/except IntegrityError
+
+If unique constraint triggers (another session already processed), rollback and return “no-op” result.
+
+Ensure Central date is used consistently:
+
+check_and_process_pending_dates() uses central_today() (not date.today())
+
+Acceptance tests
+
+Refresh page repeatedly right after midnight Central → end-of-day runs only once.
+
+Two browsers open at midnight → only one actually processes; the other safely no-ops.
+
+No crashes / integrity errors visible to user.
+
+✅ Code patch (apply exactly)
+File: db_manager.py
+1) Add import for IntegrityError
+
+Near the top with SQLAlchemy imports, add:
+
+from sqlalchemy.exc import IntegrityError
+
+
+(If you already import from sqlalchemy.exc, just add IntegrityError to that line.)
+
+2) In process_end_of_day(self, target_date: date) add an early “already processed” return
+
+Find the definition:
+
+def process_end_of_day(self, target_date: date) -> Dict[str, Any]:
+
+
+Right after you open the session and enter the try block (or right before any heavy querying), add this:
+
+# Guardrail: If this date has already been processed, do nothing (idempotent).
+already = session.query(EndOfDayProcessing).filter(
+    EndOfDayProcessing.processing_date == target_date
+).first()
+
+if already:
+    return {
+        'incomplete_logs': 0,
+        'incomplete_sessions': 0,
+        'iss_session_ids': [],
+        'class_referral_auto_completed': 0
+    }
+
+3) Wrap the EndOfDayProcessing commit in a safe IntegrityError handler
+
+In process_end_of_day, you already create and commit an EndOfDayProcessing(...) record. It looks like this near the end (your file currently uses processed_at=datetime.now() but you likely already swapped to Central earlier):
+
+processing_record = EndOfDayProcessing(
+    id=str(uuid.uuid4()),
+    processing_date=target_date,
+    processed_at=...,
+    incomplete_count=...,
+    notification_sent=True
+)
+session.add(processing_record)
+session.commit()
+
+
+Replace that commit section with this:
+
+processing_record = EndOfDayProcessing(
+    id=str(uuid.uuid4()),
+    processing_date=target_date,
+    processed_at=processed_at,
+    incomplete_count=len(incomplete_logs) + len(incomplete_sessions),
+    notification_sent=True
+)
+session.add(processing_record)
+
+try:
+    session.commit()
+except IntegrityError:
+    # Another session processed the same date first (unique constraint hit).
+    # Treat as already processed and safely no-op.
+    session.rollback()
+    return {
+        'incomplete_logs': 0,
+        'incomplete_sessions': 0,
+        'iss_session_ids': [],
+        'class_referral_auto_completed': 0
+    }
+
+
+✅ Note: This assumes you already have a processed_at variable set earlier (many apps do).
+If you don’t, set one right before constructing the record:
+
+processed_at = central_now_naive()  # if you added Central helpers already
+
+
+(or keep whatever you’re using for timestamps internally.)
+
+4) Ensure check_and_process_pending_dates() uses Central “today”
+
+In check_and_process_pending_dates, replace:
+
+today = date.today()
+
+
+with:
+
+today = central_today()
+
+
+(You likely did this in your previous timezone patch, but this makes sure it’s correct.)
+
+Also ensure central_today is imported at top of db_manager.py:
+
+from utils import ..., central_today

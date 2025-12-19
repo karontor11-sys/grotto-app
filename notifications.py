@@ -1,6 +1,7 @@
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any
 import hashlib
+from utils import central_today, central_now_naive
 
 class NotificationManager:
     """Manager for generating and displaying notifications."""
@@ -30,7 +31,7 @@ class NotificationManager:
         try:
             from db_manager import Placement, Student
             
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = central_now_naive() - timedelta(days=days)
             
             placements = session.query(Placement).filter(
                 Placement.created_at >= cutoff_date
@@ -67,7 +68,7 @@ class NotificationManager:
         try:
             from db_manager import Placement, Student, PlacementStatus
             
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = central_now_naive() - timedelta(days=days)
             
             placements = session.query(Placement).filter(
                 Placement.status == PlacementStatus.completed
@@ -102,7 +103,7 @@ class NotificationManager:
     def get_daily_log_finalization_notifications(self, target_date: date = None) -> List[Dict[str, Any]]:
         """Get notifications for finalized daily logs."""
         if target_date is None:
-            target_date = date.today()
+            target_date = central_today()
         
         session = self.db.get_session()
         try:
@@ -148,7 +149,7 @@ class NotificationManager:
             from db_manager import DailyLog, Placement, Student
             
             # Get logs from yesterday that haven't been finalized
-            yesterday = date.today() - timedelta(days=1)
+            yesterday = central_today() - timedelta(days=1)
             
             logs = session.query(DailyLog).filter(
                 DailyLog.date == yesterday,
@@ -166,7 +167,7 @@ class NotificationManager:
                             'notification_id': notif_id,
                             'type': 'daily_log_pending',
                             'severity': 'warning',
-                            'timestamp': datetime.now(),
+                            'timestamp': central_now_naive(),
                             'title': 'Daily Log Pending',
                             'message': f"Yesterday's daily log for {student.first_name} {student.last_name} needs finalization",
                             'student_id': student.id,
@@ -187,7 +188,7 @@ class NotificationManager:
         try:
             from db_manager import Assignment, Student, AssignmentStatus
             
-            today = date.today()
+            today = central_today()
             
             assignments = session.query(Assignment).filter(
                 Assignment.due_date < today,
@@ -204,7 +205,7 @@ class NotificationManager:
                         'notification_id': notif_id,
                         'type': 'assignment_overdue',
                         'severity': 'warning',
-                        'timestamp': datetime.now(),
+                        'timestamp': central_now_naive(),
                         'title': 'Assignment Overdue',
                         'message': f"{student.first_name} {student.last_name} has an overdue assignment: {assignment.title} (Due: {assignment.due_date.strftime('%m/%d/%Y')}, {days_overdue} days overdue)",
                         'student_id': student.id,
@@ -226,7 +227,7 @@ class NotificationManager:
             active_placements = self.db.get_active_placements_with_students()
             
             notifications = []
-            today = date.today()
+            today = central_today()
             
             for placement in active_placements:
                 student = placement['student']
@@ -240,7 +241,7 @@ class NotificationManager:
                         'notification_id': notif_id,
                         'type': 'placement_ending_soon',
                         'severity': 'info',
-                        'timestamp': datetime.now(),
+                        'timestamp': central_now_naive(),
                         'title': 'Placement Ending Soon',
                         'message': f"{student['firstName']} {student['lastName']}'s placement ends in {days_remaining} day(s)",
                         'student_id': student['_id'],
@@ -263,7 +264,7 @@ class NotificationManager:
             List of notifications for incomplete records
         """
         notifications = []
-        today = date.today()
+        today = central_today()
         
         for i in range(1, days_back + 1):
             check_date = today - timedelta(days=i)
@@ -309,7 +310,7 @@ class NotificationManager:
             )
             from sqlalchemy import or_
             
-            today = date.today()
+            today = central_today()
             cutoff_date = today - timedelta(days=days_back)
             
             # Helper to get readable placement type name

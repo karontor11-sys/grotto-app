@@ -1,5 +1,23 @@
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any
+
+# ===== Timezone helpers (backend only) =====
+# App-wide authoritative timezone for rollover / date logic.
+CENTRAL_TZ = ZoneInfo("America/Chicago")
+
+def central_now() -> datetime:
+    """Current time in US Central (timezone-aware). Backend use only."""
+    return datetime.now(tz=CENTRAL_TZ)
+
+def central_now_naive() -> datetime:
+    """Central time as a naive datetime for DB fields that store naive timestamps."""
+    return central_now().replace(tzinfo=None)
+
+def central_today() -> date:
+    """Today's date in US Central."""
+    return central_now().date()
+# ===== End timezone helpers =====
 
 def format_date(date_obj: date) -> str:
     """Format a date object for display."""

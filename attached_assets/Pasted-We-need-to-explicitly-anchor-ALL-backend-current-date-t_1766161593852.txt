@@ -1,0 +1,218 @@
+We need to explicitly anchor ALL backend “current date/time” logic to US Central Time (America/Chicago) so midnight rollover and multi-day logic executes correctly, regardless of server timezone.
+
+Also remove ALL user-facing time-of-day timestamps / time displays. Dates are fine, but no “3:42 PM” or similar anywhere in the UI.
+
+Implement:
+
+Create Central-time helpers in utils.py
+
+Use zoneinfo.ZoneInfo("America/Chicago")
+
+Add:
+
+central_now() (tz-aware datetime)
+
+central_now_naive() (naive datetime for DB fields that currently store naive)
+
+central_today() (Central date)
+
+Replace date.today() with central_today() in backend logic:
+
+db_manager.py (important: check_and_process_pending_dates() uses date.today() right now)
+
+notifications.py
+
+analytics.py
+
+data_manager.py
+
+app.py (where default “today” is used)
+
+Replace datetime.now() with Central equivalents
+
+In DB/DateTime columns (naive): use central_now_naive()
+
+In JSON-like metadata (isoformat): use central_now().isoformat()
+
+Remove user-facing timestamp/time displays from UI
+
+In app.py Notifications page, remove any st.caption() lines that show time/timestamp (Time:, Original Time:, Dismissed on:)
+
+In Pre-Planned check-in UI, remove showing check-in time (keep ✓ Checked In)
+
+In Cool-Down session scope display, remove the “HH:MM AM/PM - HH:MM AM/PM” string (keep a neutral label like “Scheduled Window”)
+
+Acceptance tests:
+
+Server timezone can be anything; midnight logic still uses Central date.
+
+No UI shows time-of-day anywhere (no “%I:%M %p”).
+
+App still runs with no import errors.
+
+✅ Code edits (paste/apply exactly)
+1) utils.py — add Central timezone helpers
+
+At the top, replace the first import line and add ZoneInfo:
+
+from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
+
+
+Then add this block near the top of the file (right after imports is perfect):
+
+# ===== Timezone helpers (backend only) =====
+# App-wide authoritative timezone for rollover / date logic.
+CENTRAL_TZ = ZoneInfo("America/Chicago")
+
+def central_now() -> datetime:
+    """Current time in US Central (timezone-aware). Backend use only."""
+    return datetime.now(tz=CENTRAL_TZ)
+
+def central_now_naive() -> datetime:
+    """Central time as a naive datetime for DB fields that store naive timestamps."""
+    return central_now().replace(tzinfo=None)
+
+def central_today() -> date:
+    """Today's date in US Central."""
+    return central_now().date()
+# ===== End timezone helpers =====
+
+2) db_manager.py — use Central time for backend “today/now”
+
+Update the utils import line near the top. Replace:
+
+from utils import add_business_days, get_school_days
+
+
+with:
+
+from utils import add_business_days, get_school_days, central_today, central_now_naive
+
+
+Global replacements in db_manager.py:
+
+Replace all:
+
+date.today() → central_today()
+
+datetime.now() → central_now_naive()
+
+(That includes end-of-day processing + dismissed_at, alert_timestamp, etc.)
+
+3) notifications.py — Central time + Central timestamps
+
+Add this import under import hashlib:
+
+from utils import central_today, central_now_naive
+
+
+Then do global replacements:
+
+date.today() → central_today()
+
+datetime.now() → central_now_naive()
+
+4) analytics.py — Central “today” for reporting
+
+Add this import under import pandas as pd:
+
+from utils import central_today
+
+
+Then replace:
+
+date.today() → central_today()
+
+5) data_manager.py — Central time (completeness)
+
+Add this import under the typing import:
+
+from utils import central_today, central_now_naive
+
+
+Then replace:
+
+date.today() → central_today()
+
+datetime.now() → central_now_naive()
+
+6) app.py — Central default date + remove UI time displays
+A) Import Central helpers
+
+Update the from utils import ... line to include:
+
+central_now, central_today
+
+
+So the end of that import line should include:
+
+..., add_business_days, central_now, central_today
+
+B) Cool-Down session: remove time-of-day scope display
+
+Replace this function block:
+
+def generate_cooldown_session(time_start, time_end, location, quick_reason):
+    """Generate a single cool-down session for today"""
+    return [{
+        "date": date.today(),
+        "type": "cool_down",
+        "scope": f"{time_start.strftime('%I:%M %p')} - {time_end.strftime('%I:%M %p')}",
+        "location": location,
+        "metadata": {
+            "start_time": time_start.isoformat(),
+            "end_time": time_end.isoformat(),
+            "reason": quick_reason
+        }
+    }]
+
+
+with:
+
+def generate_cooldown_session(time_start, time_end, location, quick_reason):
+    """Generate a single cool-down session for today"""
+    return [{
+        "date": central_today(),
+        "type": "cool_down",
+        "scope": "Scheduled Window",
+        "location": location,
+        "metadata": {
+            "start_time": time_start.isoformat(),
+            "end_time": time_end.isoformat(),
+            "reason": quick_reason
+        }
+    }]
+
+C) Pre-Planned check-in: remove showing check-in time
+
+Find:
+
+checkin_time = checked_in_at.strftime('%I:%M %p') if checked_in_at else ''
+st.success(f"✓ Checked In {checkin_time}")
+
+
+Replace with:
+
+st.success("✓ Checked In")
+
+D) Notifications UI: remove all time/timestamp captions
+
+Remove these lines entirely:
+
+st.caption(f"Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
+st.caption(f"Original Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
+st.caption(f"Dismissed on: {notif['dismissed_at'].strftime('%m/%d/%Y %I:%M %p')}")
+
+
+(Keep the rest of the notification content and dismiss/restore actions.)
+
+E) Centralize createdAt and “today”
+
+Replace:
+
+date.today() → central_today()
+
+datetime.now().isoformat() → central_now().isoformat()
+
+(Those appear in a handful of createdAt metadata dicts.)

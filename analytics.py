@@ -1,6 +1,7 @@
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Any
 import pandas as pd
+from utils import central_today
 
 class AnalyticsEngine:
     """Analytics engine for generating reports and insights."""
@@ -64,7 +65,7 @@ class AnalyticsEngine:
         try:
             from db_manager import PointEvent, PointEventType
             
-            start_date = date.today() - timedelta(days=days)
+            start_date = central_today() - timedelta(days=days)
             
             events = session.query(PointEvent).filter(
                 PointEvent.date >= start_date
@@ -196,7 +197,7 @@ class AnalyticsEngine:
             completion_rate = (status_counts['completed'] / len(assignments) * 100) if assignments else 0
             
             # Overdue assignments (past due date and not completed)
-            today = date.today()
+            today = central_today()
             overdue = [a for a in assignments 
                       if a.due_date and a.due_date < today 
                       and a.status != AssignmentStatus.completed]
@@ -219,7 +220,7 @@ class AnalyticsEngine:
             from db_manager import DailyLog
             
             # Get logs from last 30 days
-            start_date = date.today() - timedelta(days=30)
+            start_date = central_today() - timedelta(days=30)
             logs = session.query(DailyLog).filter(
                 DailyLog.date >= start_date
             ).all()

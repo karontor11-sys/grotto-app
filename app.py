@@ -7,7 +7,7 @@ from point_system import PointSystem
 from analytics import AnalyticsEngine
 from import_export import ImportExportManager
 from notifications import NotificationManager
-from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today, get_placement_type_display_name, add_business_days
+from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today, get_placement_type_display_name, add_business_days, central_now, central_today
 
 # Initialize session state
 if 'data_manager' not in st.session_state:
@@ -143,9 +143,9 @@ def generate_lunch_sessions(start_date, end_date, weekdays_map, lunch_block, loc
 def generate_cooldown_session(time_start, time_end, location, quick_reason):
     """Generate a single cool-down session for today"""
     return [{
-        "date": date.today(),
+        "date": central_today(),
         "type": "cool_down",
-        "scope": f"{time_start.strftime('%I:%M %p')} - {time_end.strftime('%I:%M %p')}",
+        "scope": "Scheduled Window",
         "location": location,
         "metadata": {
             "start_time": time_start.isoformat(),
@@ -430,7 +430,7 @@ if page == "Dashboard":
     
     # Date Selector (compact width)
     if 'dashboard_selected_date' not in st.session_state:
-        st.session_state.dashboard_selected_date = date.today()
+        st.session_state.dashboard_selected_date = central_today()
     
     date_col, _ = st.columns([1, 3])
     with date_col:
@@ -442,7 +442,7 @@ if page == "Dashboard":
     st.session_state.dashboard_selected_date = selected_date
     
     # Show past date indicator
-    is_past_date = selected_date < date.today()
+    is_past_date = selected_date < central_today()
     if is_past_date:
         st.info(f"📅 Viewing historical data for {selected_date.strftime('%B %d, %Y')}. You can still complete sessions retroactively.")
     
@@ -1050,7 +1050,7 @@ if page == "Dashboard":
                     st.markdown("**Add Make-Up Date:**")
                     col_date, col_type = st.columns(2)
                     with col_date:
-                        min_date = date.today() + timedelta(days=1)
+                        min_date = central_today() + timedelta(days=1)
                         new_makeup_date = st.date_input(
                             "Select date",
                             min_value=min_date,
@@ -1658,8 +1658,7 @@ if page == "Dashboard":
                     with col_checkin:
                         if is_checked_in:
                             # Show check-in confirmation
-                            checkin_time = checked_in_at.strftime('%I:%M %p') if checked_in_at else ''
-                            st.success(f"✓ Checked In {checkin_time}")
+                            st.success("✓ Checked In")
                         else:
                             # Show Check In button - disabled if absent
                             checkin_disabled = is_absent
@@ -1724,7 +1723,7 @@ if page == "Dashboard":
         date_str = iss_session['date']
         periods = iss_session.get('periods', list(range(1, 11)))
         is_full_day = len(periods) == 10 and periods == list(range(1, 11))
-        is_past_session = target_date < date.today()
+        is_past_session = target_date < central_today()
         
         # Check if this is a future-dated (scheduled) placement
         placement_status = iss_session.get('placement_status', 'active')
@@ -1733,7 +1732,7 @@ if page == "Dashboard":
         start_date_obj = None
         if start_date_str:
             start_date_obj = datetime.fromisoformat(start_date_str).date()
-            is_future_placement = start_date_obj > date.today()
+            is_future_placement = start_date_obj > central_today()
         
         # Also check placement_status for scheduled
         if placement_status == 'scheduled':
@@ -2373,7 +2372,7 @@ if page == "Dashboard":
                     st.markdown("**Add Make-Up Date:**")
                     col_date, col_type = st.columns(2)
                     with col_date:
-                        min_date = date.today() + timedelta(days=1)
+                        min_date = central_today() + timedelta(days=1)
                         new_makeup_date = st.date_input(
                             "Select date",
                             min_value=min_date,
@@ -2760,7 +2759,7 @@ elif page == "Placements":
         st.markdown("### Scheduling")
         sched_col1, sched_col2 = st.columns(2)
         with sched_col1:
-            iss_start_date = st.date_input("Start Date*", value=date.today(), help="First day of ISS placement", key="iss_start_date")
+            iss_start_date = st.date_input("Start Date*", value=central_today(), help="First day of ISS placement", key="iss_start_date")
         with sched_col2:
             iss_total_days = st.number_input("Number of ISS Days*", min_value=1, value=1, step=1, help="Total ISS days assigned", key="iss_total_days")
         
@@ -2804,7 +2803,7 @@ elif page == "Placements":
                         "startDate": iss_start_date.isoformat(),
                         "status": "active",
                         "createdBy": created_by,
-                        "createdAt": datetime.now().isoformat()
+                        "createdAt": central_now().isoformat()
                     }
                     
                     placement_id = dm.add_placement(placement_data)
@@ -2839,7 +2838,7 @@ elif page == "Placements":
         st.markdown("### Scheduling")
         sched_col1, sched_col2 = st.columns(2)
         with sched_col1:
-            start_date = st.date_input("Start Date*", value=date.today(), key="ld_start_date")
+            start_date = st.date_input("Start Date*", value=central_today(), key="ld_start_date")
         with sched_col2:
             lunch_days = st.number_input("Number of Lunch Detention Days*", min_value=1, value=1, step=1, help="Number of lunch detention days", key="ld_lunch_days")
         
@@ -2884,7 +2883,7 @@ elif page == "Placements":
                         "servedDates": [],
                         "status": "active",
                         "createdBy": created_by,
-                        "createdAt": datetime.now().isoformat()
+                        "createdAt": central_now().isoformat()
                     }
                     
                     placement_id = dm.add_placement(placement_data)
@@ -2920,7 +2919,7 @@ elif page == "Placements":
             st.markdown("### Scheduling")
             sched_col1, sched_col2 = st.columns(2)
             with sched_col1:
-                start_date = st.date_input("Date*", value=date.today(), key="br_start_date")
+                start_date = st.date_input("Date*", value=central_today(), key="br_start_date")
             with sched_col2:
                 selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="br_period")
             
@@ -2963,7 +2962,7 @@ elif page == "Placements":
                             "endPeriod": selected_period,
                             "status": "active",
                             "createdBy": created_by,
-                            "createdAt": datetime.now().isoformat()
+                            "createdAt": central_now().isoformat()
                         }
                         
                         placement_id = dm.add_placement(placement_data)
@@ -2997,7 +2996,7 @@ elif page == "Placements":
             st.markdown("### Scheduling")
             sched_col1, sched_col2 = st.columns(2)
             with sched_col1:
-                cooldown_date = st.date_input("Date*", value=date.today(), key="cd_date")
+                cooldown_date = st.date_input("Date*", value=central_today(), key="cd_date")
             with sched_col2:
                 selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_period")
             
@@ -3040,7 +3039,7 @@ elif page == "Placements":
                             "endPeriod": selected_period,
                             "status": "active",
                             "createdBy": created_by,
-                            "createdAt": datetime.now().isoformat()
+                            "createdAt": central_now().isoformat()
                         }
                         placement_id = dm.add_placement(placement_data)
                         dm.generate_cooldown_session(placement_id, cooldown_date, selected_period, selected_period)
@@ -3059,7 +3058,7 @@ elif page == "Placements":
             st.info("This placement type allows you to schedule a student for specific periods on specific dates (e.g., when they will have a substitute teacher)")
             
             if 'preplanned_schedule' not in st.session_state:
-                st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
+                st.session_state.preplanned_schedule = [{"date": central_today(), "periods": [1]}]
             
             with st.form("preplanned_referral_form"):
                 st.markdown("### Student Information")
@@ -3088,7 +3087,7 @@ elif page == "Placements":
                 with col_date:
                     row_date = st.date_input(
                         f"Date",
-                        value=row_data.get("date", date.today()),
+                        value=row_data.get("date", central_today()),
                         key=f"pp_date_0",
                         label_visibility="collapsed"
                     )
@@ -3115,7 +3114,7 @@ elif page == "Placements":
                     with col_date:
                         row_date = st.date_input(
                             f"Date",
-                            value=row_data.get("date", date.today()),
+                            value=row_data.get("date", central_today()),
                             key=f"pp_date_{idx}",
                             label_visibility="collapsed"
                         )
@@ -3142,7 +3141,7 @@ elif page == "Placements":
                 submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)
                 
                 if add_row_button:
-                    st.session_state.preplanned_schedule.append({"date": date.today(), "periods": [1]})
+                    st.session_state.preplanned_schedule.append({"date": central_today(), "periods": [1]})
                     st.rerun()
                 
                 if submit_button:
@@ -3200,13 +3199,13 @@ elif page == "Placements":
                                 "scheduledSlots": scheduled_slots,
                                 "status": "active",
                                 "createdBy": created_by,
-                                "createdAt": datetime.now().isoformat()
+                                "createdAt": central_now().isoformat()
                             }
                             
                             placement_id = dm.add_placement(placement_data)
                             dm.generate_preplanned_sessions(placement_id, scheduled_slots)
                             
-                            st.session_state.preplanned_schedule = [{"date": date.today(), "periods": [1]}]
+                            st.session_state.preplanned_schedule = [{"date": central_today(), "periods": [1]}]
                             
                             st.session_state.placement_created = True
                             st.session_state.navigate_to_dashboard = True
@@ -3259,7 +3258,7 @@ elif page == "Completed Placements":
         # Print by Day UI
         if print_mode == "Print by Day":
             st.markdown("### 📄 Print by Day")
-            print_date = st.date_input("Select date to print", value=date.today(), key="print_day_date")
+            print_date = st.date_input("Select date to print", value=central_today(), key="print_day_date")
             
             # Get placements for that day
             placements_for_print_day = [p for p in filtered_placements 
@@ -3291,11 +3290,11 @@ Dates: {format_date(p.get('startDate', ''))} – {format_date(p.get('endDate', '
             st.markdown("### 📄 Print by Month")
             month_col1, month_col2 = st.columns(2)
             with month_col1:
-                print_year = st.selectbox("Year", list(range(date.today().year, 2020, -1)), key="print_month_year")
+                print_year = st.selectbox("Year", list(range(central_today().year, 2020, -1)), key="print_month_year")
             with month_col2:
                 month_names_list = ['January', 'February', 'March', 'April', 'May', 'June', 
                                    'July', 'August', 'September', 'October', 'November', 'December']
-                print_month_name = st.selectbox("Month", month_names_list, index=date.today().month - 1, key="print_month")
+                print_month_name = st.selectbox("Month", month_names_list, index=central_today().month - 1, key="print_month")
                 print_month = month_names_list.index(print_month_name) + 1
             
             # Get placements for that month
@@ -3752,8 +3751,6 @@ elif page == "Notifications":
                     st.success(f"**{notif['title']}**\n\n{notif['message']}")
                 else:
                     st.info(f"**{notif['title']}**\n\n{notif['message']}")
-                if notif.get('timestamp'):
-                    st.caption(f"Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
             with col_action:
                 if notif_id:
                     if st.button("Dismiss", key=unique_key, type="secondary", use_container_width=True):
@@ -3820,10 +3817,6 @@ elif page == "Notifications":
                     with col_content:
                         st.write(f"**{notif.get('title', 'Notification')}**")
                         st.write(notif.get('message', ''))
-                        if notif.get('timestamp'):
-                            st.caption(f"Original Time: {notif['timestamp'].strftime('%m/%d/%Y %I:%M %p')}")
-                        if notif.get('dismissed_at'):
-                            st.caption(f"Dismissed on: {notif['dismissed_at'].strftime('%m/%d/%Y %I:%M %p')}")
                     with col_action:
                         if st.button("Restore", key=unique_key, type="secondary", use_container_width=True):
                             if notif_id and notifications.restore_notification(notif_id):

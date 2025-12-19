@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any
+from utils import central_today, central_now_naive
 
 class DataManager:
     def __init__(self):
@@ -124,7 +125,7 @@ class DataManager:
             self.data['DailyLogs'][log_id].update({
                 'readiness': readiness,
                 'finalizedBy': finalized_by,
-                'finalizedAt': datetime.now().isoformat()
+                'finalizedAt': central_now_naive().isoformat()
             })
             return True
         return False
@@ -181,7 +182,7 @@ class DataManager:
     
     def get_todays_points(self, placement_id: str) -> int:
         """Get today's total points for a placement."""
-        today = date.today().isoformat()
+        today = central_today().isoformat()
         events = self.get_point_events_for_date(placement_id, today)
         return sum(event['value'] for event in events)
     

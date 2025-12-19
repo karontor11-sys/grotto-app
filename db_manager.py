@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import enum
-from utils import add_business_days, get_school_days
+from utils import add_business_days, get_school_days, central_today, central_now_naive
 
 Base = declarative_base()
 
@@ -647,7 +647,7 @@ class DatabaseManager:
             # If start date is in the future, set status to 'scheduled'
             # If start date is today or in the past, set status to 'active'
             start_date_obj = datetime.fromisoformat(placement_data['startDate']).date()
-            today = date.today()
+            today = central_today()
             if start_date_obj > today:
                 initial_status = PlacementStatus.scheduled
             else:
@@ -682,7 +682,7 @@ class DatabaseManager:
                 referral_subtype=placement_data.get('referralSubtype'),
                 status=initial_status,
                 created_by=placement_data.get('createdBy'),
-                created_at=datetime.fromisoformat(placement_data.get('createdAt', datetime.now().isoformat()))
+                created_at=datetime.fromisoformat(placement_data.get('createdAt', central_now_naive().isoformat()))
             )
             session.add(placement)
             session.commit()
@@ -719,7 +719,7 @@ class DatabaseManager:
         """
         active_placements = self.get_active_placements()
         result = []
-        today = date.today()
+        today = central_today()
         
         # BATCH OPTIMIZATION: Collect all student IDs and fetch in one query
         student_ids = list({p['studentId'] for p in active_placements if p.get('studentId')})
@@ -834,7 +834,7 @@ class DatabaseManager:
         try:
             from sqlalchemy import or_, and_, func
             
-            today = date.today()
+            today = central_today()
             is_past = target_date < today
             is_future = target_date > today
             
@@ -1063,7 +1063,7 @@ class DatabaseManager:
             if placement:
                 placement.status = PlacementStatus.completed
                 placement.progress_status = PlacementProgressStatus.COMPLETED
-                placement.end_date = date.today()
+                placement.end_date = central_today()
                 session.commit()
                 return True
             return False
@@ -1095,7 +1095,7 @@ class DatabaseManager:
         """
         session = self.get_session()
         try:
-            today = date.today()
+            today = central_today()
             # Find all scheduled placements whose start_date is today or in the past
             scheduled_placements = session.query(Placement).filter(
                 Placement.status == PlacementStatus.scheduled,
@@ -1267,7 +1267,7 @@ class DatabaseManager:
                     placement_id=placement_id,
                     date=date_obj,
                     checked_in=True,
-                    checked_in_at=datetime.now(),
+                    checked_in_at=central_now_naive(),
                     day_type=day_type,
                     start_period=calc_start_period,
                     end_period=calc_end_period,
@@ -1278,7 +1278,7 @@ class DatabaseManager:
                 session.add(log)
             else:
                 log.checked_in = True
-                log.checked_in_at = datetime.now()
+                log.checked_in_at = central_now_naive()
                 log.day_type = day_type
                 log.start_period = calc_start_period
                 log.end_period = calc_end_period
@@ -1597,12 +1597,12 @@ class DatabaseManager:
                     placement_id=placement_id,
                     date=date_obj,
                     checked_in=True,
-                    checked_in_at=datetime.now()
+                    checked_in_at=central_now_naive()
                 )
                 session.add(log)
             else:
                 log.checked_in = True
-                log.checked_in_at = datetime.now()
+                log.checked_in_at = central_now_naive()
             
             # Update progress_status to IN_PROGRESS on check-in
             if placement.progress_status != PlacementProgressStatus.COMPLETED:
@@ -1725,7 +1725,7 @@ class DatabaseManager:
             if completion_rule == 'date_range_end':
                 # Auto-complete when end date has passed
                 if placement.end_date:
-                    can_complete = date.today() > placement.end_date
+                    can_complete = central_today() > placement.end_date
                     return {
                         'can_complete': can_complete,
                         'reason': f"End date: {placement.end_date.isoformat()}",
@@ -2141,7 +2141,7 @@ class DatabaseManager:
         """Get all sessions scheduled for today with student and placement info."""
         db_session = self.get_session()
         try:
-            today = date.today()
+            today = central_today()
             sessions = db_session.query(PartialDaySession).filter(
                 PartialDaySession.date == today,
                 PartialDaySession.status.in_([SessionStatus.scheduled, SessionStatus.in_progress])
@@ -2268,7 +2268,7 @@ class DatabaseManager:
         """
         db_session = self.get_session()
         try:
-            today = date.today()
+            today = central_today()
             placements = db_session.query(Placement).filter(
                 Placement.status == PlacementStatus.scheduled,
                 Placement.placement_type == PlacementCategory.ISS,
@@ -2422,7 +2422,7 @@ class DatabaseManager:
             
             log.daily_fulfillment = 'yes'
             log.finalized_by = completed_by
-            log.finalized_at = datetime.now()
+            log.finalized_at = central_now_naive()
             
             if is_override:
                 log.override_used = True
@@ -2453,7 +2453,7 @@ class DatabaseManager:
             sess.status = SessionStatus.no_show
             sess.alert_flag = True
             sess.alert_sent = True
-            sess.alert_timestamp = datetime.now()
+            sess.alert_timestamp = central_now_naive()
             
             date_obj = sess.date
             placement_id = sess.placement_id
@@ -2506,7 +2506,7 @@ class DatabaseManager:
             total_days = placement.iss_total_days or 0
             
             if up_to_date is None:
-                up_to_date = datetime.now().date()
+                up_to_date = central_now_naive().date()
             
             sessions = db_session.query(PartialDaySession).filter(
                 PartialDaySession.placement_id == placement_id,
@@ -2571,7 +2571,7 @@ class DatabaseManager:
             total_days = placement.iss_days_assigned or placement.iss_total_days or 0
             
             if up_to_date is None:
-                up_to_date = datetime.now().date()
+                up_to_date = central_now_naive().date()
             
             checked_in_count = db_session.query(DailyLog).filter(
                 DailyLog.placement_id == placement_id,
@@ -3261,7 +3261,7 @@ class DatabaseManager:
             log = session.query(DailyLog).filter(DailyLog.id == log_id).first()
             if log:
                 log.finalized_by = finalized_by
-                log.finalized_at = datetime.now()
+                log.finalized_at = central_now_naive()
                 session.commit()
                 return True
             return False
@@ -3428,7 +3428,7 @@ class DatabaseManager:
                     daily_fulfillment='yes',
                     no_show=True,
                     finalized_by=completed_by,
-                    finalized_at=datetime.now()
+                    finalized_at=central_now_naive()
                 )
                 session.add(log)
             else:
@@ -3436,7 +3436,7 @@ class DatabaseManager:
                 log.daily_fulfillment = 'yes'
                 log.no_show = True
                 log.finalized_by = completed_by
-                log.finalized_at = datetime.now()
+                log.finalized_at = central_now_naive()
                 
                 placement = session.query(Placement).filter(Placement.id == placement_id).first()
                 if placement and old_fulfillment != 'yes':
@@ -3480,7 +3480,7 @@ class DatabaseManager:
                     readiness='continue',
                     daily_fulfillment='yes',
                     finalized_by=completed_by,
-                    finalized_at=datetime.now(),
+                    finalized_at=central_now_naive(),
                     override_used=is_override
                 )
                 session.add(log)
@@ -3521,7 +3521,7 @@ class DatabaseManager:
                 old_fulfillment = log.daily_fulfillment
                 log.daily_fulfillment = 'yes'
                 log.finalized_by = completed_by
-                log.finalized_at = datetime.now()
+                log.finalized_at = central_now_naive()
                 if is_override:
                     log.override_used = True
                 
@@ -3602,12 +3602,12 @@ class DatabaseManager:
                     daily_total=0,
                     readiness='continue',
                     checked_in=True,
-                    checked_in_at=datetime.now()
+                    checked_in_at=central_now_naive()
                 )
                 db_session.add(log)
             else:
                 log.checked_in = True
-                log.checked_in_at = datetime.now()
+                log.checked_in_at = central_now_naive()
             
             session_record = db_session.query(PartialDaySession).filter(
                 PartialDaySession.placement_id == placement_id,
@@ -3671,14 +3671,14 @@ class DatabaseManager:
                     daily_fulfillment='yes',
                     no_show=not was_checked_in,
                     finalized_by=completed_by,
-                    finalized_at=datetime.now()
+                    finalized_at=central_now_naive()
                 )
                 db_session.add(log)
             else:
                 log.daily_fulfillment = 'yes'
                 log.no_show = not was_checked_in
                 log.finalized_by = completed_by
-                log.finalized_at = datetime.now()
+                log.finalized_at = central_now_naive()
             
             session_records = db_session.query(PartialDaySession).filter(
                 PartialDaySession.placement_id == placement_id,
@@ -3827,7 +3827,7 @@ class DatabaseManager:
                     periods_covered=periods_covered,
                     required_points=required_points,
                     finalized_by=completed_by,
-                    finalized_at=datetime.now(),
+                    finalized_at=central_now_naive(),
                     override_used=is_override,
                     override_comment=override_note if is_override else None
                 )
@@ -3838,7 +3838,7 @@ class DatabaseManager:
                 log.daily_fulfillment = 'yes'
                 log.day_type = 'full'
                 log.finalized_by = completed_by
-                log.finalized_at = datetime.now()
+                log.finalized_at = central_now_naive()
                 if is_override:
                     log.override_used = True
                     log.override_comment = override_note
@@ -4055,7 +4055,7 @@ class DatabaseManager:
                     day_type='partial',
                     periods_covered=periods_covered,
                     finalized_by=completed_by,
-                    finalized_at=datetime.now(),
+                    finalized_at=central_now_naive(),
                     override_used=is_override,
                     override_comment=override_note if is_override else None
                 )
@@ -4067,7 +4067,7 @@ class DatabaseManager:
                 log.day_type = 'partial'
                 log.periods_covered = periods_covered
                 log.finalized_by = completed_by
-                log.finalized_at = datetime.now()
+                log.finalized_at = central_now_naive()
                 log.override_used = is_override
                 log.override_comment = override_note if is_override else None
                 
@@ -4259,7 +4259,7 @@ class DatabaseManager:
             log.required_points = served_periods_for_day
             log.daily_fulfillment = 'yes'
             log.finalized_by = completed_by
-            log.finalized_at = datetime.now()
+            log.finalized_at = central_now_naive()
             
             if is_override:
                 log.override_used = True
@@ -4425,7 +4425,7 @@ class DatabaseManager:
             # Update placement
             placement.status = PlacementStatus.completed
             placement.progress_status = PlacementProgressStatus.COMPLETED
-            placement.end_date = date.today()
+            placement.end_date = central_today()
             placement.closed_early = True
             placement.early_closure_note = note or "Session closed early — remaining periods waived by staff judgment."
             placement.periods_waived = periods_waived
@@ -4795,7 +4795,7 @@ class DatabaseManager:
             log.periods_covered = periods_covered or []
             log.daily_fulfillment = 'yes'
             log.finalized_by = completed_by
-            log.finalized_at = datetime.now()
+            log.finalized_at = central_now_naive()
             
             # Get placement to update iss_remaining_days
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
@@ -4935,7 +4935,7 @@ class DatabaseManager:
             placement.progress_status = PlacementProgressStatus.COMPLETED
             
             # Create or update today's daily log with override flag
-            today = date.today()
+            today = central_today()
             log = session.query(DailyLog).filter(
                 DailyLog.placement_id == placement_id,
                 DailyLog.date == today
@@ -4958,7 +4958,7 @@ class DatabaseManager:
             log.override_comment = override_comment
             log.daily_fulfillment = 'yes'
             log.finalized_by = completed_by
-            log.finalized_at = datetime.now()
+            log.finalized_at = central_now_naive()
             
             session.commit()
             return True
@@ -4982,7 +4982,7 @@ class DatabaseManager:
                 value=event_data['value'],
                 notes=event_data.get('notes'),
                 created_by=event_data.get('createdBy'),
-                created_at=datetime.fromisoformat(event_data.get('createdAt', datetime.now().isoformat()))
+                created_at=datetime.fromisoformat(event_data.get('createdAt', central_now_naive().isoformat()))
             )
             session.add(event)
             session.commit()
@@ -5052,7 +5052,7 @@ class DatabaseManager:
     
     def get_todays_points(self, placement_id: str) -> int:
         """Get today's total points for a placement."""
-        today = date.today().isoformat()
+        today = central_today().isoformat()
         events = self.get_point_events_for_date(placement_id, today)
         return sum(event['value'] for event in events)
     
@@ -5133,7 +5133,7 @@ class DatabaseManager:
                 author_id=note_data['authorId'],
                 text=note_data['text'],
                 share_with_parent=note_data.get('shareWithParent', False),
-                created_at=datetime.fromisoformat(note_data.get('createdAt', datetime.now().isoformat()))
+                created_at=datetime.fromisoformat(note_data.get('createdAt', central_now_naive().isoformat()))
             )
             session.add(note)
             session.commit()
@@ -5372,7 +5372,7 @@ class DatabaseManager:
                     # Auto-complete Class Period Referrals at midnight
                     log.daily_fulfillment = 'yes'
                     log.finalized_by = 'System (End of Day)'
-                    log.finalized_at = datetime.now()
+                    log.finalized_at = central_now_naive()
                     class_referral_auto_completed += 1
                     
                     # For Pre-Planned referrals, set attendance based on check-in status
@@ -5415,7 +5415,7 @@ class DatabaseManager:
                 sess.status = SessionStatus.no_show
                 sess.alert_flag = True
                 sess.alert_sent = True
-                sess.alert_timestamp = datetime.now()
+                sess.alert_timestamp = central_now_naive()
                 iss_session_ids.append(sess.id)
                 
                 log = session.query(DailyLog).filter(
@@ -5446,7 +5446,7 @@ class DatabaseManager:
             processing_record = EndOfDayProcessing(
                 id=processing_id,
                 processing_date=target_date,
-                processed_at=datetime.now(),
+                processed_at=central_now_naive(),
                 incomplete_count=len(incomplete_logs) + len(incomplete_sessions),
                 notification_sent=True
             )
@@ -5479,7 +5479,7 @@ class DatabaseManager:
                 EndOfDayProcessing.processing_date.desc()
             ).first()
             
-            today = date.today()
+            today = central_today()
             yesterday = today - timedelta(days=1)
             
             if latest_processing:
@@ -5571,7 +5571,7 @@ class DatabaseManager:
                 notification_message=notification_data.get('message', ''),
                 notification_severity=notification_data.get('severity', 'info'),
                 original_timestamp=notification_data.get('timestamp'),
-                dismissed_at=datetime.now(),
+                dismissed_at=central_now_naive(),
                 dismissed_by=dismissed_by
             )
             

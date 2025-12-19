@@ -1,0 +1,56 @@
+We have a Dashboard persistence bug for Pre-Planned Class Period Referrals (CLASS_REFERRAL with referral_subtype == 'pre_planned').
+
+Current behavior: When a pre-planned referral (multiple/non-consecutive periods) is completed, it moves to Completed Placements correctly, but it disappears from the Dashboard calendar day for that same date.
+
+Root cause: In db_manager.py → get_active_placements_for_date(), the Pre-Planned referral branch filters today/future sessions using:
+
+PartialDaySession.status != SessionStatus.fulfilled
+
+So once all sessions for that date are fulfilled, the placement is no longer returned by the Dashboard query for that date.
+
+Fix (Option B / long-term stable): For Pre-Planned referrals, the Dashboard should include any placement that has sessions scheduled on that date regardless of session status. The UI already renders completed items as collapsed/locked based on progressStatus == "COMPLETED", so once the placement is included again, it will persist on the calendar day as the inactive collapsed record.
+
+Implement: In the referral_subtype == 'pre_planned' block, remove the status != fulfilled filter for today/future and query all sessions for that date (same logic as past dates). Keep the existing scheduledSlots construction.
+
+Test:
+
+Create pre-planned referral with multiple non-consecutive periods on today’s date.
+
+Check in / complete the session.
+✅ Should remain visible on today’s Dashboard as collapsed “COMPLETED” card.
+✅ Should still appear in Completed Placements.
+
+Code change (apply exactly)
+
+File: db_manager.py
+Function: get_active_placements_for_date(self, target_date: date)
+Section: elif placement_type == 'CLASS_REFERRAL': → if referral_subtype == 'pre_planned': → today/future branch
+
+Replace the today/future query block (the one that currently filters status != SessionStatus.fulfilled) with the block below.
+
+# --- REPLACE the "today/future: Only show non-fulfilled sessions" block with this ---
+
+else:
+    # For today/future: include ALL sessions for this date (fulfilled or not)
+    # This allows completed Pre-Planned referrals to persist on the Dashboard calendar day
+    # as a collapsed/inactive record, while still showing active ones normally.
+    sessions_for_date = session.query(PartialDaySession).filter(
+        PartialDaySession.placement_id == placement.id,
+        PartialDaySession.date == target_date
+    ).all()
+
+    if sessions_for_date:
+        all_periods = []
+        for s in sessions_for_date:
+            all_periods.extend(s.periods or [])
+
+        placement_dict['scheduledSlots'] = [
+            {'date': target_date.isoformat(), 'period': p}
+            for p in all_periods
+        ]
+        result.append(placement_dict)
+
+# --- END REPLACEMENT ---
+
+
+That’s it — no UI changes required, because the Dashboard already displays progressStatus == "COMPLETED" as a non-expandable collapsed card.

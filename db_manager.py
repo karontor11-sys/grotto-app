@@ -1017,19 +1017,21 @@ class DatabaseManager:
                                 ]
                                 result.append(placement_dict)
                         else:
-                            # For today/future: Only show non-fulfilled sessions
-                            # Use .all() to get ALL sessions for this date (Pre-Planned can have multiple periods)
+                            # For today/future: include ALL sessions for this date (fulfilled or not)
+                            # This allows completed Pre-Planned referrals to persist on the Dashboard calendar day
+                            # as a collapsed/inactive record, while still showing active ones normally.
                             sessions_for_date = session.query(PartialDaySession).filter(
                                 PartialDaySession.placement_id == placement.id,
-                                PartialDaySession.date == target_date,
-                                PartialDaySession.status != SessionStatus.fulfilled
+                                PartialDaySession.date == target_date
                             ).all()
+
                             if sessions_for_date:
                                 all_periods = []
                                 for s in sessions_for_date:
                                     all_periods.extend(s.periods or [])
+
                                 placement_dict['scheduledSlots'] = [
-                                    {'date': target_date.isoformat(), 'period': p} 
+                                    {'date': target_date.isoformat(), 'period': p}
                                     for p in all_periods
                                 ]
                                 result.append(placement_dict)

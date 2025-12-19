@@ -1368,6 +1368,14 @@ if page == "Dashboard":
                     clear_dashboard_caches()
                     st.rerun()
             
+            # Notes (always visible with auto-save, safe access - daily_log may be None)
+            st.caption("Notes")
+            render_auto_save_notes(
+                f"lunch_{placement_id}_{date_str}",
+                (daily_log.get('notes', '') if daily_log else '') or '',
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+            )
+
             # Complete button (safe access - daily_log may be None)
             is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
             if not is_completed:
@@ -1377,14 +1385,6 @@ if page == "Dashboard":
                     st.rerun()
             else:
                 st.success("Completed")
-            
-            # Notes (always visible with auto-save, safe access - daily_log may be None)
-            st.caption("Notes")
-            render_auto_save_notes(
-                f"lunch_{placement_id}_{date_str}",
-                (daily_log.get('notes', '') if daily_log else '') or '',
-                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
-            )
             
             st.divider()
     

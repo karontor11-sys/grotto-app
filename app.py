@@ -207,7 +207,7 @@ def detect_session_conflicts(sessions):
     
     return conflicts
 
-def render_auto_save_notes(unique_key: str, current_notes: str, save_callback):
+def render_auto_save_notes(unique_key: str, current_notes: str, save_callback, disabled: bool = False, help_text: str = None):
     """
     Render an always-visible Notes text area with auto-save functionality.
     
@@ -215,6 +215,8 @@ def render_auto_save_notes(unique_key: str, current_notes: str, save_callback):
         unique_key: Unique identifier for session state keys (e.g., placement_id + date)
         current_notes: Current notes value from database
         save_callback: Function to call to save notes, takes (notes_text) as argument
+        disabled: Whether the text area should be disabled
+        help_text: Optional help tooltip when disabled
     """
     notes_key = f"notes_{unique_key}"
     prev_notes_key = f"prev_notes_{unique_key}"
@@ -240,8 +242,10 @@ def render_auto_save_notes(unique_key: str, current_notes: str, save_callback):
             key=notes_key,
             height=60,
             placeholder="Add notes here...",
-            on_change=on_notes_change,
-            label_visibility="collapsed"
+            on_change=on_notes_change if not disabled else None,
+            label_visibility="collapsed",
+            disabled=disabled,
+            help=help_text
         )
     
     with saved_col:
@@ -1402,12 +1406,15 @@ if page == "Dashboard":
                 if is_future_placement:
                     st.caption(future_checkin_msg)
             
-            # Notes (always visible with auto-save, safe access - daily_log may be None)
+            # Notes (disabled until session started and checked in)
+            notes_disabled = is_future_placement or (not is_checked_in)
             st.caption("Notes")
             render_auto_save_notes(
                 f"lunch_{placement_id}_{date_str}",
                 (daily_log.get('notes', '') if daily_log else '') or '',
-                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes),
+                disabled=notes_disabled,
+                help_text=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
             )
 
             # Complete button (safe access - daily_log may be None)
@@ -1808,12 +1815,15 @@ if page == "Dashboard":
                 else:
                     st.success("Completed")
             
-            # Notes (always visible with auto-save, safe access - daily_log may be None)
+            # Notes (disabled until session started and checked in)
+            notes_disabled = is_future_placement or (not is_checked_in)
             st.caption("Notes")
             render_auto_save_notes(
                 f"classref_{placement_id}_{date_str}",
                 (daily_log.get('notes', '') if daily_log else '') or '',
-                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
+                lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes),
+                disabled=notes_disabled,
+                help_text=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
             )
             
             st.divider()

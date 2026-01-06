@@ -1,0 +1,115 @@
+Micro-tweak: Lock Notes input for future Lunch Detention + Pre-Planned until start date AND Check-In
+
+Right now, for Lunch Detention and Pre-Planned placements, users can still type into the Notes field even when the session is future-dated and the Check In button is disabled.
+
+Change request:
+
+For Lunch Detention and Pre-Planned cards on the Dashboard, the Notes input must be disabled until:
+
+the placement/session is not future-dated (has started), AND
+
+the student has been Checked In for that day.
+
+This applies to:
+
+Lunch Detention (all cases)
+
+Pre-Planned (all subtypes / 1-day and multi-day)
+
+Do not change how notes are stored or saved — only lock the UI input until the session is active and checked in.
+
+Optional UI help text is fine (tooltip), but keep the screen clean.
+
+Acceptance tests:
+
+On a future date view: Notes is greyed out for LD and Pre-Planned.
+
+On start date view before Check In: Notes is greyed out.
+
+After Check In: Notes becomes editable and saves as usual.
+
+🧩 Exact paste-in patch (app.py only)
+Patch 1 — Lunch Detention: disable Notes until not future + checked in
+
+In render_lunch_detention_card(placement: dict, target_date: date), you already have:
+
+is_future_placement (from earlier future-lock work)
+
+is_checked_in (from daily_log)
+
+Now locate your Notes text area in that function. It will look like one of these:
+
+notes = st.text_area("Notes", key=..., value=...)
+
+
+or
+
+st.text_area("Notes", key=..., value=..., on_change=...)
+
+
+Edit it to include a disabled flag.
+
+✅ Add this line once, right before the Notes text area:
+notes_disabled = is_future_placement or (not is_checked_in)
+
+✅ Then update the Notes text area to include:
+disabled=notes_disabled,
+help=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
+
+Example (what your Notes line should become)
+
+If you currently have:
+
+notes = st.text_area("Notes", value=existing_notes, key=f"ld_notes_{placement_id}_{date_str}")
+
+
+Change it to:
+
+notes_disabled = is_future_placement or (not is_checked_in)
+
+notes = st.text_area(
+    "Notes",
+    value=existing_notes,
+    key=f"ld_notes_{placement_id}_{date_str}",
+    disabled=notes_disabled,
+    help=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
+)
+
+
+That’s it for Lunch Detention.
+
+Patch 2 — Pre-Planned: disable Notes until not future + checked in
+
+In the Pre-Planned Dashboard rendering block (inside render_unified_class_referral_card, under elif subtype_key == 'pre_planned':), you already have (or can easily access):
+
+is_future_placement (you added earlier)
+
+is_checked_in (from that day’s daily_log/session state)
+
+Find the Pre-Planned Notes text area (it will also be st.text_area("Notes", ...)).
+
+✅ Add this line right before the Notes text area:
+notes_disabled = is_future_placement or (not is_checked_in)
+
+✅ Then update the Notes text area to include:
+disabled=notes_disabled,
+help=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
+
+Example
+
+If you currently have:
+
+notes = st.text_area("Notes", value=existing_notes, key=f"pp_notes_{placement_id}_{date_str}")
+
+
+Change it to:
+
+notes_disabled = is_future_placement or (not is_checked_in)
+
+notes = st.text_area(
+    "Notes",
+    value=existing_notes,
+    key=f"pp_notes_{placement_id}_{date_str}",
+    disabled=notes_disabled,
+    help=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
+)

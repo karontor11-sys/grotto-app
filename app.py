@@ -1816,7 +1816,7 @@ if page == "Dashboard":
         """Render enhanced ISS session card with full functionality.
         
         Handles three states:
-        - Future (scheduled): Locked card with 'First Check-In Date' label
+        - Future (scheduled): Locked card with disabled Check In
         - Active: Fully interactive card
         - Completed: Shows completion status
         """
@@ -1868,8 +1868,6 @@ if page == "Dashboard":
                     # Disabled Check In button
                     st.button("Check In", key=f"iss_checkin_{session_id}", disabled=True)
                 
-                # "First Check-In Date" label - prominent display
-                st.info(f"📅 **First Check-In Date:** {formatted_start_date}")
                 st.caption("This session has not started yet. Check-in will be available on the start date.")
                 
                 st.markdown("</div>", unsafe_allow_html=True)

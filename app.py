@@ -2577,15 +2577,13 @@ if page == "Dashboard":
     # 1. In-School Suspension (ISS) - Session-based
     # CACHED: Results cached for 60 seconds to improve Dashboard responsiveness
     iss_sessions = get_iss_sessions_for_date_cached(selected_date.isoformat())
-    scheduled_iss_placements = get_scheduled_iss_placements_cached()
     
     st.markdown("#### In-School Suspension (ISS)")
     
     # First, show active sessions for the selected date
     has_active_sessions = len(iss_sessions) > 0
-    has_scheduled_placements = len(scheduled_iss_placements) > 0
     
-    if not has_active_sessions and not has_scheduled_placements:
+    if not has_active_sessions:
         st.caption("No students")
     else:
         # Show active sessions first
@@ -2624,38 +2622,6 @@ if page == "Dashboard":
                 # Active/In Progress: Use expandable card with full functionality
                 with st.expander(f"{status_circle} {student_name}", expanded=False):
                     render_iss_session_card(iss_session, selected_date)
-        
-        # Then show scheduled (future) placements as locked cards
-        for scheduled_placement in scheduled_iss_placements:
-            placement_id = scheduled_placement['placement_id']
-            student_name = scheduled_placement['student_name']
-            start_date_str = scheduled_placement.get('start_date')
-            iss_days = scheduled_placement.get('iss_days_assigned') or scheduled_placement.get('iss_total_days', 1) or 1
-            
-            # Format the start date for display
-            start_date_obj = datetime.fromisoformat(start_date_str).date() if start_date_str else None
-            formatted_start_date = start_date_obj.strftime('%B %d, %Y') if start_date_obj else 'Unknown'
-            
-            # Scheduled placements are always "NOT_STARTED" - show green circle
-            with st.expander(f"🟢 🔒 {student_name}", expanded=False):
-                # Render locked card for scheduled placement
-                with st.container():
-                    st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
-                    
-                    header_col1, header_col2 = st.columns([3, 1])
-                    
-                    with header_col1:
-                        days_label = "Day" if iss_days == 1 else "Days"
-                        st.markdown(f"**{iss_days}-{days_label} ISS Session**")
-                        st.caption(f"Grade {scheduled_placement.get('grade', 'N/A')} · {scheduled_placement.get('homeroom_teacher', 'N/A')}")
-                    
-                    with header_col2:
-                        st.button("Check In", key=f"iss_scheduled_checkin_{placement_id}", disabled=True)
-                    
-                    st.info(f"📅 **First Check-In Date:** {formatted_start_date}")
-                    st.caption("This ISS Session has not started yet. Check-in will be available on the start date.")
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
     
     st.divider()
     

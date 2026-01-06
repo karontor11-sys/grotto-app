@@ -1,0 +1,86 @@
+Bug fix: ISS future placements appearing on the wrong Dashboard date + duplicate ISS records
+
+On the Dashboard, ISS placements scheduled to start in the future are incorrectly appearing on the current day. Example: if an ISS placement starts on January 7, it should not appear on January 6 when viewing the Dashboard for January 6.
+
+Additionally, when viewing the true start date (January 7), the same ISS placement appears twice under ISS: one normal collapsed record and one locked (🔒) collapsed record. We only want one record.
+
+Fix approach (very targeted):
+
+The Dashboard ISS section is currently rendering ISS from two sources:
+
+date-based ISS sessions, and
+
+a separate list of scheduled ISS placements rendered as locked cards.
+
+Remove the rendering of the separate scheduled ISS placements list from the Dashboard ISS section.
+
+Keep rendering only the date-based ISS sessions. The existing ISS session card logic already supports a “future/scheduled/locked” display when appropriate.
+
+Acceptance criteria:
+
+A future-dated ISS placement does NOT appear on today’s Dashboard date.
+
+On the first day of the placement (when viewing that date), the placement appears only once under ISS.
+
+If that first-day record is still in the future relative to today, it may still show as locked, but only one record should be shown.
+
+🧩 Exact paste-in patch (app.py only, targeted, no refactor)
+Patch Goal
+
+Remove the extra scheduled ISS placements rendering loop on the Dashboard, so ISS is shown only from the date-based sessions list.
+
+✅ Step 1 — Remove the scheduled ISS placements fetch in the Dashboard ISS section
+
+In app.py, find this block:
+
+iss_sessions = get_iss_sessions_for_date_cached(selected_date.isoformat())
+scheduled_iss_placements = get_scheduled_iss_placements_cached()
+
+
+Replace it with:
+
+iss_sessions = get_iss_sessions_for_date_cached(selected_date.isoformat())
+
+✅ Step 2 — Remove “has_scheduled_placements” logic so “No students” is correct
+
+Find this block:
+
+has_active_sessions = len(iss_sessions) > 0
+has_scheduled_placements = len(scheduled_iss_placements) > 0
+
+if not has_active_sessions and not has_scheduled_placements:
+    st.caption("No students")
+else:
+
+
+Replace it with:
+
+has_active_sessions = len(iss_sessions) > 0
+
+if not has_active_sessions:
+    st.caption("No students")
+else:
+
+✅ Step 3 — Delete the entire “scheduled (future) placements as locked cards” loop
+
+Find this comment line exactly:
+
+# Then show scheduled (future) placements as locked cards
+
+
+Delete that comment and the entire loop beneath it, all the way down to (but NOT including) the line that says:
+
+st.divider()
+
+
+So you are removing everything from:
+
+# Then show scheduled (future) placements as locked cards
+for scheduled_placement in scheduled_iss_placements:
+    ...
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+…and you stop deleting right before:
+
+st.divider()

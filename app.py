@@ -1244,8 +1244,19 @@ if page == "Dashboard":
                 st.caption(f"Grade {student.get('grade', 'N/A')}")
             
             with col3:
+                # Disable Complete until checked in for the day
+                is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+                complete_disabled = not is_checked_in
+                complete_help = "Check in required before completing" if complete_disabled else None
+
                 if not is_completed:
-                    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                    if st.button(
+                        "✓ Complete",
+                        key=f"complete_{placement_id}_{date_str}",
+                        type="primary",
+                        disabled=complete_disabled,
+                        help=complete_help
+                    ):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         st.rerun()
                 else:
@@ -1379,7 +1390,16 @@ if page == "Dashboard":
             # Complete button (safe access - daily_log may be None)
             is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
             if not is_completed:
-                if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+                complete_disabled = not is_checked_in
+                complete_help = "Check in required before completing" if complete_disabled else None
+
+                if st.button(
+                    "✓ Complete",
+                    key=f"complete_{placement_id}_{date_str}",
+                    type="primary",
+                    disabled=complete_disabled,
+                    help=complete_help
+                ):
                     dm.complete_placement_day(placement_id, date_str, "Admin")
                     clear_dashboard_caches()
                     st.rerun()
@@ -1591,8 +1611,17 @@ if page == "Dashboard":
                             clear_dashboard_caches()
                             st.rerun()
                     
-                    # Complete Referral button
-                    if st.button("Complete Referral", key=f"complete_behavior_{placement_id}_{date_str}", type="primary"):
+                    # Complete Referral button (disabled until checked in)
+                    complete_disabled = not is_checked_in
+                    complete_help = "Check in required before completing" if complete_disabled else None
+
+                    if st.button(
+                        "Complete Referral",
+                        key=f"complete_behavior_{placement_id}_{date_str}",
+                        type="primary",
+                        disabled=complete_disabled,
+                        help=complete_help
+                    ):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         clear_dashboard_caches()
                         st.rerun()
@@ -1610,8 +1639,17 @@ if page == "Dashboard":
                             clear_dashboard_caches()
                             st.rerun()
                     
-                    # Complete Cool-Down button
-                    if st.button("Complete Cool-Down", key=f"complete_cooldown_{placement_id}_{date_str}", type="primary"):
+                    # Complete Cool-Down button (disabled until checked in)
+                    complete_disabled = not is_checked_in
+                    complete_help = "Check in required before completing" if complete_disabled else None
+
+                    if st.button(
+                        "Complete Cool-Down",
+                        key=f"complete_cooldown_{placement_id}_{date_str}",
+                        type="primary",
+                        disabled=complete_disabled,
+                        help=complete_help
+                    ):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         clear_dashboard_caches()
                         st.rerun()
@@ -1673,10 +1711,19 @@ if page == "Dashboard":
                     if is_absent and not is_one_day:
                         st.warning("⚠️ Student marked absent for this day. Day will be skipped and resumed on next scheduled date.")
                     
-                    # Complete button - sets attendance based on check-in status
+                    # Complete button - disabled until checked in
                     # Hide for one-day when absent (auto-completed above)
                     if not (is_one_day and is_absent):
-                        if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
+                        complete_disabled = not is_checked_in
+                        complete_help = "Check in required before completing" if complete_disabled else None
+
+                        if st.button(
+                            "Complete",
+                            key=f"complete_preplanned_{placement_id}_{date_str}",
+                            type="primary",
+                            disabled=complete_disabled,
+                            help=complete_help
+                        ):
                             dm.complete_preplanned_session(placement_id, date_str, "Admin")
                             clear_dashboard_caches()
                             st.rerun()

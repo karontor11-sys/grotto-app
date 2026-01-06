@@ -1,0 +1,193 @@
+Replit Build Mode Prompt (copy/paste exactly)
+
+Goal: Prevent accidental completes.
+
+Change request: Across all placement types and subtypes on the Dashboard, the Complete button must be disabled until the student has been checked in for that day. This applies wherever a user can click a “Complete” action on a live Dashboard card (Lunch Detention, Class Period / Referrals, Pre-Planned, etc.).
+
+Rules / Expected behavior:
+
+If the student has NOT been checked in for the selected date, the Complete button is disabled.
+
+After Check In happens, the Complete button becomes enabled and behaves exactly as it does now.
+
+This should be consistent anywhere the Complete action appears on Dashboard cards.
+
+Do not change the existing logic for point thresholds, absent logic, overrides, or retroactive admin fixes — just add the “must be checked in first” guardrail.
+
+Definition of “checked in”:
+
+If the code already uses daily_log.get("checkedIn", False) or an equivalent is_checked_in flag for that placement/day, use that as the source of truth.
+
+Where to implement:
+
+Update the Streamlit button rendering in app.py wherever “Complete” buttons appear on Dashboard cards.
+
+Acceptance test:
+
+Open Dashboard for today.
+
+Create or view any active placement card.
+
+Confirm the Complete button is disabled before Check In.
+
+Click Check In.
+
+Confirm Complete becomes enabled immediately after rerun.
+
+🧩 Paste-In Code Patch (app.py)
+
+Paste these edits into app.py. Each section is a replace operation: find the existing block, replace with the new block.
+
+1) Behavior Referral: disable “Complete Referral” until checked in
+
+Find this existing block (inside the subtype_key == 'behavior' section):
+
+# Complete Referral button
+if st.button("Complete Referral", key=f"complete_behavior_{placement_id}_{date_str}", type="primary"):
+    dm.complete_placement_day(placement_id, date_str, "Admin")
+    clear_dashboard_caches()
+    st.rerun()
+
+
+Replace with:
+
+# Complete Referral button (disabled until checked in)
+complete_disabled = not is_checked_in
+complete_help = "Check in required before completing" if complete_disabled else None
+
+if st.button(
+    "Complete Referral",
+    key=f"complete_behavior_{placement_id}_{date_str}",
+    type="primary",
+    disabled=complete_disabled,
+    help=complete_help
+):
+    dm.complete_placement_day(placement_id, date_str, "Admin")
+    clear_dashboard_caches()
+    st.rerun()
+
+2) Cool-Down Referral: disable “Complete Cool-Down” until checked in
+
+Find this existing block (inside the subtype_key == 'cool_down' section):
+
+# Complete Cool-Down button
+if st.button("Complete Cool-Down", key=f"complete_cooldown_{placement_id}_{date_str}", type="primary"):
+    dm.complete_placement_day(placement_id, date_str, "Admin")
+    clear_dashboard_caches()
+    st.rerun()
+
+
+Replace with:
+
+# Complete Cool-Down button (disabled until checked in)
+complete_disabled = not is_checked_in
+complete_help = "Check in required before completing" if complete_disabled else None
+
+if st.button(
+    "Complete Cool-Down",
+    key=f"complete_cooldown_{placement_id}_{date_str}",
+    type="primary",
+    disabled=complete_disabled,
+    help=complete_help
+):
+    dm.complete_placement_day(placement_id, date_str, "Admin")
+    clear_dashboard_caches()
+    st.rerun()
+
+3) Pre-Planned Referral: disable “Complete” until checked in
+
+Find this existing block (inside the subtype_key == 'pre_planned' section, where the Complete button is rendered):
+
+# Complete button - sets attendance based on check-in status
+# Hide for one-day when absent (auto-completed above)
+if not (is_one_day and is_absent):
+    if st.button("Complete", key=f"complete_preplanned_{placement_id}_{date_str}", type="primary"):
+        dm.complete_preplanned_session(placement_id, date_str, "Admin")
+        clear_dashboard_caches()
+        st.rerun()
+
+
+Replace with:
+
+# Complete button - disabled until checked in
+# Hide for one-day when absent (auto-completed above)
+if not (is_one_day and is_absent):
+    complete_disabled = not is_checked_in
+    complete_help = "Check in required before completing" if complete_disabled else None
+
+    if st.button(
+        "Complete",
+        key=f"complete_preplanned_{placement_id}_{date_str}",
+        type="primary",
+        disabled=complete_disabled,
+        help=complete_help
+    ):
+        dm.complete_preplanned_session(placement_id, date_str, "Admin")
+        clear_dashboard_caches()
+        st.rerun()
+
+4) Lunch Detention: disable “✓ Complete” until checked in
+
+Find this existing block (inside render_lunch_detention_card, near the bottom):
+
+if not is_completed:
+    if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+        dm.complete_placement_day(placement_id, date_str, "Admin")
+        clear_dashboard_caches()
+        st.rerun()
+else:
+    st.success("Completed")
+
+
+Replace with:
+
+if not is_completed:
+    complete_disabled = not is_checked_in
+    complete_help = "Check in required before completing" if complete_disabled else None
+
+    if st.button(
+        "✓ Complete",
+        key=f"complete_{placement_id}_{date_str}",
+        type="primary",
+        disabled=complete_disabled,
+        help=complete_help
+    ):
+        dm.complete_placement_day(placement_id, date_str, "Admin")
+        clear_dashboard_caches()
+        st.rerun()
+else:
+    st.success("Completed")
+
+5) ISS Partial Day card (the older helper): disable “✓ Complete” until checked in
+
+Find this existing block (inside render_iss_partial_card, in the header area):
+
+with col3:
+    if not is_completed:
+        if st.button("✓ Complete", key=f"complete_{placement_id}_{date_str}", type="primary"):
+            dm.complete_placement_day(placement_id, date_str, "Admin")
+            st.rerun()
+    else:
+        st.success("Completed")
+
+
+Replace with:
+
+with col3:
+    # Disable Complete until checked in for the day
+    is_checked_in = daily_log.get('checkedIn', False) if daily_log else False
+    complete_disabled = not is_checked_in
+    complete_help = "Check in required before completing" if complete_disabled else None
+
+    if not is_completed:
+        if st.button(
+            "✓ Complete",
+            key=f"complete_{placement_id}_{date_str}",
+            type="primary",
+            disabled=complete_disabled,
+            help=complete_help
+        ):
+            dm.complete_placement_day(placement_id, date_str, "Admin")
+            st.rerun()
+    else:
+        st.success("Completed")

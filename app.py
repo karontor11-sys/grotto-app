@@ -81,6 +81,43 @@ def clear_dashboard_caches():
 
 # ===== END CACHING LAYER =====
 
+# ---------- Dashboard Completed-Session Title Helpers ----------
+
+def _parse_iso_date_safe(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s).date()
+    except Exception:
+        return None
+
+def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, target_date: date,
+                             end_date: date, is_absent: bool, day_number: int | None):
+    """
+    Returns the suffix portion after 'Placement Type · ...' based on rules:
+    - Absent day: 'Absent'
+    - Final day: 'X-Day Session Completed'
+    - Prior served day: 'Day Y of X Completed'
+    - Single day: '1-Day Session Completed'
+    """
+    if is_absent:
+        return "Absent"
+
+    total_days = total_days or 1
+
+    if total_days == 1:
+        return "1-Day Session Completed"
+
+    if end_date and target_date == end_date:
+        return f"{total_days}-Day Session Completed"
+
+    # Prior served day
+    if day_number and day_number > 0:
+        return f"Day {day_number} of {total_days} Completed"
+
+    # Fallback (should rarely happen)
+    return f"{total_days}-Day Session Completed"
+
 # Check and process end-of-day for pending dates (runs once per session)
 if not st.session_state.eod_processing_checked:
     processing_results = dm.check_and_process_pending_dates()
@@ -2664,6 +2701,45 @@ if page == "Dashboard":
             student_name = iss_session['student_name']
             progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
             
+            # Post-completion Dashboard truth card (collapsed + inactive)
+            if progress_status == "COMPLETED":
+                placement_id = iss_session.get('placement_id')
+                date_str = selected_date.isoformat()
+                
+                # Determine absent for this date
+                daily_log = dm.get_daily_log(placement_id, date_str)
+                is_absent = daily_log and daily_log.get('dayType') == 'absent'
+                
+                # Pull placement to get endDate reliably
+                placement_obj = dm.get_placement(placement_id) or {}
+                end_date = _parse_iso_date_safe(placement_obj.get('endDate'))
+                
+                total_days = iss_session.get('iss_days_assigned') or iss_session.get('iss_total_days') or 1
+                
+                day_info = dm.get_iss_days_served_info(placement_id, date_str)
+                day_num = day_info.get('current_day_number', None)
+                
+                suffix = _completed_suffix_for_day(
+                    placement_type_label="ISS",
+                    total_days=total_days,
+                    target_date=selected_date,
+                    end_date=end_date,
+                    is_absent=bool(is_absent),
+                    day_number=day_num
+                )
+                
+                subtitle = f"ISS · {suffix}"
+                
+                st.markdown(
+                    f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
+                    background-color: #fafafa; margin-bottom: 8px;">
+                    <span style="font-size: 1.1em;">🔴 <strong>{student_name}</strong></span>
+                    <span style="color: #666; margin-left: 12px;">{subtitle}</span>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                continue
+            
             # Check if this day is completed (session status = 'fulfilled' or dailyFulfillment = 'yes')
             session_status = iss_session.get('status', 'scheduled')
             is_day_completed = session_status == 'fulfilled'
@@ -2719,11 +2795,30 @@ if page == "Dashboard":
             
             # COMPLETED placements: Show as non-interactive collapsed card (no expander)
             if progress_status == "COMPLETED":
+                date_str = selected_date.isoformat()
+                daily_log = dm.get_daily_log(placement_id, date_str)
+                is_absent = (daily_log and daily_log.get('dayType') == 'absent') or dm.is_marked_absent(placement_id, date_str)
+                
+                end_date = _parse_iso_date_safe(placement.get('endDate'))
+                day_info = dm.get_lunch_detention_days_served_info(placement_id, date_str)
+                day_num = day_info.get('current_day_number', None)
+                
+                suffix = _completed_suffix_for_day(
+                    placement_type_label="Lunch Detention",
+                    total_days=days_assigned,
+                    target_date=selected_date,
+                    end_date=end_date,
+                    is_absent=is_absent,
+                    day_number=day_num
+                )
+                
+                subtitle = f"Lunch Detention · {suffix}"
+                
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
                     background-color: #fafafa; margin-bottom: 8px;">
                     <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
-                    <span style="color: #666; margin-left: 12px;">Lunch Detention · {days_assigned}-Day</span>
+                    <span style="color: #666; margin-left: 12px;">{subtitle}</span>
                     </div>""",
                     unsafe_allow_html=True
                 )
@@ -2764,11 +2859,43 @@ if page == "Dashboard":
             
             # COMPLETED placements: Show as non-interactive collapsed card (no expander)
             if progress_status == "COMPLETED":
+                date_str = selected_date.isoformat()
+                daily_log = dm.get_daily_log(placement_id, date_str)
+                is_absent = daily_log and daily_log.get('dayType') == 'absent'
+                
+                end_date = _parse_iso_date_safe(placement.get('endDate'))
+                days_assigned = placement.get('daysAssigned', 1) or 1
+                
+                # Friendly placement type label for the collapsed record
+                if referral_subtype == 'pre_planned':
+                    placement_type_label = "Pre-Planned Referral"
+                elif referral_subtype == 'cool_down':
+                    placement_type_label = "Cool-Down Referral"
+                else:
+                    placement_type_label = "Behavior Referral"
+                
+                # Day numbering only matters for multi-day Pre-Planned
+                day_num = None
+                if referral_subtype == 'pre_planned' and days_assigned > 1:
+                    day_info = dm.get_preplanned_days_served_info(placement_id, date_str)
+                    day_num = day_info.get('current_day_number', None)
+                
+                suffix = _completed_suffix_for_day(
+                    placement_type_label=placement_type_label,
+                    total_days=days_assigned,
+                    target_date=selected_date,
+                    end_date=end_date,
+                    is_absent=bool(is_absent),
+                    day_number=day_num
+                )
+                
+                subtitle = f"{placement_type_label} · {suffix}"
+                
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
                     background-color: #fafafa; margin-bottom: 8px;">
                     <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
-                    <span style="color: #666; margin-left: 12px;">Class Period Referral – {subtype_display}</span>
+                    <span style="color: #666; margin-left: 12px;">{subtitle}</span>
                     </div>""",
                     unsafe_allow_html=True
                 )

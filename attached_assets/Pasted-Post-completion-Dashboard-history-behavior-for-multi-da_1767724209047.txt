@@ -1,0 +1,281 @@
+Post-completion Dashboard history behavior for multi-day placements (ISS, Lunch Detention, Pre-Planned)
+
+After a multi-day placement is fully completed, the Dashboard calendar must remain the day-by-day historical record. When navigating backward to prior dates, each day that was part of that completed session should still appear on that calendar date as a collapsed, inactive record (non-interactive).
+
+Applies to:
+
+ISS (multi-day)
+
+Lunch Detention (multi-day)
+
+Pre-Planned Referral (multi-day)
+
+Display rules for completed sessions (collapsed + inactive only):
+
+Final day (completion day):
+Show: 🔴 Student Name · Placement Type · X-Day Session Completed
+
+Prior served days:
+Show: 🔴 Student Name · Placement Type · Day Y of X Completed
+
+Absent days during the session:
+Show: 🔴 Student Name · Placement Type · Absent
+
+Single-day placements:
+Show: 🔴 Student Name · Placement Type · 1-Day Session Completed
+
+Constraints:
+
+This is a Dashboard display/persistence change only.
+
+Do not modify: tracking logic, period math, completion criteria, backend enforcement.
+
+Completed multi-day day-cards must be collapsed and non-interactive.
+
+Implementation guidance:
+
+On the Dashboard, when a placement’s progressStatus is COMPLETED and it belongs on the selected date, render a non-expander collapsed card with the above title rules.
+
+Use DailyLog dayType == 'absent' to label absent days.
+
+For day numbering (Day Y of X), use the existing DBManager helpers:
+
+get_iss_days_served_info(...)
+
+get_lunch_detention_days_served_info(...)
+
+get_preplanned_days_served_info(...)
+
+Use placement endDate (or the “completion day” logic already stored) to detect the final day.
+
+🧩 ACTUAL PASTE-IN CODE PATCHES
+
+These edits assume your Dashboard already uses the “COMPLETED placements show a non-interactive collapsed card” pattern (it does for Lunch Detention and Class Period Referral in your current structure). We’re upgrading the subtitle text to become date-aware and follow your rules.
+
+Patch 1 — Add a small helper block in app.py (one-time)
+Where to paste
+
+In app.py, find def clear_dashboard_caches(): and scroll to the end of that function.
+Right before the next function definition that begins with def generate_periods_sessions..., paste this helper block:
+
+# ---------- Dashboard Completed-Session Title Helpers ----------
+
+def _parse_iso_date_safe(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s).date()
+    except Exception:
+        return None
+
+def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, target_date: date,
+                             end_date: date, is_absent: bool, day_number: int | None):
+    """
+    Returns the suffix portion after 'Placement Type · ...' based on rules:
+    - Absent day: 'Absent'
+    - Final day: 'X-Day Session Completed'
+    - Prior served day: 'Day Y of X Completed'
+    - Single day: '1-Day Session Completed'
+    """
+    if is_absent:
+        return "Absent"
+
+    total_days = total_days or 1
+
+    if total_days == 1:
+        return "1-Day Session Completed"
+
+    if end_date and target_date == end_date:
+        return f"{total_days}-Day Session Completed"
+
+    # Prior served day
+    if day_number and day_number > 0:
+        return f"Day {day_number} of {total_days} Completed"
+
+    # Fallback (should rarely happen)
+    return f"{total_days}-Day Session Completed"
+
+Patch 2 — Lunch Detention completed collapsed title becomes date-aware
+Where to edit
+
+In the Dashboard section #### Lunch Detention, locate the block:
+
+# COMPLETED placements: Show as non-interactive collapsed card (no expander)
+if progress_status == "COMPLETED":
+    st.markdown(
+        f"""<div style=...
+        <span style="color: #666; margin-left: 12px;">Lunch Detention · {days_assigned}-Day</span>
+
+Replace ONLY the subtitle line
+
+Replace this line:
+
+<span style="color: #666; margin-left: 12px;">Lunch Detention · {days_assigned}-Day</span>
+
+
+with this three-part change:
+
+2A) Add these lines right before st.markdown( inside that COMPLETED block:
+date_str = selected_date.isoformat()
+daily_log = dm.get_daily_log(placement_id, date_str)
+is_absent = (daily_log and daily_log.get('dayType') == 'absent') or dm.is_marked_absent(placement_id, date_str)
+
+end_date = _parse_iso_date_safe(placement.get('endDate'))
+day_info = dm.get_lunch_detention_days_served_info(placement_id, date_str)
+day_num = day_info.get('current_day_number', None)
+
+suffix = _completed_suffix_for_day(
+    placement_type_label="Lunch Detention",
+    total_days=days_assigned,
+    target_date=selected_date,
+    end_date=end_date,
+    is_absent=is_absent,
+    day_number=day_num
+)
+
+subtitle = f"Lunch Detention · {suffix}"
+
+2B) Then replace the subtitle span with:
+<span style="color: #666; margin-left: 12px;">{subtitle}</span>
+
+
+✅ Result: Lunch Detention completed cards will show:
+
+final day: X-Day Session Completed
+
+prior served days: Day Y of X Completed
+
+absent: Absent
+
+single day: 1-Day Session Completed
+
+…and always collapsed + inactive.
+
+Patch 3 — Class Period Referral (completed block) becomes date-aware, especially for Pre-Planned
+Where to edit
+
+In #### Class Period Referral, locate the block:
+
+# COMPLETED placements: Show as non-interactive collapsed card (no expander)
+if progress_status == "COMPLETED":
+    st.markdown(
+        f"""<div style=...
+            <span style="color: #666; margin-left: 12px;">Class Period Referral – {subtype_display}</span>
+
+
+We’ll compute a proper type_label and suffix, then replace that subtitle span.
+
+3A) Add this block right before st.markdown( inside the COMPLETED block:
+date_str = selected_date.isoformat()
+daily_log = dm.get_daily_log(placement_id, date_str)
+is_absent = daily_log and daily_log.get('dayType') == 'absent'
+
+end_date = _parse_iso_date_safe(placement.get('endDate'))
+days_assigned = placement.get('daysAssigned', 1) or 1
+
+# Friendly placement type label for the collapsed record
+if referral_subtype == 'pre_planned':
+    placement_type_label = "Pre-Planned Referral"
+elif referral_subtype == 'cool_down':
+    placement_type_label = "Cool-Down Referral"
+else:
+    placement_type_label = "Behavior Referral"
+
+# Day numbering only matters for multi-day Pre-Planned
+day_num = None
+if referral_subtype == 'pre_planned' and days_assigned > 1:
+    day_info = dm.get_preplanned_days_served_info(placement_id, date_str)
+    day_num = day_info.get('current_day_number', None)
+
+suffix = _completed_suffix_for_day(
+    placement_type_label=placement_type_label,
+    total_days=days_assigned,
+    target_date=selected_date,
+    end_date=end_date,
+    is_absent=bool(is_absent),
+    day_number=day_num
+)
+
+subtitle = f"{placement_type_label} · {suffix}"
+
+3B) Replace the existing subtitle span line with:
+<span style="color: #666; margin-left: 12px;">{subtitle}</span>
+
+
+✅ Result:
+
+Behavior/Cool-Down (single day): 1-Day Session Completed
+
+Pre-Planned multi-day:
+
+final day: X-Day Session Completed
+
+prior served days: Day Y of X Completed
+
+absent: Absent
+
+All collapsed, inactive.
+
+Patch 4 — ISS completed session cards: collapsed inactive + correct titles
+
+You previously removed the duplicate ISS feed (good). Your ISS rendering loop already has “completed day” logic, but we now force the post-completion calendar truth cards.
+
+Where to edit
+
+In the ISS section where you loop sessions for the selected date (where you have something like):
+
+for iss_session in iss_sessions:
+    ...
+
+
+Add this logic at the top of the loop, after you pull student_name, placement_id and progress_status:
+
+# Post-completion Dashboard truth card (collapsed + inactive)
+if iss_session.get('progressStatus') == "COMPLETED":
+    placement_id = iss_session.get('placement_id')
+    date_str = selected_date.isoformat()
+
+    # Determine absent for this date
+    daily_log = dm.get_daily_log(placement_id, date_str)
+    is_absent = daily_log and daily_log.get('dayType') == 'absent'
+
+    # Pull placement to get endDate reliably
+    placement_obj = dm.get_placement(placement_id) or {}
+    end_date = _parse_iso_date_safe(placement_obj.get('endDate'))
+
+    total_days = iss_session.get('iss_days_assigned') or iss_session.get('iss_total_days') or 1
+
+    day_info = dm.get_iss_days_served_info(placement_id, date_str)
+    day_num = day_info.get('current_day_number', None)
+
+    suffix = _completed_suffix_for_day(
+        placement_type_label="ISS",
+        total_days=total_days,
+        target_date=selected_date,
+        end_date=end_date,
+        is_absent=bool(is_absent),
+        day_number=day_num
+    )
+
+    subtitle = f"ISS · {suffix}"
+
+    st.markdown(
+        f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
+        background-color: #fafafa; margin-bottom: 8px;">
+        <span style="font-size: 1.1em;">🔴 <strong>{iss_session['student_name']}</strong></span>
+        <span style="color: #666; margin-left: 12px;">{subtitle}</span>
+        </div>""",
+        unsafe_allow_html=True
+    )
+    continue
+
+
+✅ Result: once ISS is completed, any date in that completed session’s day-range shows a collapsed red inactive truth card with:
+
+final day: X-Day Session Completed
+
+prior served: Day Y of X Completed
+
+absent: Absent
+
+single-day: 1-Day Session Completed

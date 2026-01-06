@@ -1376,9 +1376,12 @@ if page == "Dashboard":
             # Check In / Absent controls in columns
             ctrl_col1, ctrl_col2 = st.columns(2)
             with ctrl_col1:
-                absent_checked = st.checkbox("Absent", key=absent_key,
-                              disabled=is_checked_in or is_completed_day,
-                              on_change=handle_absent_change)
+                absent_checked = st.checkbox(
+                    "Absent",
+                    key=absent_key,
+                    disabled=is_checked_in or is_completed_day or is_future_placement,
+                    on_change=handle_absent_change
+                )
             
             with ctrl_col2:
                 # is_absent uses the checkbox return value (current state after widget processing)
@@ -1741,8 +1744,12 @@ if page == "Dashboard":
                             else:
                                 dm.unmark_absent(pid, ds)
                         
-                        absent_checked = st.checkbox("Absent", key=absent_key,
-                                  disabled=is_checked_in, on_change=handle_preplanned_absent)
+                        absent_checked = st.checkbox(
+                            "Absent",
+                            key=absent_key,
+                            disabled=is_checked_in or is_future_placement,
+                            on_change=handle_preplanned_absent
+                        )
                     
                     # is_absent uses the checkbox return value (current state after widget processing)
                     is_absent = absent_checked

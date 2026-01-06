@@ -1,0 +1,99 @@
+Micro-tweak: Disable the “Absent” checkbox on future-dated Lunch Detention + Pre-Planned cards (Dashboard)
+
+Right now, future-dated cards correctly disable Check In, but the Absent checkbox is still clickable for:
+
+Lunch Detention, and
+
+Pre-Planned placements (both 1-day and multi-day)
+
+Change request:
+
+If a card/session is future-dated / not started yet (same condition used to disable Check In), then the Absent checkbox must also be disabled.
+
+This applies to:
+
+Lunch Detention
+
+Pre-Planned (1-day and multi-day)
+
+This does not apply to ISS (ISS already handles absence per-day in its own workflow).
+
+Do not change any absence logic, completion logic, or point logic. Only disable the checkbox when the placement is future/not-started.
+
+Acceptance tests:
+
+Navigate Dashboard to a future date containing a future Lunch Detention card → Absent is disabled.
+
+Navigate Dashboard to a future date containing a future Pre-Planned card (1-day) → Absent is disabled.
+
+Navigate Dashboard to a future date containing a future Pre-Planned card (multi-day) → Absent is disabled.
+
+For today/current sessions, Absent behaves exactly as it does now.
+
+🧩 Exact paste-in patch (app.py only, very targeted)
+Patch 1 — Lunch Detention: include future lock in Absent checkbox disable
+
+In render_lunch_detention_card(placement: dict, target_date: date), find this checkbox:
+
+absent_checked = st.checkbox("Absent", key=absent_key,
+              disabled=is_checked_in or is_completed_day,
+              on_change=handle_absent_change)
+
+
+Replace it with:
+
+absent_checked = st.checkbox(
+    "Absent",
+    key=absent_key,
+    disabled=is_checked_in or is_completed_day or is_future_placement,
+    on_change=handle_absent_change
+)
+
+
+✅ This uses the is_future_placement flag you already added earlier for the Check-In lock.
+
+Patch 2 — Pre-Planned: compute future lock + disable Absent checkbox
+
+In app.py, locate this block (you’ll see it exactly like this):
+
+elif subtype_key == 'pre_planned':
+    # Pre-Planned Referral: Check In + Absent + Complete workflow
+
+
+Just under the lines:
+
+days_assigned = placement.get('daysAssigned', 1)
+is_one_day = days_assigned == 1
+
+
+Paste this future-lock detection block:
+
+# FUTURE PLACEMENT LOCK: disable Absent until the start date (same idea as Check In lock)
+placement_status = placement.get('status', 'active')
+start_date_str = placement.get('startDate')
+is_future_placement = False
+if start_date_str:
+    try:
+        start_date_obj = datetime.fromisoformat(start_date_str).date()
+        is_future_placement = start_date_obj > central_today()
+    except Exception:
+        is_future_placement = False
+
+if placement_status == 'scheduled':
+    is_future_placement = True
+
+
+Now, still in that same Pre-Planned block, find this checkbox line:
+
+absent_checked = st.checkbox("Absent", key=absent_key,
+          disabled=is_checked_in, on_change=handle_preplanned_absent)
+
+
+Replace it with:
+
+absent_checked = st.checkbox(
+    "Absent",
+    key=absent_key,
+    disabled=is_checked_in or is_future_placement,
+    on_change=handle_preplanned_absent
+)

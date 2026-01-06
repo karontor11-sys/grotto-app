@@ -1295,6 +1295,22 @@ if page == "Dashboard":
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
+        # FUTURE PLACEMENT LOCK: disable Check In until the start date
+        placement_status = placement.get('status', 'active')
+        start_date_str = placement.get('startDate')
+        is_future_placement = False
+        if start_date_str:
+            try:
+                start_date_obj = datetime.fromisoformat(start_date_str).date()
+                is_future_placement = start_date_obj > central_today()
+            except Exception:
+                is_future_placement = False
+
+        if placement_status == 'scheduled':
+            is_future_placement = True
+
+        future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
+        
         # Get progress status and display at top of expanded card
         progress_status = placement.get('progressStatus', 'NOT_STARTED')
         if progress_status == "COMPLETED":
@@ -1369,7 +1385,7 @@ if page == "Dashboard":
                 is_absent = absent_checked
                 
                 # Check In button - disabled if already checked in, completed, or marked absent
-                checkin_disabled = is_completed_day or is_checked_in or is_absent
+                checkin_disabled = is_completed_day or is_checked_in or is_absent or is_future_placement
                 if st.button("Check In", key=f"ld_checkin_{placement_id}_{date_str}", 
                            type="primary" if not checkin_disabled else "secondary",
                            disabled=checkin_disabled):
@@ -1378,6 +1394,10 @@ if page == "Dashboard":
                     dm.unmark_absent(placement_id, date_str)
                     clear_dashboard_caches()
                     st.rerun()
+                
+                # Show future placement message (generic)
+                if is_future_placement:
+                    st.caption(future_checkin_msg)
             
             # Notes (always visible with auto-save, safe access - daily_log may be None)
             st.caption("Notes")
@@ -1420,6 +1440,22 @@ if page == "Dashboard":
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
+        
+        # FUTURE PLACEMENT LOCK: disable Check In until the start date
+        placement_status = placement.get('status', 'active')
+        start_date_str = placement.get('startDate')
+        is_future_placement = False
+        if start_date_str:
+            try:
+                start_date_obj = datetime.fromisoformat(start_date_str).date()
+                is_future_placement = start_date_obj > central_today()
+            except Exception:
+                is_future_placement = False
+
+        if placement_status == 'scheduled':
+            is_future_placement = True
+
+        future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
         # Get progress status and display at top of expanded card
         progress_status = placement.get('progressStatus', 'NOT_STARTED')
@@ -1606,10 +1642,19 @@ if page == "Dashboard":
                     if is_checked_in:
                         st.success("✓ Checked In")
                     else:
-                        if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", type="primary"):
+                        if st.button(
+                            "Check In",
+                            key=f"checkin_behavior_{placement_id}_{date_str}",
+                            type="primary",
+                            disabled=is_future_placement,
+                            help=("Check-in will be available on the start date." if is_future_placement else None)
+                        ):
                             dm.checkin_referral(placement_id, date_str)
                             clear_dashboard_caches()
                             st.rerun()
+                        
+                        if is_future_placement:
+                            st.caption(future_checkin_msg)
                     
                     # Complete Referral button (disabled until checked in)
                     complete_disabled = not is_checked_in
@@ -1634,10 +1679,19 @@ if page == "Dashboard":
                     if is_checked_in:
                         st.success("✓ Checked In")
                     else:
-                        if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", type="primary"):
+                        if st.button(
+                            "Check In",
+                            key=f"checkin_cooldown_{placement_id}_{date_str}",
+                            type="primary",
+                            disabled=is_future_placement,
+                            help=("Check-in will be available on the start date." if is_future_placement else None)
+                        ):
                             dm.checkin_referral(placement_id, date_str)
                             clear_dashboard_caches()
                             st.rerun()
+                        
+                        if is_future_placement:
+                            st.caption(future_checkin_msg)
                     
                     # Complete Cool-Down button (disabled until checked in)
                     complete_disabled = not is_checked_in
@@ -1698,14 +1752,17 @@ if page == "Dashboard":
                             # Show check-in confirmation
                             st.success("✓ Checked In")
                         else:
-                            # Show Check In button - disabled if absent
-                            checkin_disabled = is_absent
+                            # Show Check In button - disabled if absent or future placement
+                            checkin_disabled = is_absent or is_future_placement
                             if st.button("Check In", key=f"checkin_preplanned_{placement_id}_{date_str}", 
                                        type="primary" if not checkin_disabled else "secondary",
                                        disabled=checkin_disabled):
                                 dm.checkin_preplanned_session(placement_id, date_str)
                                 clear_dashboard_caches()
                                 st.rerun()
+                            
+                            if is_future_placement:
+                                st.caption(future_checkin_msg)
                     
                     # For multi-day Pre-Planned when marked absent: show skip message
                     if is_absent and not is_one_day:
@@ -1813,7 +1870,7 @@ if page == "Dashboard":
                 
                 # "First Check-In Date" label - prominent display
                 st.info(f"📅 **First Check-In Date:** {formatted_start_date}")
-                st.caption("This ISS Session has not started yet. Check-in will be available on the start date.")
+                st.caption("This session has not started yet. Check-in will be available on the start date.")
                 
                 st.markdown("</div>", unsafe_allow_html=True)
             

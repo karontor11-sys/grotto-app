@@ -1,0 +1,199 @@
+Feature upgrade: Future placement “Check-In lock” across ALL placement types/subtypes on the Dashboard
+
+Right now, future ISS placements correctly disable the Check In button and show a message: “This ISS Session has not started yet. Check-in will be available on the start date.”
+
+I want the same behavior across the board for all future placements and all subtypes shown on the Dashboard (Lunch Detention, Behavior Referral, Cool-Down Referral, Pre-Planned Referral, etc.).
+
+Rules:
+
+If a placement is scheduled for the future (its startDate is after today, or its status is scheduled), then on its Dashboard card:
+
+Disable the Check In button.
+
+Show a short message under the Check In area.
+
+Use the same message everywhere (do not name the placement type):
+
+“This session has not started yet. Check-in will be available on the start date.”
+
+Keep the existing ISS behavior, but change its message text to the generic “This session…” version.
+
+Do not change completion logic, points logic, or absent/no-show behavior. This is purely a future-placement Check In guardrail + message.
+
+Acceptance tests:
+
+Create a future Lunch Detention, Behavior Referral, Cool-Down, and Pre-Planned placement and navigate the Dashboard to that future date.
+
+Confirm each card shows a disabled Check In button and the generic message.
+
+Confirm non-future placements still allow Check In normally.
+
+🧩 Exact paste-in patch (targeted edits in app.py)
+
+Only edit app.py.
+These are small inserts + a couple of line edits.
+
+Patch A — Replace the ISS future message text (2 spots)
+
+Find this exact line (it appears twice in render_iss_session_card):
+
+st.caption("This ISS Session has not started yet. Check-in will be available on the start date.")
+
+
+Replace with:
+
+st.caption("This session has not started yet. Check-in will be available on the start date.")
+
+Patch B — Lunch Detention: disable Check In for future placements + show message
+B1) Add “future placement” detection near the top of render_lunch_detention_card
+
+Inside:
+
+def render_lunch_detention_card(placement: dict, target_date: date):
+
+
+Find this block:
+
+student_name = f"{student['firstName']} {student['lastName']}"
+date_str = target_date.isoformat()
+
+
+Replace with:
+
+student_name = f"{student['firstName']} {student['lastName']}"
+date_str = target_date.isoformat()
+
+# FUTURE PLACEMENT LOCK: disable Check In until the start date
+placement_status = placement.get('status', 'active')
+start_date_str = placement.get('startDate')
+is_future_placement = False
+if start_date_str:
+    try:
+        start_date_obj = datetime.fromisoformat(start_date_str).date()
+        is_future_placement = start_date_obj > central_today()
+    except Exception:
+        is_future_placement = False
+
+if placement_status == 'scheduled':
+    is_future_placement = True
+
+future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
+
+B2) Extend the existing Lunch Detention check-in disable logic and show the message
+
+In the Lunch Detention section, find:
+
+checkin_disabled = is_completed_day or is_checked_in or is_absent
+
+
+Replace with:
+
+checkin_disabled = is_completed_day or is_checked_in or is_absent or is_future_placement
+
+
+Then right after the Check In button block (right after the if st.button(...): block ends), add this:
+
+# Show future placement message (generic)
+if is_future_placement:
+    st.caption(future_checkin_msg)
+
+
+Where to paste it: immediately after the st.rerun() line inside that control section, before Notes.
+
+Patch C — Unified Class Referral card (Behavior / Cool-Down / Pre-Planned): disable Check In for future placements + show message
+C1) Add “future placement” detection near the top of render_unified_class_referral_card
+
+Inside:
+
+def render_unified_class_referral_card(placement: dict, target_date: date):
+
+
+Find:
+
+student_name = f"{student['firstName']} {student['lastName']}"
+date_str = target_date.isoformat()
+
+
+Replace with:
+
+student_name = f"{student['firstName']} {student['lastName']}"
+date_str = target_date.isoformat()
+
+# FUTURE PLACEMENT LOCK: disable Check In until the start date
+placement_status = placement.get('status', 'active')
+start_date_str = placement.get('startDate')
+is_future_placement = False
+if start_date_str:
+    try:
+        start_date_obj = datetime.fromisoformat(start_date_str).date()
+        is_future_placement = start_date_obj > central_today()
+    except Exception:
+        is_future_placement = False
+
+if placement_status == 'scheduled':
+    is_future_placement = True
+
+future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
+
+C2) Behavior Referral: disable Check In button + show message
+
+In the Behavior block, find:
+
+if st.button("Check In", key=f"checkin_behavior_{placement_id}_{date_str}", type="primary"):
+
+
+Replace with:
+
+if st.button(
+    "Check In",
+    key=f"checkin_behavior_{placement_id}_{date_str}",
+    type="primary",
+    disabled=is_future_placement,
+    help=("Check-in will be available on the start date." if is_future_placement else None)
+):
+
+
+Then immediately after that check-in UI section (still inside the Behavior subtype block), add:
+
+if is_future_placement:
+    st.caption(future_checkin_msg)
+
+C3) Cool-Down Referral: disable Check In button + show message
+
+In the Cool-Down block, find:
+
+if st.button("Check In", key=f"checkin_cooldown_{placement_id}_{date_str}", type="primary"):
+
+
+Replace with:
+
+if st.button(
+    "Check In",
+    key=f"checkin_cooldown_{placement_id}_{date_str}",
+    type="primary",
+    disabled=is_future_placement,
+    help=("Check-in will be available on the start date." if is_future_placement else None)
+):
+
+
+Then add right after that section:
+
+if is_future_placement:
+    st.caption(future_checkin_msg)
+
+C4) Pre-Planned: include future lock in existing checkin_disabled and show message
+
+In the Pre-Planned check-in section, find:
+
+checkin_disabled = is_absent
+
+
+Replace with:
+
+checkin_disabled = is_absent or is_future_placement
+
+
+Then right after the Pre-Planned Check In button block, add:
+
+if is_future_placement:
+    st.caption(future_checkin_msg)

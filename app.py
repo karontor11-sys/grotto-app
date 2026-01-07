@@ -3446,12 +3446,8 @@ elif page == "Completed Placements":
     completed_placements = dm.get_completed_placements_with_students()
     
     if completed_placements:
-        # Search and Print controls
-        search_col, print_col = st.columns([3, 1])
-        with search_col:
-            search_query = st.text_input("🔍 Search student name", "", key="archive_search").strip()
-        with print_col:
-            print_mode = st.selectbox("📄 Print", ["", "Print by Day", "Print by Month"], key="print_mode")
+        # Search control
+        search_query = st.text_input("🔍 Search student name", "", key="archive_search").strip()
         
         # Filter placements based on search (student name only)
         filtered_placements = completed_placements
@@ -3476,102 +3472,183 @@ elif page == "Completed Placements":
         st.write(f"**{len(filtered_placements)} completed placements**")
         st.divider()
         
-        # Print by Day UI
-        if print_mode == "Print by Day":
-            st.markdown("### 📄 Print by Day")
-            print_date = st.date_input("Select date to print", value=central_today(), key="print_day_date")
-            
-            # Get placements for that day
-            placements_for_print_day = [p for p in filtered_placements 
-                if (p.get('endDate') or p.get('startDate', ''))[:10] == print_date.isoformat()]
-            
-            if placements_for_print_day:
-                st.write(f"**{len(placements_for_print_day)} placements on {format_date(print_date.isoformat())}**")
-                
-                # Print-friendly layout
-                st.markdown("---")
-                st.markdown(f"## Completed Placements Report: {format_date(print_date.isoformat())}")
-                
-                for p in placements_for_print_day:
-                    student = p['student']
-                    type_display = get_placement_type_with_subtype(p)
-                    st.markdown(f"""
-**{student['firstName']} {student['lastName']}** | {type_display}  
-Reason: {p.get('reason', 'N/A')}  
-Dates: {format_date(p.get('startDate', ''))} – {format_date(p.get('endDate', ''))}
-""")
-                    st.markdown("---")
-                
-                st.info("💡 Use your browser's Print function (Ctrl+P / Cmd+P) to print this report.")
-            else:
-                st.info(f"No completed placements found for {format_date(print_date.isoformat())}")
+        # ---------------- Reports + Export Section ----------------
+        import io
         
-        # Print by Month UI
-        elif print_mode == "Print by Month":
-            st.markdown("### 📄 Print by Month")
-            month_col1, month_col2 = st.columns(2)
-            with month_col1:
-                print_year = st.selectbox("Year", list(range(central_today().year, 2020, -1)), key="print_month_year")
-            with month_col2:
-                month_names_list = ['January', 'February', 'March', 'April', 'May', 'June', 
-                                   'July', 'August', 'September', 'October', 'November', 'December']
-                print_month_name = st.selectbox("Month", month_names_list, index=central_today().month - 1, key="print_month")
-                print_month = month_names_list.index(print_month_name) + 1
-            
-            # Get placements for that month
-            placements_for_print_month = [p for p in filtered_placements 
-                if (p.get('endDate') or p.get('startDate', ''))[:7] == f"{print_year}-{print_month:02d}"]
-            
-            if placements_for_print_month:
-                st.write(f"**{len(placements_for_print_month)} placements in {print_month_name} {print_year}**")
-                
-                # Print-friendly layout
-                st.markdown("---")
-                st.markdown(f"## Completed Placements Report: {print_month_name} {print_year}")
-                
-                for p in sorted(placements_for_print_month, key=lambda x: x.get('endDate') or x.get('startDate', '')):
-                    student = p['student']
-                    type_display = get_placement_type_with_subtype(p)
-                    end_date_str = p.get('endDate') or p.get('startDate', '')
-                    st.markdown(f"""
-**{format_date(end_date_str)}** | {student['firstName']} {student['lastName']} | {type_display}  
-Reason: {p.get('reason', 'N/A')}
-""")
-                
-                st.markdown("---")
-                st.info("💡 Use your browser's Print function (Ctrl+P / Cmd+P) to print this report.")
-            else:
-                st.info(f"No completed placements found for {print_month_name} {print_year}")
+        def _iso_to_date_safe(s):
+            if not s:
+                return None
+            try:
+                return datetime.fromisoformat(s).date()
+            except Exception:
+                return None
         
-        # Normal hierarchical view (when not printing)
-        else:
-            # Render School Year → Month → Day hierarchy
-            for school_year, year_data in grouped.items():
-                is_current_year = (school_year == current_school_year)
-                year_label = year_data['label']
+        def _completion_date_for(p: dict):
+            for key in ("completedDate", "endDate", "dateCompleted", "completed_at", "updatedAt"):
+                d = _iso_to_date_safe(p.get(key))
+                if d:
+                    return d
+            return _iso_to_date_safe(p.get("startDate"))
+        
+        def _placement_type_label(p: dict) -> str:
+            pt = (p.get("placementType") or p.get("type") or "").upper()
+            if pt == "ISS":
+                return "ISS"
+            if pt in ("LUNCH_DETENTION", "LUNCH"):
+                return "Lunch Detention"
+            if pt in ("CLASS_REFERRAL", "CPR", "CLASS_PERIOD_REFERRAL"):
+                sub = (p.get("referralSubtype") or p.get("subtype") or "").lower()
+                if sub == "pre_planned":
+                    return "Pre-Planned Referral"
+                if sub == "cool_down":
+                    return "Cool-Down Referral"
+                if sub == "behavior":
+                    return "Behavior Referral"
+                return "Class Period Referral"
+            return p.get("placementType") or p.get("type") or "Placement"
+        
+        def _served_time_label(p: dict) -> str:
+            days = p.get("daysAssigned") or p.get("issDaysAssigned")
+            sp = p.get("startPeriod")
+            ep = p.get("endPeriod")
+            
+            if sp and ep:
+                try:
+                    sp_i, ep_i = int(sp), int(ep)
+                    if ep_i >= sp_i:
+                        n = ep_i - sp_i + 1
+                        return f"Periods {sp_i}-{ep_i} ({n})"
+                except Exception:
+                    pass
+            if sp:
+                try:
+                    return f"Period {int(sp)}"
+                except Exception:
+                    return "Period (unspecified)"
+            
+            if days:
+                try:
+                    return f"{int(days)} day(s)"
+                except Exception:
+                    return f"{days} day(s)"
+            return ""
+        
+        with st.expander("Reports & Export", expanded=False):
+            report_scope = st.selectbox("Report range", ["Day", "Month", "Year"], index=0, key="cp_report_scope")
+            
+            today_central = central_today()
+            
+            if report_scope == "Day":
+                report_day = st.date_input("Select date", value=today_central, key="cp_report_day")
+                def _in_scope(p): 
+                    d = _completion_date_for(p)
+                    return d == report_day
+            
+            elif report_scope == "Month":
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    report_year = st.number_input("Year", min_value=2020, max_value=2100, value=today_central.year, step=1, key="cp_report_year_m")
+                with col_b:
+                    report_month = st.number_input("Month", min_value=1, max_value=12, value=today_central.month, step=1, key="cp_report_month")
+                def _in_scope(p):
+                    d = _completion_date_for(p)
+                    return bool(d) and d.year == int(report_year) and d.month == int(report_month)
+            
+            else:  # Year
+                report_year = st.number_input("Year", min_value=2020, max_value=2100, value=today_central.year, step=1, key="cp_report_year_y")
+                def _in_scope(p):
+                    d = _completion_date_for(p)
+                    return bool(d) and d.year == int(report_year)
+            
+            report_rows = [p for p in filtered_placements if _in_scope(p)]
+            
+            table = []
+            for p in report_rows:
+                cd = _completion_date_for(p)
+                student = p.get("student", {})
+                student_name = f"{student.get('firstName', '')} {student.get('lastName', '')}".strip()
+                table.append({
+                    "Student": student_name,
+                    "Placement": _placement_type_label(p),
+                    "Served time": _served_time_label(p),
+                    "Reason": (p.get("reason") or "").strip(),
+                    "Start date": p.get("startDate") or "",
+                    "End/Completed date": cd.isoformat() if cd else "",
+                    "Staff": (p.get("staffName") or p.get("createdBy") or "").strip(),
+                    "Placement ID": p.get("id") or p.get("placementId") or p.get("_id") or "",
+                })
+            
+            df = pd.DataFrame(table)
+            
+            st.caption(f"{len(df)} record(s) in report")
+            
+            if len(df) > 0:
+                st.dataframe(df, use_container_width=True, hide_index=True)
                 
-                # Count total placements in this school year
-                year_total = sum(
-                    len(day_placements) 
-                    for month_data in year_data['months'].values() 
-                    for day_placements in month_data['days'].values()
-                )
+                dl_col1, dl_col2, dl_col3 = st.columns(3)
                 
-                with st.expander(f"📅 {year_label} ({year_total})", expanded=is_current_year):
-                    for month_num, month_data in year_data['months'].items():
-                        month_label = month_data['label']
+                with dl_col1:
+                    csv_bytes = df.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        "Download CSV",
+                        data=csv_bytes,
+                        file_name="completed_placements_report.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                
+                with dl_col2:
+                    xlsx_buf = io.BytesIO()
+                    with pd.ExcelWriter(xlsx_buf, engine="openpyxl") as writer:
+                        df.to_excel(writer, index=False, sheet_name="Report")
+                    st.download_button(
+                        "Download XLSX",
+                        data=xlsx_buf.getvalue(),
+                        file_name="completed_placements_report.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                
+                with dl_col3:
+                    html = df.to_html(index=False)
+                    st.download_button(
+                        "Download Print-Friendly HTML",
+                        data=html.encode("utf-8"),
+                        file_name="completed_placements_report.html",
+                        mime="text/html",
+                        use_container_width=True
+                    )
+            else:
+                st.info("No completed placements found for the selected report range.")
+        # -----------------------------------------------------------------------
+        
+        # Normal hierarchical view - Render School Year → Month → Day hierarchy
+        for school_year, year_data in grouped.items():
+            is_current_year = (school_year == current_school_year)
+            year_label = year_data['label']
+            
+            # Count total placements in this school year
+            year_total = sum(
+                len(day_placements) 
+                for month_data in year_data['months'].values() 
+                for day_placements in month_data['days'].values()
+            )
+            
+            with st.expander(f"📅 {year_label} ({year_total})", expanded=is_current_year):
+                for month_num, month_data in year_data['months'].items():
+                    month_label = month_data['label']
+                    
+                    # Count placements in this month
+                    month_total = sum(len(day_placements) for day_placements in month_data['days'].values())
+                    
+                    st.markdown(f"##### {month_label} ({month_total})")
+                    
+                    for day_num, day_placements in month_data['days'].items():
+                        day_ordinal = format_ordinal_day(day_num)
                         
-                        # Count placements in this month
-                        month_total = sum(len(day_placements) for day_placements in month_data['days'].values())
+                        st.markdown(f"###### {day_ordinal}")
                         
-                        st.markdown(f"##### {month_label} ({month_total})")
-                        
-                        for day_num, day_placements in month_data['days'].items():
-                            day_ordinal = format_ordinal_day(day_num)
-                            
-                            st.markdown(f"###### {day_ordinal}")
-                            
-                            for placement in day_placements:
+                        for placement in day_placements:
                                 student = placement['student']
                                 student_name = f"{student['firstName']} {student['lastName']}"
                                 type_display = get_placement_type_with_subtype(placement)

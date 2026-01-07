@@ -1,0 +1,228 @@
+Completed Placements page: Add printable reports (day/month/year) + export to spreadsheet (CSV/XLSX)
+
+On the Completed Placements (Archive) page, add reporting and export tools so staff can print summaries and export the data for external analytics.
+
+Requirements
+
+Report scope controls
+
+Add a “Reports” section on the Completed Placements page with a selector:
+
+Day
+
+Month
+
+Year
+
+Based on the selection, allow choosing:
+
+a specific date (Day)
+
+a month + year (Month)
+
+a year (Year)
+
+Report output
+
+Generate a filtered list of completed placements that fall within the selected period.
+
+Display the report as a clean table (student, placement type/subtype, date range, reason, served-time fields like days/periods, and completion date when available).
+
+Keep this purely read-only.
+
+Printing
+
+Provide a Print-friendly report view (simple HTML) and a button to open it in a way that the user can print (browser print is fine).
+
+Export
+
+Provide an Export option to download the report data as:
+
+CSV
+
+XLSX
+
+Constraints
+
+Do not change placement logic or completion logic.
+
+Use existing completed placement records as the source of truth.
+
+Robustly determine the “completion date” using available fields (prefer completed/end date if present).
+
+Acceptance tests
+
+Day report shows only placements completed on that date.
+
+Month report shows only placements completed in that month.
+
+Year report shows only placements completed in that year.
+
+CSV and XLSX downloads work and include the same rows shown in the table.
+
+🧩 Targeted PASTE-IN patch (app.py)
+Where to paste
+
+File: app.py
+Section: Completed Placements (Archive) page
+Paste this block after you finish computing/filtering the completed_placements list (and after the student-name search from Prompt #2), but before you render the expandable cards.
+
+If your list variable is not named completed_placements, replace it accordingly.
+
+✅ Paste this entire block
+# ---------------- Completed Placements: Reports + Export ----------------
+import io
+from datetime import datetime, date
+import pandas as pd
+
+def _iso_to_date_safe(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s).date()
+    except Exception:
+        return None
+
+def _completion_date_for(p: dict) -> date | None:
+    # Prefer true completion/end signals; fall back safely.
+    for key in ("completedDate", "endDate", "dateCompleted", "completed_at", "updatedAt"):
+        d = _iso_to_date_safe(p.get(key))
+        if d:
+            return d
+    # Last fallback: startDate (not ideal, but prevents empty reports)
+    return _iso_to_date_safe(p.get("startDate"))
+
+def _placement_type_label(p: dict) -> str:
+    pt = (p.get("placementType") or p.get("type") or "").upper()
+    if pt == "ISS":
+        return "ISS"
+    if pt in ("LUNCH_DETENTION", "LUNCH"):
+        return "Lunch Detention"
+    if pt in ("CLASS_REFERRAL", "CPR", "CLASS_PERIOD_REFERRAL"):
+        sub = (p.get("referralSubtype") or p.get("subtype") or "").lower()
+        if sub == "pre_planned":
+            return "Pre-Planned Referral"
+        if sub == "cool_down":
+            return "Cool-Down Referral"
+        if sub == "behavior":
+            return "Behavior Referral"
+        return "Class Period Referral"
+    return p.get("placementType") or p.get("type") or "Placement"
+
+def _served_time_label(p: dict) -> str:
+    # Display a simple served-time summary if present.
+    # You can expand later, but keep it stable and helpful.
+    days = p.get("daysAssigned") or p.get("issDaysAssigned")
+    sp = p.get("startPeriod")
+    ep = p.get("endPeriod")
+
+    if sp and ep:
+        try:
+            sp_i, ep_i = int(sp), int(ep)
+            if ep_i >= sp_i:
+                n = ep_i - sp_i + 1
+                return f"Periods {sp_i}–{ep_i} ({n})"
+        except Exception:
+            pass
+    if sp:
+        try:
+            return f"Period {int(sp)}"
+        except Exception:
+            return "Period (unspecified)"
+
+    if days:
+        try:
+            return f"{int(days)} day(s)"
+        except Exception:
+            return f"{days} day(s)"
+    return ""
+
+st.subheader("Reports")
+
+report_scope = st.selectbox("Report range", ["Day", "Month", "Year"], index=0, key="cp_report_scope")
+
+today_central = central_today()
+
+if report_scope == "Day":
+    report_day = st.date_input("Select date", value=today_central, key="cp_report_day")
+    def _in_scope(p): 
+        d = _completion_date_for(p)
+        return d == report_day
+
+elif report_scope == "Month":
+    # Simple month/year controls
+    default_year = today_central.year
+    default_month = today_central.month
+    col_a, col_b = st.columns(2)
+    with col_a:
+        report_year = st.number_input("Year", min_value=2020, max_value=2100, value=default_year, step=1, key="cp_report_year_m")
+    with col_b:
+        report_month = st.number_input("Month", min_value=1, max_value=12, value=default_month, step=1, key="cp_report_month")
+    def _in_scope(p):
+        d = _completion_date_for(p)
+        return bool(d) and d.year == int(report_year) and d.month == int(report_month)
+
+else:  # Year
+    report_year = st.number_input("Year", min_value=2020, max_value=2100, value=today_central.year, step=1, key="cp_report_year_y")
+    def _in_scope(p):
+        d = _completion_date_for(p)
+        return bool(d) and d.year == int(report_year)
+
+report_rows = [p for p in completed_placements if _in_scope(p)]
+
+# Build a clean dataframe for display/export
+table = []
+for p in report_rows:
+    cd = _completion_date_for(p)
+    table.append({
+        "Student": (p.get("studentName") or "").strip(),
+        "Placement": _placement_type_label(p),
+        "Served time": _served_time_label(p),
+        "Reason": (p.get("reason") or "").strip(),
+        "Start date": p.get("startDate") or "",
+        "End/Completed date": cd.isoformat() if cd else "",
+        "Staff": (p.get("staffName") or p.get("createdBy") or "").strip(),
+        "Placement ID": p.get("id") or p.get("placementId") or "",
+    })
+
+df = pd.DataFrame(table)
+
+st.caption(f"{len(df)} record(s) in report")
+
+if len(df) > 0:
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # CSV export
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download CSV",
+        data=csv_bytes,
+        file_name="completed_placements_report.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+    # XLSX export
+    xlsx_buf = io.BytesIO()
+    with pd.ExcelWriter(xlsx_buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Report")
+    st.download_button(
+        "Download XLSX",
+        data=xlsx_buf.getvalue(),
+        file_name="completed_placements_report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
+    # Print-friendly HTML (simple)
+    html = df.to_html(index=False)
+    st.download_button(
+        "Download Print-Friendly HTML",
+        data=html.encode("utf-8"),
+        file_name="completed_placements_report.html",
+        mime="text/html",
+        use_container_width=True
+    )
+else:
+    st.info("No completed placements found for the selected report range.")
+# -----------------------------------------------------------------------

@@ -70,8 +70,11 @@ The UI features the following navigation pages:
 - **Completed Placements Archive**: Master archive of all completed placements with:
     - **School Year Hierarchy**: Organized by School Year (Aug 1 – Jul 31) → Month → Day, with current school year expanded by default.
     - **School Year Helper Functions**: `get_school_year_for_date()`, `get_current_school_year()`, `group_placements_by_school_year_month_day()` in utils.py.
-    - **Search/Filter**: Filter placements by student name or reason.
-    - **Print Features**: Print by Day or Print by Month with browser print dialog.
+    - **Search/Filter**: Filter placements by student name only (case-insensitive, whitespace-normalized).
+    - **Reports & Export Section**: Collapsible expander with:
+        - Report scope selector (Day/Month/Year) with date inputs.
+        - Filtered table view showing Student, Placement type, Served time, Reason, Start/End dates, Staff, Placement ID.
+        - Export buttons: Download CSV, Download XLSX, Download Print-Friendly HTML.
     - **Collapsed Cards**: Expandable read-only detail views for each completed placement with type-specific details (ISS periods/make-up info, Lunch Detention served dates, CPR session attendance).
     - **Restore Function**: Admin button to restore completed placements back to active status.
 - **Dashboard Navigation Buttons**: Quick navigation buttons ("Create New Placement" and "Completed Placements") at the top of the Dashboard for easy access to placement management.

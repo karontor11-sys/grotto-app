@@ -1,0 +1,202 @@
+Title: Notes Auto-Save Everywhere + Show Notes in Completed Placements
+
+Goal: Remove manual “Cmd+Enter” saving for Notes. Notes should auto-save reliably for any placement type. Notes must persist on the active card and also appear correctly in Completed Placements.
+
+Requirements
+
+Implement a shared Notes widget that auto-saves when the user changes the text (and/or on blur) without requiring Cmd+Enter.
+
+Auto-save must update the placement record in the database (single source of truth).
+
+Completed Placements must display the saved Notes text for each record.
+
+This should apply across ALL notes fields (LD, ISS, Behavior, Cool-Down, Pre-Planned, etc.).
+
+Prevent excessive writes by saving only when the content actually changes (hash/compare) and optionally throttle.
+
+Implementation steps
+
+Add a reusable render_notes_autosave() helper in a shared utilities file (or near the top of the main Streamlit file).
+
+Add DB function db_update_notes(placement_id, notes) (or equivalent) and call it from the helper.
+
+Replace all existing Notes widgets with render_notes_autosave().
+
+Ensure Completed Placements query includes notes and UI displays it.
+
+✅ PASTE-IN CODE #1: DB UPDATE FUNCTION (drop into your db helper file)
+
+Find your DB file (commonly db.py, database.py, sqlite_db.py, etc.) and paste this in.
+
+IMPORTANT: Replace table/column names if yours are different.
+Most common: a unified placements table with a notes column.
+
+# --- Notes autosave support ---
+
+import sqlite3
+
+def db_update_notes(conn: sqlite3.Connection, placement_id: str, notes: str) -> None:
+    """
+    Updates notes for a placement. Assumes a unified `placements` table with `id` and `notes`.
+    Adjust table/column names if needed.
+    """
+    notes = notes or ""
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE placements
+        SET notes = ?
+        WHERE id = ?
+        """,
+        (notes, placement_id)
+    )
+    conn.commit()
+
+If you DO have a separate completed table
+
+If your app copies rows into something like completed_placements, add this too:
+
+def db_update_completed_notes(conn: sqlite3.Connection, placement_id: str, notes: str) -> None:
+    """
+    If your app stores completed records in a separate table, keep them in sync.
+    If you do NOT have a separate completed table, skip this.
+    """
+    notes = notes or ""
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE completed_placements
+        SET notes = ?
+        WHERE placement_id = ?
+        """,
+        (notes, placement_id)
+    )
+    conn.commit()
+
+✅ PASTE-IN CODE #2: STREAMLIT NOTES AUTO-SAVE HELPER (put in your main app file)
+
+Place this near the top of your main Streamlit file (after imports), or in a shared ui_helpers.py and import it.
+
+import time
+import hashlib
+import streamlit as st
+
+def _stable_hash(s: str) -> str:
+    return hashlib.sha256((s or "").encode("utf-8")).hexdigest()
+
+def render_notes_autosave(
+    *,
+    conn,
+    placement_id: str,
+    initial_notes: str,
+    label: str = "Notes",
+    height: int = 110,
+    throttle_seconds: float = 0.6,
+    sync_completed: bool = False,
+):
+    """
+    A reusable notes component that auto-saves to DB.
+    - Saves only when content changes (hash compare)
+    - Throttles saves to avoid too-frequent DB writes
+    - Optionally also updates completed table if your app uses one
+    """
+    if not placement_id:
+        st.warning("Missing placement_id for notes autosave.")
+        return ""
+
+    # Session keys
+    widget_key = f"notes_{placement_id}"
+    last_hash_key = f"notes_last_hash_{placement_id}"
+    last_save_ts_key = f"notes_last_save_ts_{placement_id}"
+
+    # Initialize session state once
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = initial_notes or ""
+    if last_hash_key not in st.session_state:
+        st.session_state[last_hash_key] = _stable_hash(st.session_state[widget_key])
+    if last_save_ts_key not in st.session_state:
+        st.session_state[last_save_ts_key] = 0.0
+
+    def _maybe_save():
+        new_val = st.session_state.get(widget_key, "") or ""
+        new_hash = _stable_hash(new_val)
+        old_hash = st.session_state.get(last_hash_key, "")
+        now = time.monotonic()
+        last_ts = st.session_state.get(last_save_ts_key, 0.0)
+
+        # Only save if changed and throttled
+        if new_hash != old_hash and (now - last_ts) >= throttle_seconds:
+            # --- DB write here ---
+            db_update_notes(conn, placement_id, new_val)
+
+            # Optional: if you have a separate completed table
+            if sync_completed:
+                try:
+                    db_update_completed_notes(conn, placement_id, new_val)
+                except Exception:
+                    # If your project doesn't have completed table update, ignore
+                    pass
+
+            st.session_state[last_hash_key] = new_hash
+            st.session_state[last_save_ts_key] = now
+
+    # NOTE: Streamlit text_area typically triggers update on blur / focus change
+    # and/or Ctrl+Enter depending on environment. This still removes "manual save".
+    st.text_area(
+        label,
+        key=widget_key,
+        height=height,
+        placeholder="Auto-saves when you click/tap out of the box.",
+        on_change=_maybe_save,
+    )
+
+    # Also run save check on every rerun (covers completion transitions / rerenders)
+    _maybe_save()
+
+    return st.session_state[widget_key]
+
+✅ PASTE-IN CODE #3: REPLACE EXISTING NOTES WIDGETS (example)
+
+Wherever you currently do something like:
+
+notes = st.text_area("Notes", value=placement.get("notes", ""))
+
+
+Replace with:
+
+notes = render_notes_autosave(
+    conn=conn,
+    placement_id=placement["id"],
+    initial_notes=placement.get("notes", ""),
+    label="Notes",
+    sync_completed=False,  # set True only if you maintain a separate completed table
+)
+
+If your LD card uses a different object name
+
+Use the same pattern — just pass the correct placement_id and initial_notes.
+
+✅ PASTE-IN CODE #4: FIX “NOTES NOT SHOWING IN COMPLETED PLACEMENTS”
+A) Ensure your completed placements query includes notes
+
+Wherever you load completed placements, make sure notes is included.
+
+Example:
+
+cur.execute("""
+SELECT id, student_name, placement_type, date, status, notes
+FROM placements
+WHERE status = 'completed'
+ORDER BY date DESC
+""")
+completed = cur.fetchall()
+
+B) Ensure your Completed Placements UI displays notes
+
+Somewhere in the completed card rendering:
+
+if rec.get("notes"):
+    st.markdown("**Notes:**")
+    st.write(rec["notes"])

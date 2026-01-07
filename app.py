@@ -4076,15 +4076,14 @@ elif page == "ISS Detail":
         
         st.divider()
     
-    # Notes Section
+    # Notes Section (auto-save)
     st.subheader("4. Notes (Optional)")
-    existing_notes = daily_log.get('notes', '') or ''
-    notes = st.text_area(
-        "Add any notes about today's ISS session:",
-        value=existing_notes,
-        height=100,
-        key="iss_notes",
-        disabled=is_completed
+    render_auto_save_notes(
+        f"issedit_{placement_id}_{iss_date}",
+        daily_log.get('notes', '') or '',
+        lambda notes: dm.update_daily_log_notes(placement_id, iss_date, notes),
+        disabled=is_completed,
+        help_text="Notes auto-save when you click/tap outside the box."
     )
     
     st.divider()

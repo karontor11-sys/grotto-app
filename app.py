@@ -3582,7 +3582,38 @@ Reason: {p.get('reason', 'N/A')}
                                     with col2:
                                         st.write(f"**Start Date:** {format_date(placement.get('startDate', 'N/A'))}")
                                         st.write(f"**End Date:** {format_date(placement.get('endDate', 'N/A'))}")
-                                        st.write(f"**Days Assigned:** {placement.get('daysAssigned', 'N/A')}")
+                                        
+                                        # In archive view: Behavioral/Cool-Down are period-based (typically same-day), so show periods assigned
+                                        if placement_type == 'CLASS_REFERRAL' and referral_subtype in ('behavior', 'cool_down'):
+                                            start_date_str = placement.get('startDate')
+                                            periods = []
+                                            try:
+                                                if start_date_str:
+                                                    start_date_obj = datetime.fromisoformat(start_date_str).date()
+                                                    periods = dm.get_referral_periods_for_date(placement_id, start_date_obj) or []
+                                            except Exception:
+                                                periods = []
+                                            
+                                            # Fallback to placement start/end period fields if session periods are missing
+                                            if not periods:
+                                                sp = placement.get('startPeriod')
+                                                ep = placement.get('endPeriod')
+                                                if sp and ep and ep >= sp:
+                                                    periods = list(range(int(sp), int(ep) + 1))
+                                                elif sp:
+                                                    periods = [int(sp)]
+                                            
+                                            if periods:
+                                                periods = sorted(set(periods))
+                                                if len(periods) == 1:
+                                                    period_label = f"Period {periods[0]}"
+                                                else:
+                                                    period_label = f"Periods {periods[0]}–{periods[-1]} ({len(periods)} periods)"
+                                                st.write(f"**Period(s) Assigned:** {period_label}")
+                                            else:
+                                                st.write("**Period(s) Assigned:** N/A")
+                                        else:
+                                            st.write(f"**Days Assigned:** {placement.get('daysAssigned', 'N/A')}")
                                     
                                     st.divider()
                                     st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
@@ -3629,22 +3660,33 @@ Reason: {p.get('reason', 'N/A')}
                                         st.markdown("**Referral Details:**")
                                         st.write(f"**Subtype:** {referral_subtype.replace('_', ' ').title() if referral_subtype else 'N/A'}")
                                         
-                                        # Pre-Planned specific: Show sessions
+                                        # Pre-Planned specific: Show scheduled sessions (stored as PartialDaySession rows)
                                         if referral_subtype == 'pre_planned':
-                                            scheduled_slots = placement.get('scheduledSlots', [])
-                                            if scheduled_slots:
+                                            sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+                                            
+                                            if sessions:
                                                 st.markdown("**Sessions:**")
                                                 from collections import defaultdict
-                                                slots_by_date = defaultdict(list)
-                                                for slot in scheduled_slots:
-                                                    slots_by_date[slot.get('date', '')].append(slot.get('period', 0))
                                                 
-                                                for slot_date in sorted(slots_by_date.keys()):
-                                                    periods = sorted(slots_by_date[slot_date])
-                                                    period_label = f"Period {periods[0]}" if len(periods) == 1 else f"Periods {', '.join(map(str, periods))}"
+                                                periods_by_date = defaultdict(set)
+                                                for sess in sessions:
+                                                    d = sess.get("date")
+                                                    for p in (sess.get("periods") or []):
+                                                        if p:
+                                                            periods_by_date[d].add(int(p))
+                                                
+                                                for slot_date in sorted([d for d in periods_by_date.keys() if d]):
+                                                    periods = sorted(periods_by_date[slot_date])
+                                                    if len(periods) == 1:
+                                                        period_label = f"Period {periods[0]}"
+                                                    else:
+                                                        period_label = f"Periods {periods[0]}–{periods[-1]} ({len(periods)} periods)"
+                                                    
                                                     checkin_status = dm.get_preplanned_checkin_status(placement_id, slot_date)
                                                     badge = "✅ Attended" if checkin_status.get('checked_in') else "❌ Absent"
                                                     st.caption(f"📅 {format_date(slot_date)} · {period_label} · {badge}")
+                                            else:
+                                                st.caption("No scheduled sessions found for this Pre-Planned referral.")
                                     
                                     # Notes if available
                                     notes = placement.get('notes')

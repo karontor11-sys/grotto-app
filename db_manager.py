@@ -2070,6 +2070,28 @@ class DatabaseManager:
         finally:
             db_session.close()
     
+    def get_partial_day_sessions_for_placement(self, placement_id: str) -> list:
+        """Return all PartialDaySession rows for a placement as dicts.
+
+        Used by Completed Placements archive to reconstruct schedules for Pre-Planned referrals.
+        """
+        db_session = self.get_session()
+        try:
+            sessions = db_session.query(PartialDaySession).filter(
+                PartialDaySession.placement_id == placement_id
+            ).order_by(PartialDaySession.date.asc()).all()
+
+            results = []
+            for s in sessions:
+                results.append({
+                    "date": s.date.isoformat() if s.date else None,
+                    "type": s.type.value if getattr(s, "type", None) else None,
+                    "periods": s.periods or []
+                })
+            return results
+        finally:
+            db_session.close()
+    
     def add_periods_to_referral(self, placement_id: str, target_date: date, new_periods: List[int]) -> bool:
         """Add additional periods to a Behavior/Cool-Down referral for a specific date.
         

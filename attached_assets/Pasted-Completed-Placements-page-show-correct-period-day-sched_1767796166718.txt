@@ -1,0 +1,170 @@
+Completed Placements page: show correct period/day scheduling details for referrals (Behavior, Cool-Down, Pre-Planned)
+
+On the Completed Placements Archive page, several completed referral records are missing required schedule data.
+
+Fix requirements
+
+Behavior Referral (Class Period Referral – Behavioral)
+
+The expanded archive record must display the period(s) assigned (e.g., “Period 4” or “Periods 3–5 (3 periods)”).
+
+In the archive summary area, Behavioral referrals should show Period(s) Assigned instead of Days Assigned, since they are usually same-day events.
+
+Cool-Down Referral
+
+Same as Behavioral: show period(s) assigned correctly (including ranges like periods 3–5).
+
+Replace “Days Assigned” with Period(s) Assigned for Cool-Down referrals in the archive.
+
+Pre-Planned Referral
+
+The expanded archive record must display the scheduled days and periods (the full schedule).
+
+Pre-Planned scheduling is stored as sessions (not a scheduledSlots field on the placement), so the archive must fetch these sessions and display them grouped by date.
+
+Constraints
+
+This is archive display/data retrieval only.
+
+Do not modify completion logic, period math, or enforcement rules.
+
+Keep the Completed Placements expand/collapse behavior exactly as-is.
+
+Acceptance tests
+
+A completed Behavioral referral shows correct period(s) assigned in the archive.
+
+A completed Cool-Down referral shows correct period range/count in the archive.
+
+A completed Pre-Planned referral shows all scheduled day(s) with the correct period(s) per day.
+
+🧩 PASTE-IN CODE PATCHES (targeted)
+Patch A — db_manager.py: Add helper to fetch all scheduled sessions for a placement
+
+File: db_manager.py
+Where: Paste this method inside the DBManager class (near other referral/preplanned helpers is fine — for example near get_referral_periods_for_date / preplanned methods).
+
+def get_partial_day_sessions_for_placement(self, placement_id: str) -> list:
+    """Return all PartialDaySession rows for a placement as dicts.
+
+    Used by Completed Placements archive to reconstruct schedules for Pre-Planned referrals.
+    """
+    db_session = self.get_session()
+    try:
+        sessions = db_session.query(PartialDaySession).filter(
+            PartialDaySession.placement_id == placement_id
+        ).order_by(PartialDaySession.date.asc()).all()
+
+        results = []
+        for s in sessions:
+            results.append({
+                "date": s.date.isoformat() if s.date else None,
+                "type": s.type.value if getattr(s, "type", None) else None,
+                "periods": s.periods or []
+            })
+        return results
+    finally:
+        db_session.close()
+
+Patch B — app.py: Completed Placements page — replace “Days Assigned” with Period(s) Assigned for Behavioral/Cool-Down
+
+File: app.py
+Where: Completed Placements page, inside the expander detail header columns.
+
+Find this exact line (it’s in the Completed Placements expander details):
+
+st.write(f"**Days Assigned:** {placement.get('daysAssigned', 'N/A')}")
+
+
+Replace it with this block:
+
+# In archive view: Behavioral/Cool-Down are period-based (typically same-day), so show periods assigned
+if placement_type == 'CLASS_REFERRAL' and referral_subtype in ('behavior', 'cool_down'):
+    start_date_str = placement.get('startDate')
+    periods = []
+    try:
+        if start_date_str:
+            start_date_obj = datetime.fromisoformat(start_date_str).date()
+            periods = dm.get_referral_periods_for_date(placement_id, start_date_obj) or []
+    except Exception:
+        periods = []
+
+    # Fallback to placement start/end period fields if session periods are missing
+    if not periods:
+        sp = placement.get('startPeriod')
+        ep = placement.get('endPeriod')
+        if sp and ep and ep >= sp:
+            periods = list(range(int(sp), int(ep) + 1))
+        elif sp:
+            periods = [int(sp)]
+
+    if periods:
+        periods = sorted(set(periods))
+        if len(periods) == 1:
+            period_label = f"Period {periods[0]}"
+        else:
+            period_label = f"Periods {periods[0]}–{periods[-1]} ({len(periods)} periods)"
+        st.write(f"**Period(s) Assigned:** {period_label}")
+    else:
+        st.write("**Period(s) Assigned:** N/A")
+else:
+    st.write(f"**Days Assigned:** {placement.get('daysAssigned', 'N/A')}")
+
+Patch C — app.py: Completed Placements page — fix Pre-Planned “Sessions” display (stop using scheduledSlots, fetch sessions)
+
+Right now your Completed Placements archive code tries to do:
+
+scheduled_slots = placement.get('scheduledSlots', [])
+
+
+…but Pre-Planned scheduling isn’t stored that way. It’s stored in PartialDaySession.
+
+Replace the Pre-Planned sessions block
+
+File: app.py
+Where: Completed Placements page, inside:
+
+elif placement_type == 'CLASS_REFERRAL':
+    ...
+    if referral_subtype == 'pre_planned':
+        ...
+
+
+Find the block that begins with:
+
+# Pre-Planned specific: Show sessions
+if referral_subtype == 'pre_planned':
+    scheduled_slots = placement.get('scheduledSlots', [])
+    if scheduled_slots:
+        ...
+
+
+Replace that entire block with:
+
+# Pre-Planned specific: Show scheduled sessions (stored as PartialDaySession rows)
+if referral_subtype == 'pre_planned':
+    sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+
+    if sessions:
+        st.markdown("**Sessions:**")
+        from collections import defaultdict
+
+        periods_by_date = defaultdict(set)
+        for sess in sessions:
+            d = sess.get("date")
+            for p in (sess.get("periods") or []):
+                if p:
+                    periods_by_date[d].add(int(p))
+
+        for slot_date in sorted([d for d in periods_by_date.keys() if d]):
+            periods = sorted(periods_by_date[slot_date])
+            if len(periods) == 1:
+                period_label = f"Period {periods[0]}"
+            else:
+                period_label = f"Periods {periods[0]}–{periods[-1]} ({len(periods)} periods)"
+
+            checkin_status = dm.get_preplanned_checkin_status(placement_id, slot_date)
+            badge = "✅ Attended" if checkin_status.get('checked_in') else "❌ Absent"
+            st.caption(f"📅 {format_date(slot_date)} · {period_label} · {badge}")
+    else:
+        st.caption("No scheduled sessions found for this Pre-Planned referral.")

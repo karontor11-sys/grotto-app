@@ -1809,10 +1809,7 @@ if page == "Dashboard":
                     is_absent = absent_checked
                     
                     with col_checkin:
-                        if is_checked_in:
-                            # Show check-in confirmation
-                            st.success("✓ Checked In")
-                        else:
+                        if not is_checked_in:
                             # Show Check In button - disabled if absent or future placement
                             checkin_disabled = is_absent or is_future_placement
                             if st.button("Check In", key=f"checkin_preplanned_{placement_id}_{date_str}", 

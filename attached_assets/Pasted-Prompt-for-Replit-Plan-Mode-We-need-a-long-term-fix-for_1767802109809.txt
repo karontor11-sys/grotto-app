@@ -1,0 +1,57 @@
+Prompt for Replit (Plan Mode):
+
+We need a long-term fix for scheduled placements not activating on their start date if the Streamlit session spans multiple days (ex: placements created yesterday to start today remain scheduled, keeping ISS controls locked).
+
+The DB layer already has activate_scheduled_placements() which correctly transitions placements from scheduled → active when start_date <= today.
+
+Update app.py so this activation runs once per Central-time day instead of once per session. Replace the existing scheduled_activation_checked logic with a daily guard using central_today() and a stored scheduled_activation_last_date in st.session_state.
+
+Provide a minimal paste-in patch only; do not change database schema.
+
+PASTE-IN code patch (exact)
+
+File: app.py
+Find this block (near the top, under the EOD processing section):
+
+# Auto-activate scheduled placements whose start date has arrived (runs once per session)
+if 'scheduled_activation_checked' not in st.session_state:
+    activated_count = dm.activate_scheduled_placements()
+    st.session_state.scheduled_activation_checked = True
+    if activated_count > 0:
+        st.session_state.placements_activated = activated_count
+
+
+✅ Replace it with this:
+
+# Auto-activate scheduled placements whose start date has arrived
+# IMPORTANT: run once per Central-time DAY (not once per Streamlit session),
+# otherwise tabs left open overnight will never activate placements on the new day.
+today_str = central_today().isoformat()
+last_activation_day = st.session_state.get('scheduled_activation_last_date')
+
+if last_activation_day != today_str:
+    activated_count = dm.activate_scheduled_placements()
+    st.session_state.scheduled_activation_last_date = today_str
+
+    # Optional: keep for UI messaging/debug
+    if activated_count > 0:
+        st.session_state.placements_activated = activated_count
+
+# Backward compatibility: remove old one-time flag if it exists
+if 'scheduled_activation_checked' in st.session_state:
+    del st.session_state['scheduled_activation_checked']
+
+One more (optional but recommended)
+
+Once you do the above, you can safely remove this UI hack in render_iss_session_card():
+
+if placement_status == 'scheduled':
+    is_future_placement = True
+
+
+Because status should no longer remain "scheduled" on the start day.
+
+If you want the cleanest behavior: change that to:
+
+if placement_status == 'scheduled' and start_date_obj and start_date_obj > central_today():
+    is_future_placement = True

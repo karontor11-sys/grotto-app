@@ -127,12 +127,22 @@ if not st.session_state.eod_processing_checked:
     if processing_results:
         st.session_state.eod_processing_results = processing_results
 
-# Auto-activate scheduled placements whose start date has arrived (runs once per session)
-if 'scheduled_activation_checked' not in st.session_state:
+# Auto-activate scheduled placements whose start date has arrived
+# IMPORTANT: run once per Central-time DAY (not once per Streamlit session),
+# otherwise tabs left open overnight will never activate placements on the new day.
+today_str = central_today().isoformat()
+last_activation_day = st.session_state.get('scheduled_activation_last_date')
+
+if last_activation_day != today_str:
     activated_count = dm.activate_scheduled_placements()
-    st.session_state.scheduled_activation_checked = True
+    st.session_state.scheduled_activation_last_date = today_str
+
     if activated_count > 0:
         st.session_state.placements_activated = activated_count
+
+# Backward compatibility: remove old one-time flag if it exists
+if 'scheduled_activation_checked' in st.session_state:
+    del st.session_state['scheduled_activation_checked']
 
 # Helper functions for session generation
 def generate_periods_sessions(session_date, periods, repeat_days, location):
@@ -1347,7 +1357,7 @@ if page == "Dashboard":
             except Exception:
                 is_future_placement = False
 
-        if placement_status == 'scheduled':
+        if placement_status == 'scheduled' and start_date_obj and start_date_obj > central_today():
             is_future_placement = True
 
         future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
@@ -1499,7 +1509,7 @@ if page == "Dashboard":
             except Exception:
                 is_future_placement = False
 
-        if placement_status == 'scheduled':
+        if placement_status == 'scheduled' and start_date_obj and start_date_obj > central_today():
             is_future_placement = True
 
         future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
@@ -1892,8 +1902,8 @@ if page == "Dashboard":
             start_date_obj = datetime.fromisoformat(start_date_str).date()
             is_future_placement = start_date_obj > central_today()
         
-        # Also check placement_status for scheduled
-        if placement_status == 'scheduled':
+        # Also check placement_status for scheduled (but only if start date is actually in the future)
+        if placement_status == 'scheduled' and start_date_obj and start_date_obj > central_today():
             is_future_placement = True
         
         # If this is a future-dated placement, show locked card

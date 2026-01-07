@@ -2057,45 +2057,55 @@ if page == "Dashboard":
                 pass
             
             with header_col3:
-                # Absent checkbox key
-                absent_key = f"iss_absent_{session_id}_{date_str}"
+                # --- STATUS: Present / Absent (radio control) ---
+                status_key = f"iss_status_{session_id}_{date_str}"
+
+                # Source of truth from DB
                 db_absent = dm.is_marked_absent(placement_id, date_str)
-                
-                # Initialize session state from DB if not set
-                if absent_key not in st.session_state:
-                    st.session_state[absent_key] = db_absent
-                
-                # Absent checkbox - render FIRST so state is processed
-                # DISABLED until day type is locked
-                def handle_iss_absent(pid=placement_id, ds=date_str, key=absent_key):
-                    new_val = st.session_state.get(key, False)
-                    if new_val:
+
+                # Determine current status (checked-in implies present)
+                current_status = "Present" if (is_checked_in or not db_absent) else "Absent"
+
+                if status_key not in st.session_state:
+                    st.session_state[status_key] = current_status
+
+                status_disabled = is_completed or is_checked_in  # lock status once checked in
+
+                def handle_iss_status_change(pid=placement_id, ds=date_str, key=status_key):
+                    new_status = st.session_state.get(key, "Present")
+                    if new_status == "Absent":
                         dm.mark_absent(pid, ds)
                     else:
                         dm.unmark_absent(pid, ds)
-                
-                absent_disabled = is_checked_in or is_completed or not is_day_type_locked
-                absent_checked = st.checkbox("Absent", key=absent_key,
-                          disabled=absent_disabled,
-                          on_change=handle_iss_absent)
-                
-                # is_absent uses the checkbox return value (current state after widget processing)
-                is_absent = absent_checked
-                
-                # Check In button - disabled if already checked in, completed, marked absent, OR day type not locked
+
+                st.radio(
+                    "Status",
+                    options=["Present", "Absent"],
+                    key=status_key,
+                    horizontal=True,
+                    label_visibility="collapsed",
+                    disabled=status_disabled,
+                    on_change=handle_iss_status_change
+                )
+
+                # Derive is_absent from the radio (after widget processing)
+                is_absent = (st.session_state.get(status_key) == "Absent")
+
+                # --- CHECK IN (only when Present) ---
                 if is_completed:
                     st.success("Checked Out")
+                elif is_absent:
+                    st.caption("Marked Absent")
                 else:
-                    checkin_disabled = is_checked_in or is_absent or not is_day_type_locked
-                    if st.button("Check In", key=f"iss_checkin_{session_id}", 
-                               type="primary" if not checkin_disabled else "secondary",
-                               disabled=checkin_disabled):
-                        # Honor the persisted day configuration (partial vs full)
-                        checkin_day_type = stored_day_type or 'full'
-                        checkin_start = stored_start_period if checkin_day_type == 'partial' else None
-                        checkin_end = stored_end_period if checkin_day_type == 'partial' else None
-                        dm.check_in_student(placement_id, date_str, day_type=checkin_day_type,
-                                          start_period=checkin_start, end_period=checkin_end)
+                    checkin_disabled = is_checked_in or is_completed
+                    if st.button(
+                        "Check In",
+                        key=f"iss_checkin_{session_id}",
+                        type="primary" if not checkin_disabled else "secondary",
+                        disabled=checkin_disabled
+                    ):
+                        # IMPORTANT: do NOT lock day type at check-in time
+                        dm.check_in_student(placement_id, date_str, day_type=None)
                         clear_dashboard_caches()
                         st.rerun()
             
@@ -2112,8 +2122,8 @@ if page == "Dashboard":
             if is_placement_completed:
                 st.success("ISS Session Complete - All required periods served. No further edits allowed.")
             
-            # Day Type selector - ALWAYS show first (before any actions can proceed)
-            if not is_completed:
+            # Day Type selector - only after check-in AND if not absent
+            if (not is_completed) and is_checked_in and (not is_absent):
                 # Day Type selector
                 st.markdown("**Day Type**")
                 day_type_col, periods_col = st.columns([1, 2])

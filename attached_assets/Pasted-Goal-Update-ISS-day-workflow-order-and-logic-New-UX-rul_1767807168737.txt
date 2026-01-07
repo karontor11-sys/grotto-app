@@ -1,0 +1,196 @@
+Goal: Update ISS day workflow order and logic.
+
+New UX rules:
+
+On/after the start date, the first row on each ISS session card must be a Status radio: Present / Absent.
+
+If Present is selected: show the Check In button.
+
+If Absent is selected: do NOT show Check In; mark the student absent in DB, keep Notes enabled, and clear any stale partial/full configuration for that date.
+
+Full Day / Partial Day selection must be hidden or disabled until checked_in == True AND absent == False.
+
+If the user switches from Absent → Present, automatically unmark absent, then allow Check In.
+
+Backend adjustments:
+
+Update mark_absent() to clear stale day config fields (day_type, periods, start/end) and reset totals for that date.
+
+Allow check_in_student(..., day_type=None) so check-in does not automatically set/lock day_type.
+
+Implement as a minimal patch; do not change schemas.
+
+1) app.py — PASTE-IN patch (ISS card header controls + gating)
+A) Replace the Absent checkbox + Check In block in render_iss_session_card()
+
+File: app.py
+Function: render_iss_session_card()
+Find this existing section (you already saw it):
+
+It starts with: # Absent checkbox key
+
+It includes: st.checkbox("Absent"...
+
+It includes: checkin_disabled = is_checked_in or is_absent or not is_day_type_locked
+
+✅ Replace that entire header_col3 block with this:
+
+with header_col3:
+    # --- STATUS: Present / Absent (Option 2 radio) ---
+    status_key = f"iss_status_{session_id}_{date_str}"
+
+    # Source of truth from DB
+    db_absent = dm.is_marked_absent(placement_id, date_str)
+
+    # Determine current status (checked-in implies present)
+    current_status = "Present" if (is_checked_in or not db_absent) else "Absent"
+
+    if status_key not in st.session_state:
+        st.session_state[status_key] = current_status
+
+    status_disabled = is_completed or is_checked_in  # lock status once checked in (prevents contradictions)
+
+    def handle_iss_status_change(pid=placement_id, ds=date_str, key=status_key):
+        new_status = st.session_state.get(key, "Present")
+        if new_status == "Absent":
+            dm.mark_absent(pid, ds)
+        else:
+            dm.unmark_absent(pid, ds)
+
+    st.radio(
+        "Status",
+        options=["Present", "Absent"],
+        key=status_key,
+        horizontal=True,
+        label_visibility="collapsed",
+        disabled=status_disabled,
+        on_change=handle_iss_status_change
+    )
+
+    # Derive is_absent from the radio (after widget processing)
+    is_absent = (st.session_state.get(status_key) == "Absent")
+
+    # --- CHECK IN (only when Present) ---
+    if is_completed:
+        st.success("Checked Out")
+    elif is_absent:
+        st.caption("Marked Absent")
+    else:
+        checkin_disabled = is_checked_in or is_completed
+        if st.button(
+            "Check In",
+            key=f"iss_checkin_{session_id}",
+            type="primary" if not checkin_disabled else "secondary",
+            disabled=checkin_disabled
+        ):
+            # IMPORTANT: do NOT lock day type at check-in time
+            dm.check_in_student(placement_id, date_str, day_type=None)
+            clear_dashboard_caches()
+            st.rerun()
+
+B) Gate Day Type selector so it only appears after check-in AND not absent
+
+Still inside render_iss_session_card():
+
+Find the block that currently says:
+
+# Day Type selector - ALWAYS show first (before any actions can proceed)
+if not is_completed:
+    st.markdown("**Day Type**")
+    ...
+
+
+✅ Replace the first two lines of that block with:
+
+# Day Type selector - only after check-in AND if not absent
+if (not is_completed) and is_checked_in and (not is_absent):
+
+
+…and update the comment line above it to match (optional).
+
+That’s it — now:
+
+Status comes first
+
+Check-in comes next (only if Present)
+
+Day Type only appears after check-in and only if not absent
+
+2) db_manager.py — Make mark_absent() clear stale config & totals
+
+File: db_manager.py
+Function: mark_absent()
+Find the “else:” branch where it currently does:
+
+log.day_type = 'absent'
+log.checked_in = False
+log.checked_in_at = None
+
+
+✅ Replace that entire else block content with this (keep the else: line):
+
+else:
+    # Mark absent and clear any "present day" artifacts
+    log.day_type = 'absent'
+    log.checked_in = False
+    log.checked_in_at = None
+
+    # Clear day config (prevents stale partial/full settings)
+    log.start_period = None
+    log.end_period = None
+    log.periods_covered = []
+
+    # Clear fulfillment + points for that day (absent days should not carry scoring)
+    log.daily_fulfillment = None
+    log.positive_total = 0
+    log.negative_total = 0
+    log.daily_total = 0
+
+
+Also update the “create log” branch to include the same clears (so brand-new absent logs are clean). In the if not log: block, change the DailyLog creation to:
+
+log = DailyLog(
+    id=log_id,
+    placement_id=placement_id,
+    date=date_obj,
+    day_type='absent',
+    checked_in=False,
+    start_period=None,
+    end_period=None,
+    periods_covered=[],
+    daily_fulfillment=None,
+    positive_total=0,
+    negative_total=0,
+    daily_total=0
+)
+
+3) db_manager.py — Allow check-in without locking day type
+A) Update check_in_student() signature + behavior
+
+File: db_manager.py
+Function: check_in_student()
+
+Find the signature line:
+
+def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = 'full',
+
+
+✅ Change it to:
+
+def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = None,
+
+
+Now find where it sets the log’s day type / periods (you’ll see assignments like log.day_type = day_type, and period logic).
+
+✅ Wrap those assignments like this:
+
+# Only set day config if explicitly provided.
+# When day_type is None, check-in should NOT lock full/partial.
+if day_type is not None:
+    log.day_type = day_type
+    log.start_period = start_period
+    log.end_period = end_period
+    # If your function sets periods_covered for partial, keep that logic inside here too.
+
+
+This makes check-in “attendance-only,” and the Full/Partial choice happens after.

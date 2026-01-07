@@ -1178,7 +1178,7 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = 'full',
+    def check_in_student(self, placement_id: str, check_in_date: str, day_type: str = None,
                          start_period: int = None, end_period: int = None, is_makeup: bool = False) -> bool:
         """Check in a student for an ISS day.
         
@@ -1233,6 +1233,12 @@ class DatabaseManager:
                 placement.is_flexible_session_mode = True
             
             # Calculate periods_covered and required_points based on day_type
+            # Only set day config if explicitly provided (day_type is not None)
+            calc_start_period = None
+            calc_end_period = None
+            periods_covered = []
+            required_points = None
+            
             if day_type == 'full':
                 # Full day: all 10 periods, 10 required points
                 calc_start_period = 1
@@ -1249,12 +1255,7 @@ class DatabaseManager:
                 periods_covered = list(range(calc_start_period, calc_end_period + 1))
                 # Required points = periods covered (1 point per period)
                 required_points = calc_end_period - calc_start_period + 1
-            else:
-                # Absent or other
-                calc_start_period = None
-                calc_end_period = None
-                periods_covered = []
-                required_points = None
+            # If day_type is None, we leave the calc values as None/empty (attendance-only check-in)
             
             # Get or create daily log
             log = session.query(DailyLog).filter(
@@ -1263,29 +1264,34 @@ class DatabaseManager:
             ).first()
             
             if not log:
+                # Create new log - only set day config if day_type provided
                 log = DailyLog(
                     id=str(uuid.uuid4()),
                     placement_id=placement_id,
                     date=date_obj,
                     checked_in=True,
                     checked_in_at=central_now_naive(),
-                    day_type=day_type,
-                    start_period=calc_start_period,
-                    end_period=calc_end_period,
-                    periods_covered=periods_covered,
-                    required_points=required_points,
                     is_makeup_session=is_makeup
                 )
+                # Only set day config if day_type is explicitly provided
+                if day_type is not None:
+                    log.day_type = day_type
+                    log.start_period = calc_start_period
+                    log.end_period = calc_end_period
+                    log.periods_covered = periods_covered
+                    log.required_points = required_points
                 session.add(log)
             else:
                 log.checked_in = True
                 log.checked_in_at = central_now_naive()
-                log.day_type = day_type
-                log.start_period = calc_start_period
-                log.end_period = calc_end_period
-                log.periods_covered = periods_covered
-                log.required_points = required_points
                 log.is_makeup_session = is_makeup
+                # Only set day config if day_type is explicitly provided
+                if day_type is not None:
+                    log.day_type = day_type
+                    log.start_period = calc_start_period
+                    log.end_period = calc_end_period
+                    log.periods_covered = periods_covered
+                    log.required_points = required_points
             
             # Also add to served_dates for ISS placements
             if placement.placement_type == PlacementCategory.ISS:
@@ -1439,13 +1445,32 @@ class DatabaseManager:
                     placement_id=placement_id,
                     date=date_obj,
                     day_type='absent',
-                    checked_in=False
+                    checked_in=False,
+                    start_period=None,
+                    end_period=None,
+                    periods_covered=[],
+                    daily_fulfillment=None,
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0
                 )
                 session.add(log)
             else:
+                # Mark absent and clear any "present day" artifacts
                 log.day_type = 'absent'
                 log.checked_in = False
                 log.checked_in_at = None
+
+                # Clear day config (prevents stale partial/full settings)
+                log.start_period = None
+                log.end_period = None
+                log.periods_covered = []
+
+                # Clear fulfillment + points for that day (absent days should not carry scoring)
+                log.daily_fulfillment = None
+                log.positive_total = 0
+                log.negative_total = 0
+                log.daily_total = 0
             
             # Do NOT update progress_status - absent days don't affect status
             

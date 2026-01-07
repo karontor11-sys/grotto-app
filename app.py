@@ -3449,16 +3449,25 @@ elif page == "Completed Placements":
         # Search and Print controls
         search_col, print_col = st.columns([3, 1])
         with search_col:
-            search_query = st.text_input("🔍 Search by name or reason", "", key="archive_search")
+            search_query = st.text_input("🔍 Search student name", "", key="archive_search").strip()
         with print_col:
             print_mode = st.selectbox("📄 Print", ["", "Print by Day", "Print by Month"], key="print_mode")
         
-        # Filter placements based on search
+        # Filter placements based on search (student name only)
         filtered_placements = completed_placements
         if search_query:
-            filtered_placements = [p for p in filtered_placements 
-                if search_query.lower() in f"{p['student']['firstName']} {p['student']['lastName']}".lower()
-                or search_query.lower() in (p.get('reason', '') or '').lower()]
+            q = " ".join(search_query.lower().split())  # normalize whitespace + lowercase
+            
+            def _name_matches(p: dict) -> bool:
+                # Prefer explicit student fields if present
+                first = (p.get("student", {}).get("firstName") or "").strip()
+                last = (p.get("student", {}).get("lastName") or "").strip()
+                full = f"{first} {last}".strip()
+                
+                full_norm = " ".join(full.lower().split())
+                return q in full_norm
+            
+            filtered_placements = [p for p in filtered_placements if _name_matches(p)]
         
         # Group by school year, month, day
         grouped = group_placements_by_school_year_month_day(filtered_placements)

@@ -1,0 +1,74 @@
+Completed Placements page: Search should filter by student name only (not reason or other fields)
+
+On the Completed Placements (Archive) page, the search box currently matches too broadly (including “reason” text and other fields). I want search to be limited strictly to student name only.
+
+Rules
+
+The search input should match only:
+
+student first name
+
+student last name
+
+full name (first + last)
+
+Search should be case-insensitive and tolerate extra spaces.
+
+Do not match on “reason,” notes, placement type, staff name, etc.
+
+Keep everything else about the archive page the same (expand/collapse, sorting, filters).
+
+Acceptance tests
+
+Searching “john” shows John Jacob even if the reason contains “john” elsewhere for other students.
+
+Searching a word that appears only in reasons returns no results.
+
+Searching “john jacob” works.
+
+🧩 Targeted PASTE-IN patch (app.py)
+Where to edit
+
+File: app.py
+Page section: Completed Placements (Archive)
+Look for the search input and the code that filters the completed_placements list.
+
+You will see something like:
+
+search_term = st.text_input("Search", "")
+...
+if search_term:
+    completed_placements = [
+        p for p in completed_placements
+        if search_term.lower() in (p.get("studentName","") + " " + p.get("reason","")).lower()
+    ]
+
+Replace your current search-filter block with this
+
+1) Replace the existing search input line (if needed):
+
+If you have:
+
+search_term = st.text_input("Search", "")
+
+
+Replace with:
+
+search_term = st.text_input("Search student name", "").strip()
+
+
+2) Replace the filtering logic with this:
+
+if search_term:
+    q = " ".join(search_term.lower().split())  # normalize whitespace + lowercase
+
+    def _name_matches(p: dict) -> bool:
+        # Prefer explicit student fields if present
+        first = (p.get("studentFirstName") or "").strip()
+        last = (p.get("studentLastName") or "").strip()
+        full = (p.get("studentName") or f"{first} {last}").strip()
+
+        full_norm = " ".join(full.lower().split())
+        return q in full_norm
+
+    completed_placements = [p for p in completed_placements if _name_matches(p)]

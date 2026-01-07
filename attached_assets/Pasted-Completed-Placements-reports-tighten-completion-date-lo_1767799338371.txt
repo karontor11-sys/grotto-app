@@ -1,0 +1,155 @@
+Completed Placements reports: tighten “completion date” logic so Day/Month/Year reports are accurate
+
+Right now, the Completed Placements report filters use a “best guess” completion date that can fall back to startDate or updatedAt. This can cause Day/Month/Year reports to include the wrong records.
+
+Change request:
+Update the report filtering logic so the “completion date” used for report grouping matches the true real-world meaning:
+
+ISS / Lunch Detention / Pre-Planned (multi-day capable):
+
+The report date should be the final completion day of the session.
+
+Prefer a stored completion field like completedDate or endDate.
+
+If missing, derive the final day using the best available schedule/truth source:
+
+Pre-Planned: use the latest scheduled session date from PartialDaySession.
+
+Otherwise: use startDate + (daysAssigned - 1) as fallback.
+
+Behavior Referral + Cool-Down (same-day):
+
+The report date should be the day of the referral, typically startDate.
+
+Do NOT use updatedAt as a completion date for these.
+
+Constraints:
+
+This is report filtering only (Completed Placements page).
+
+Do not change completion logic or database writes.
+
+Keep the existing report table and export buttons.
+
+Acceptance tests:
+
+A same-day Behavior/Cool-Down referral shows in the correct day report for its startDate.
+
+A multi-day Pre-Planned shows in the report for its true final day (endDate or latest session date).
+
+A multi-day LD/ISS shows in the report for its endDate (or computed final day if endDate missing).
+
+🧩 Targeted PASTE-IN Patch (app.py)
+Where to edit
+
+File: app.py
+Section: the Reports block you added in Prompt #3.
+
+You will replace the helper function _completion_date_for(p: dict) with a stricter version, and update the few call sites that use it.
+
+1) Replace _completion_date_for with this improved version
+
+Find this function in your Prompt #3 block:
+
+def _completion_date_for(p: dict) -> date | None:
+    # Prefer true completion/end signals; fall back safely.
+    for key in ("completedDate", "endDate", "dateCompleted", "completed_at", "updatedAt"):
+        d = _iso_to_date_safe(p.get(key))
+        if d:
+            return d
+    # Last fallback: startDate (not ideal, but prevents empty reports)
+    return _iso_to_date_safe(p.get("startDate"))
+
+
+Replace it with:
+
+def _completion_date_for(p: dict, dm) -> date | None:
+    """
+    Returns the 'report date' for Day/Month/Year reports using tighter, type-aware logic.
+
+    - ISS / Lunch Detention / Pre-Planned: use final completion day (completedDate/endDate), else derive.
+    - Behavior / Cool-Down: use startDate (same-day).
+    """
+    placement_type = (p.get("placementType") or p.get("type") or "").upper()
+    subtype = (p.get("referralSubtype") or p.get("subtype") or "").lower()
+
+    start = _iso_to_date_safe(p.get("startDate"))
+    end = _iso_to_date_safe(p.get("endDate"))
+    completed = _iso_to_date_safe(p.get("completedDate")) or _iso_to_date_safe(p.get("dateCompleted"))
+
+    # Same-day referrals: always use start date (prevents updatedAt drift)
+    if placement_type in ("CLASS_REFERRAL", "CPR", "CLASS_PERIOD_REFERRAL") and subtype in ("behavior", "cool_down"):
+        return start or completed or end
+
+    # Multi-day capable types: prefer true completion day
+    if completed:
+        return completed
+    if end:
+        return end
+
+    # Pre-Planned: if endDate missing, derive from scheduled sessions (PartialDaySession)
+    if placement_type in ("CLASS_REFERRAL", "CPR", "CLASS_PERIOD_REFERRAL") and subtype == "pre_planned":
+        try:
+            placement_id = p.get("id") or p.get("placementId")
+            if placement_id:
+                sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+                session_dates = [_iso_to_date_safe(s.get("date")) for s in sessions]
+                session_dates = [d for d in session_dates if d]
+                if session_dates:
+                    return max(session_dates)
+        except Exception:
+            pass
+
+    # Generic fallback for multi-day placements if we have daysAssigned
+    days_assigned = p.get("daysAssigned") or p.get("issDaysAssigned") or p.get("iss_days_assigned")
+    try:
+        days_assigned = int(days_assigned) if days_assigned is not None else None
+    except Exception:
+        days_assigned = None
+
+    if start and days_assigned and days_assigned > 1:
+        return start + timedelta(days=days_assigned - 1)
+
+    # Final safe fallback
+    return start or completed or end
+
+
+Important: This version uses timedelta, so we’ll add that import next.
+
+2) Add timedelta to your imports in the Reports block
+
+In the Reports block imports you pasted in Prompt #3, you currently have:
+
+from datetime import datetime, date
+
+
+Replace with:
+
+from datetime import datetime, date, timedelta
+
+3) Update the report filters to pass dm into _completion_date_for
+
+You have three _in_scope functions (Day / Month / Year) using _completion_date_for(p).
+
+Replace:
+
+d = _completion_date_for(p)
+
+
+with:
+
+d = _completion_date_for(p, dm)
+
+
+Do this in all three places (Day, Month, Year).
+
+4) Update the table build to use the new signature
+
+In the table-building loop, replace:
+
+cd = _completion_date_for(p)
+
+
+with:
+
+cd = _completion_date_for(p, dm)

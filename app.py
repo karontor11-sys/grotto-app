@@ -3483,12 +3483,56 @@ elif page == "Completed Placements":
             except Exception:
                 return None
         
-        def _completion_date_for(p: dict):
-            for key in ("completedDate", "endDate", "dateCompleted", "completed_at", "updatedAt"):
-                d = _iso_to_date_safe(p.get(key))
-                if d:
-                    return d
-            return _iso_to_date_safe(p.get("startDate"))
+        def _completion_date_for(p: dict, dm):
+            """
+            Returns the 'report date' for Day/Month/Year reports using tighter, type-aware logic.
+            - ISS / Lunch Detention / Pre-Planned: use final completion day (completedDate/endDate), else derive.
+            - Behavior / Cool-Down: use startDate (same-day).
+            """
+            from datetime import timedelta
+            
+            placement_type = (p.get("placementType") or p.get("type") or "").upper()
+            subtype = (p.get("referralSubtype") or p.get("subtype") or "").lower()
+            
+            start = _iso_to_date_safe(p.get("startDate"))
+            end = _iso_to_date_safe(p.get("endDate"))
+            completed = _iso_to_date_safe(p.get("completedDate")) or _iso_to_date_safe(p.get("dateCompleted"))
+            
+            # Same-day referrals: always use start date (prevents updatedAt drift)
+            if placement_type in ("CLASS_REFERRAL", "CPR", "CLASS_PERIOD_REFERRAL") and subtype in ("behavior", "cool_down"):
+                return start or completed or end
+            
+            # Multi-day capable types: prefer true completion day
+            if completed:
+                return completed
+            if end:
+                return end
+            
+            # Pre-Planned: if endDate missing, derive from scheduled sessions (PartialDaySession)
+            if placement_type in ("CLASS_REFERRAL", "CPR", "CLASS_PERIOD_REFERRAL") and subtype == "pre_planned":
+                try:
+                    placement_id = p.get("id") or p.get("placementId") or p.get("_id")
+                    if placement_id:
+                        sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+                        session_dates = [_iso_to_date_safe(s.get("date")) for s in sessions]
+                        session_dates = [d for d in session_dates if d]
+                        if session_dates:
+                            return max(session_dates)
+                except Exception:
+                    pass
+            
+            # Generic fallback for multi-day placements if we have daysAssigned
+            days_assigned = p.get("daysAssigned") or p.get("issDaysAssigned") or p.get("iss_days_assigned")
+            try:
+                days_assigned = int(days_assigned) if days_assigned is not None else None
+            except Exception:
+                days_assigned = None
+            
+            if start and days_assigned and days_assigned > 1:
+                return start + timedelta(days=days_assigned - 1)
+            
+            # Final safe fallback
+            return start or completed or end
         
         def _placement_type_label(p: dict) -> str:
             pt = (p.get("placementType") or p.get("type") or "").upper()
@@ -3541,7 +3585,7 @@ elif page == "Completed Placements":
             if report_scope == "Day":
                 report_day = st.date_input("Select date", value=today_central, key="cp_report_day")
                 def _in_scope(p): 
-                    d = _completion_date_for(p)
+                    d = _completion_date_for(p, dm)
                     return d == report_day
             
             elif report_scope == "Month":
@@ -3551,20 +3595,20 @@ elif page == "Completed Placements":
                 with col_b:
                     report_month = st.number_input("Month", min_value=1, max_value=12, value=today_central.month, step=1, key="cp_report_month")
                 def _in_scope(p):
-                    d = _completion_date_for(p)
+                    d = _completion_date_for(p, dm)
                     return bool(d) and d.year == int(report_year) and d.month == int(report_month)
             
             else:  # Year
                 report_year = st.number_input("Year", min_value=2020, max_value=2100, value=today_central.year, step=1, key="cp_report_year_y")
                 def _in_scope(p):
-                    d = _completion_date_for(p)
+                    d = _completion_date_for(p, dm)
                     return bool(d) and d.year == int(report_year)
             
             report_rows = [p for p in filtered_placements if _in_scope(p)]
             
             table = []
             for p in report_rows:
-                cd = _completion_date_for(p)
+                cd = _completion_date_for(p, dm)
                 student = p.get("student", {})
                 student_name = f"{student.get('firstName', '')} {student.get('lastName', '')}".strip()
                 table.append({

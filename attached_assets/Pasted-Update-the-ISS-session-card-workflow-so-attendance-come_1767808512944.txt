@@ -1,0 +1,99 @@
+Update the ISS session card workflow so attendance comes first.
+Add a header row with a Check In button and an Absent checkbox beneath/next to it (Absent unchecked by default).
+Absent checkbox should be available on/after the start date and disabled after check-in or completion.
+When Absent is checked, call mark_absent() and clear stale day config (full/partial, periods served, totals).
+When Absent is unchecked, call unmark_absent().
+Clicking Check In should automatically unmark absent (if previously checked) and perform check-in without locking day type.
+Show Full Day / Partial Day controls only when checked_in == True AND absent == False.
+Provide minimal paste-in patches to app.py and db_manager.py.
+
+1) app.py paste-in patch (ISS card header controls + gating)
+File: app.py
+Function: render_iss_session_card()
+Find the current Absent checkbox + Check In logic (it starts around your existing comment # Absent checkbox key).
+✅ Replace the header control block (the part that renders Absent/Check-in) with:
+# --- Attendance-first controls ---
+absent_key = f"iss_absent_{session_id}_{date_str}"
+
+# Source of truth from DB
+db_absent = dm.is_marked_absent(placement_id, date_str)
+
+# Init widget state
+if absent_key not in st.session_state:
+    st.session_state[absent_key] = bool(db_absent)
+
+# Disable absent toggle after check-in or completion to prevent contradictions
+absent_disabled = is_checked_in or is_completed
+
+def handle_absent_toggle(pid=placement_id, ds=date_str, key=absent_key):
+    if st.session_state.get(key):
+        dm.mark_absent(pid, ds)
+    else:
+        dm.unmark_absent(pid, ds)
+    clear_dashboard_caches()
+    st.rerun()
+
+# Render checkbox (unchecked by default unless DB says absent)
+is_absent = st.checkbox(
+    "Absent",
+    key=absent_key,
+    disabled=absent_disabled,
+    on_change=handle_absent_toggle
+)
+
+# Render Check In button (check-in implies present)
+checkin_disabled = is_checked_in or is_completed or is_absent
+if st.button(
+    "Check In",
+    key=f"iss_checkin_{session_id}",
+    type="primary" if not checkin_disabled else "secondary",
+    disabled=checkin_disabled
+):
+    # Ensure absent is cleared (check-in implies present)
+    dm.unmark_absent(placement_id, date_str)
+    # IMPORTANT: do not lock day type at check-in time
+    dm.check_in_student(placement_id, date_str, day_type=None)
+    clear_dashboard_caches()
+    st.rerun()
+
+Gate the Day Type selector
+Find your Day Type section and change its if so it only shows after check-in and not absent:
+✅ Change:
+if not is_completed:
+
+to:
+if (not is_completed) and is_checked_in and (not is_absent):
+
+That’s the “order of operations” fix.
+
+2) db_manager.py patch (make Absent clear stale day config)
+File: db_manager.py
+Function: mark_absent()
+In the branch where it marks the daily log absent, add clears so old partial/full settings don’t linger:
+✅ Ensure the absent mark includes:
+log.day_type = 'absent'
+log.checked_in = False
+log.checked_in_at = None
+
+# Clear stale day config
+log.start_period = None
+log.end_period = None
+log.periods_covered = []
+
+# Clear totals for absent day
+log.daily_fulfillment = None
+log.positive_total = 0
+log.negative_total = 0
+log.daily_total = 0
+
+Also make sure the “create log if missing” path sets absent cleanly (same fields).
+
+3) db_manager.py patch (allow check-in without locking day type)
+This is important so Check-In doesn’t force Full Day immediately.
+✅ In check_in_student() change signature:
+def check_in_student(..., day_type: str = 'full', ...)
+
+to:
+def check_in_student(..., day_type: str = None, ...)
+
+And only apply log.day_type = ... / period assignments if day_type is not None.

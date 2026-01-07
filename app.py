@@ -2057,54 +2057,49 @@ if page == "Dashboard":
                 pass
             
             with header_col3:
-                # --- STATUS: Present / Absent (radio control) ---
-                status_key = f"iss_status_{session_id}_{date_str}"
+                # --- Attendance-first controls ---
+                absent_key = f"iss_absent_{session_id}_{date_str}"
 
                 # Source of truth from DB
                 db_absent = dm.is_marked_absent(placement_id, date_str)
 
-                # Determine current status (checked-in implies present)
-                current_status = "Present" if (is_checked_in or not db_absent) else "Absent"
+                # Init widget state
+                if absent_key not in st.session_state:
+                    st.session_state[absent_key] = bool(db_absent)
 
-                if status_key not in st.session_state:
-                    st.session_state[status_key] = current_status
+                # Disable absent toggle after check-in or completion to prevent contradictions
+                absent_disabled = is_checked_in or is_completed
 
-                status_disabled = is_completed or is_checked_in  # lock status once checked in
-
-                def handle_iss_status_change(pid=placement_id, ds=date_str, key=status_key):
-                    new_status = st.session_state.get(key, "Present")
-                    if new_status == "Absent":
+                def handle_absent_toggle(pid=placement_id, ds=date_str, key=absent_key):
+                    if st.session_state.get(key):
                         dm.mark_absent(pid, ds)
                     else:
                         dm.unmark_absent(pid, ds)
+                    clear_dashboard_caches()
+                    st.rerun()
 
-                st.radio(
-                    "Status",
-                    options=["Present", "Absent"],
-                    key=status_key,
-                    horizontal=True,
-                    label_visibility="collapsed",
-                    disabled=status_disabled,
-                    on_change=handle_iss_status_change
+                # Render checkbox (unchecked by default unless DB says absent)
+                is_absent = st.checkbox(
+                    "Absent",
+                    key=absent_key,
+                    disabled=absent_disabled,
+                    on_change=handle_absent_toggle
                 )
 
-                # Derive is_absent from the radio (after widget processing)
-                is_absent = (st.session_state.get(status_key) == "Absent")
-
-                # --- CHECK IN (only when Present) ---
+                # Render Check In button (check-in implies present)
                 if is_completed:
                     st.success("Checked Out")
-                elif is_absent:
-                    st.caption("Marked Absent")
                 else:
-                    checkin_disabled = is_checked_in or is_completed
+                    checkin_disabled = is_checked_in or is_completed or is_absent
                     if st.button(
                         "Check In",
                         key=f"iss_checkin_{session_id}",
                         type="primary" if not checkin_disabled else "secondary",
                         disabled=checkin_disabled
                     ):
-                        # IMPORTANT: do NOT lock day type at check-in time
+                        # Ensure absent is cleared (check-in implies present)
+                        dm.unmark_absent(placement_id, date_str)
+                        # IMPORTANT: do not lock day type at check-in time
                         dm.check_in_student(placement_id, date_str, day_type=None)
                         clear_dashboard_caches()
                         st.rerun()

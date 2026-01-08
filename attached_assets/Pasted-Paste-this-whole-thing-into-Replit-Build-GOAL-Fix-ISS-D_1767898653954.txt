@@ -1,0 +1,127 @@
+Paste this whole thing into Replit → Build.
+
+"""
+GOAL
+Fix ISS Dashboard “points leak” / cross-card contamination permanently.
+
+WHAT’S HAPPENING
+Full-day ISS sessions can have session_id = None. In render_iss_session_card(), several Streamlit widget keys and
+session_state keys still use only {session_id}. When session_id is None, multiple ISS cards share the same keys,
+so Streamlit state can bleed across cards, causing actions on one card to affect another.
+
+FIX
+Create a unique per-card identifier:
+  card_uid = f"{placement_id}_{session_key}_{date_str}"
+where session_key = session_id if not None else "full"
+
+Then update *all* ISS widget keys + deferred completion keys inside render_iss_session_card() to use card_uid,
+not session_id alone.
+
+IMPLEMENTATION
+Edit app.py in render_iss_session_card():
+1) Define session_key + card_uid near the top (after placement_id/session_id/date_str are known).
+2) Replace any key=... that uses session_id with card_uid.
+3) Replace any st.session_state[...] keys that use session_id with card_uid.
+4) Keep behavior dropdown keys as they are (they already include placement_id + session_key).
+"""
+
+# =========================
+# PASTE-IN CODE (app.py)
+# =========================
+
+# --- In app.py, inside: def render_iss_session_card(iss_session: dict, target_date: date):
+# Add these lines shortly after you set placement_id, session_id, and date_str:
+
+session_key = session_id if session_id is not None else "full"
+card_uid = f"{placement_id}_{session_key}_{date_str}"
+
+# Now update the existing keys in this function as follows:
+
+# 1) Any "iss_checkin_{session_id}" -> "iss_checkin_{card_uid}"
+# Example replacements:
+
+# BEFORE:
+# st.button("Check In", key=f"iss_checkin_{session_id}", disabled=True)
+# AFTER:
+# st.button("Check In", key=f"iss_checkin_{card_uid}", disabled=True)
+
+# BEFORE:
+# key=f"iss_checkin_{session_id}",
+# AFTER:
+# key=f"iss_checkin_{card_uid}",
+
+# 2) Day type / period selection state keys:
+# BEFORE:
+# day_type_key = f"iss_day_type_{session_id}"
+# start_period_key = f"iss_start_period_{session_id}"
+# end_period_key = f"iss_end_period_{session_id}"
+# AFTER:
+day_type_key = f"iss_day_type_{card_uid}"
+start_period_key = f"iss_start_period_{card_uid}"
+end_period_key = f"iss_end_period_{card_uid}"
+
+# 3) Any session_state.get(f"iss_day_type_{session_id}") and similar -> use the variables above
+# BEFORE:
+# current_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
+# AFTER:
+# current_day_type = st.session_state.get(day_type_key, "Full Day")
+
+# BEFORE:
+# current_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
+# current_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+# AFTER:
+# current_start = st.session_state.get(start_period_key, 1)
+# current_end = st.session_state.get(end_period_key, 10)
+
+# 4) Completion / override button keys:
+# BEFORE:
+# key=f"iss_complete_{session_id}",
+# AFTER:
+# key=f"iss_complete_{card_uid}",
+
+# BEFORE:
+# key=f"iss_override_btn_{session_id}",
+# AFTER:
+# key=f"iss_override_btn_{card_uid}",
+
+# 5) Deferred completion/override keys (IMPORTANT because global handler scans deferred_*):
+# BEFORE:
+# st.session_state[f"deferred_complete_{session_id}"] = {...}
+# AFTER:
+# st.session_state[f"deferred_complete_{card_uid}"] = {...}
+
+# BEFORE:
+# st.session_state[f"deferred_override_{session_id}"] = {...}
+# AFTER:
+# st.session_state[f"deferred_override_{card_uid}"] = {...}
+
+# 6) Retroactive buttons:
+# BEFORE:
+# key=f"iss_retro_complete_{session_id}"
+# key=f"iss_retro_override_{session_id}"
+# AFTER:
+# key=f"iss_retro_complete_{card_uid}"
+# key=f"iss_retro_override_{card_uid}"
+
+# 7) Absent checkbox key can also be made consistent:
+# BEFORE:
+# absent_key = f"iss_absent_{session_id}_{date_str}"
+# AFTER:
+absent_key = f"iss_absent_{card_uid}"
+
+# NOTE:
+# Your behavior dropdown keys already correctly include placement_id + session_key:
+#   iss_pos_{placement_id}_{session_key}
+#   pending_pos_{placement_id}_{session_key}
+#   iss_neg_{placement_id}_{session_key}
+#   pending_neg_{placement_id}_{session_key}
+# Keep those as-is.
+
+"""
+After applying these replacements in render_iss_session_card(), re-run the app and test:
+
+- Have 2 ISS students on Dashboard (both checked in).
+- Add +1 behavior to Student A repeatedly.
+- Confirm ONLY Student A changes each time (Student B should remain unchanged),
+  regardless of whether Student B is collapsed or expanded.
+"""

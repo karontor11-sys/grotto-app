@@ -118,6 +118,70 @@ def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, tar
     # Fallback (should rarely happen)
     return f"{total_days}-Day Session Completed"
 
+# =========================================================
+# Circle Color Logic — Day-level overrides placement-level
+# =========================================================
+
+def _is_absent_for_date(dm, placement_id: str, date_str: str) -> bool:
+    """
+    Returns True if the given placement/day is marked absent or no-show.
+    Uses DailyLog.dayType when available and falls back to dm.is_marked_absent.
+    """
+    try:
+        daily_log = dm.get_daily_log(placement_id, date_str)
+    except Exception:
+        daily_log = None
+
+    day_type = daily_log.get("dayType") if daily_log else None
+
+    return (
+        day_type == "absent"
+        or day_type == "no_show"
+        or dm.is_marked_absent(placement_id, date_str)
+    )
+
+
+def _circle_for_day(
+    progress_status: str,
+    *,
+    is_absent_day: bool = False,
+    is_day_completed: bool = False
+) -> str:
+    """
+    Final circle rules (single source of truth):
+
+    1) COMPLETED placement OR fulfilled day → 🔴
+    2) IN_PROGRESS:
+        - Absent day → 🔴
+        - Otherwise → 🟡
+    3) NOT_STARTED → 🟢 (even if absent marked)
+    """
+    if progress_status == "COMPLETED" or is_day_completed:
+        return "🔴"
+
+    if progress_status == "IN_PROGRESS":
+        return "🔴" if is_absent_day else "🟡"
+
+    return "🟢"
+
+
+def _status_text_for_day(
+    progress_status: str,
+    *,
+    is_absent_day: bool = False,
+    is_day_completed: bool = False
+) -> str:
+    """
+    Text that accompanies the status circle.
+    """
+    if progress_status == "COMPLETED" or is_day_completed:
+        return "Completed"
+
+    if progress_status == "IN_PROGRESS":
+        return "Absent" if is_absent_day else "In Progress"
+
+    return "Not Started"
+
 # Check and process end-of-day for pending dates (runs once per session)
 if not st.session_state.eod_processing_checked:
     processing_results = dm.check_and_process_pending_dates()

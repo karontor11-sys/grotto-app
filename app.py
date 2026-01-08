@@ -1426,17 +1426,18 @@ if page == "Dashboard":
 
         future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
-        # Get progress status and display at top of expanded card
+        # Get progress status and compute day-level absent status for circle/text
         progress_status = placement.get('progressStatus', 'NOT_STARTED')
-        if progress_status == "COMPLETED":
-            progress_circle = "🔴"
-            progress_text = "Completed"
-        elif progress_status == "IN_PROGRESS":
-            progress_circle = "🟡"
-            progress_text = "In Progress"
-        else:
-            progress_circle = "🟢"
-            progress_text = "Not Started"
+        is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+        is_day_completed = False  # Will be set below after fetching daily log
+        
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        daily_log = dm.get_daily_log(placement_id, date_str)
+        is_day_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+        
+        # Use centralized helpers for circle and text
+        progress_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
+        progress_text = _status_text_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
         
         # Display status line at top of expanded card (no student name)
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
@@ -1448,9 +1449,6 @@ if page == "Dashboard":
             st.caption(f"Grade {grade} — {homeroom}")
         else:
             st.caption(f"Grade {grade}")
-        
-        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
-        daily_log = dm.get_daily_log(placement_id, date_str)
         
         # Day X of Y for multi-day lunch detention (completion-based, not calendar-based)
         total_days = placement.get('daysAssigned', 0)
@@ -1578,17 +1576,19 @@ if page == "Dashboard":
 
         future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
-        # Get progress status and display at top of expanded card
+        # Get progress status and compute day-level absent status for circle/text
         progress_status = placement.get('progressStatus', 'NOT_STARTED')
-        if progress_status == "COMPLETED":
-            progress_circle = "🔴"
-            progress_text = "Completed"
-        elif progress_status == "IN_PROGRESS":
-            progress_circle = "🟡"
-            progress_text = "In Progress"
-        else:
-            progress_circle = "🟢"
-            progress_text = "Not Started"
+        
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        daily_log = dm.get_daily_log(placement_id, date_str)
+        
+        # Compute absent and completion status for circle logic
+        is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+        is_day_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+        
+        # Use centralized helpers for circle and text
+        progress_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
+        progress_text = _status_text_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
         
         # Display status line at top of expanded card (no student name)
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
@@ -1600,9 +1600,6 @@ if page == "Dashboard":
             st.caption(f"Grade {grade} — {homeroom}")
         else:
             st.caption(f"Grade {grade}")
-        
-        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
-        daily_log = dm.get_daily_log(placement_id, date_str)
         
         if daily_log:
             fulfillment = daily_log.get('dailyFulfillment') or ''
@@ -2002,23 +1999,23 @@ if page == "Dashboard":
             
             return  # Exit early for future placements
         
-        # Get progress status and display at top of card
+        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
+        daily_log = dm.get_daily_log(placement_id, date_str)
+        
+        # Get progress status and compute day-level absent/completion status for circle/text
         progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
-        if progress_status == "COMPLETED":
-            progress_circle = "🔴"
-            progress_text = "Completed"
-        elif progress_status == "IN_PROGRESS":
-            progress_circle = "🟡"
-            progress_text = "In Progress"
-        else:
-            progress_circle = "🟢"
-            progress_text = "Not Started"
+        is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+        session_status = iss_session.get('status', 'scheduled')
+        fulfillment = (daily_log.get('dailyFulfillment') or '') if daily_log else ''
+        override_used = (daily_log.get('overrideUsed', False) if daily_log else False)
+        is_day_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
+        
+        # Use centralized helpers for circle and text
+        progress_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
+        progress_text = _status_text_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
         
         # Display status at top of expanded card
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
-        
-        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
-        daily_log = dm.get_daily_log(placement_id, date_str)
         
         # Only fetch point events if student is checked in (lazy loading)
         is_checked_in = (daily_log.get('checkedIn', False) if daily_log else False)
@@ -2033,10 +2030,6 @@ if page == "Dashboard":
             negative_points = 0
             total_points = 0
         
-        session_status = iss_session.get('status', 'scheduled')
-        fulfillment = (daily_log.get('dailyFulfillment') or '') if daily_log else ''
-        override_used = (daily_log.get('overrideUsed', False) if daily_log else False)
-        is_day_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
         is_no_show = session_status == 'no_show'
         
         # Check if placement itself is completed (prevents further edits)

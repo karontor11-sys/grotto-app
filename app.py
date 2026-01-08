@@ -2816,14 +2816,12 @@ if page == "Dashboard":
             session_status = iss_session.get('status', 'scheduled')
             is_day_completed = session_status == 'fulfilled'
             
-            # Create colored circle based on progress_status and day completion
-            # Red circle for COMPLETED (placement) or fulfilled (day)
-            if progress_status == "COMPLETED" or is_day_completed:
-                status_circle = "🔴"  # Red circle for COMPLETED
-            elif progress_status == "IN_PROGRESS":
-                status_circle = "🟡"  # Yellow circle for IN_PROGRESS
-            else:
-                status_circle = "🟢"  # Green circle for NOT_STARTED
+            # Compute day-level absent status for circle logic
+            date_str = selected_date.isoformat()
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+            
+            # Use centralized helper for colored circle
+            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
             
             # COMPLETED placements or COMPLETED days: Show as non-interactive collapsed card (no expander)
             if progress_status == "COMPLETED" or is_day_completed:
@@ -2856,20 +2854,18 @@ if page == "Dashboard":
             student_name = f"{student['firstName']} {student['lastName']}"
             progress_status = placement.get('progressStatus', 'NOT_STARTED')
             days_assigned = placement.get('daysAssigned', 1)
+            date_str = selected_date.isoformat()
             
-            # Create colored circle based on progress_status
-            if progress_status == "COMPLETED":
-                status_circle = "🔴"  # Red circle for COMPLETED
-            elif progress_status == "IN_PROGRESS":
-                status_circle = "🟡"  # Yellow circle for IN_PROGRESS
-            else:
-                status_circle = "🟢"  # Green circle for NOT_STARTED
+            # Compute day-level absent status for circle logic
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+            
+            # Use centralized helper for colored circle
+            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=False)
             
             # COMPLETED placements: Show as non-interactive collapsed card (no expander)
             if progress_status == "COMPLETED":
-                date_str = selected_date.isoformat()
                 daily_log = dm.get_daily_log(placement_id, date_str)
-                is_absent = (daily_log and daily_log.get('dayType') == 'absent') or dm.is_marked_absent(placement_id, date_str)
+                is_absent = is_absent_day
                 
                 end_date = _parse_iso_date_safe(placement.get('endDate'))
                 day_info = dm.get_lunch_detention_days_served_info(placement_id, date_str)
@@ -2912,6 +2908,7 @@ if page == "Dashboard":
             student_name = f"{student['firstName']} {student['lastName']}"
             progress_status = placement.get('progressStatus', 'NOT_STARTED')
             referral_subtype = placement.get('referralSubtype', '')
+            date_str = selected_date.isoformat()
             
             # Get subtype display name
             subtype_labels = {
@@ -2921,19 +2918,16 @@ if page == "Dashboard":
             }
             subtype_display = subtype_labels.get(referral_subtype.lower() if referral_subtype else '', referral_subtype or 'Referral')
             
-            # Create colored circle based on progress_status
-            if progress_status == "COMPLETED":
-                status_circle = "🔴"  # Red circle for COMPLETED
-            elif progress_status == "IN_PROGRESS":
-                status_circle = "🟡"  # Yellow circle for IN_PROGRESS
-            else:
-                status_circle = "🟢"  # Green circle for NOT_STARTED
+            # Compute day-level absent status for circle logic
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+            
+            # Use centralized helper for colored circle
+            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=False)
             
             # COMPLETED placements: Show as non-interactive collapsed card (no expander)
             if progress_status == "COMPLETED":
-                date_str = selected_date.isoformat()
                 daily_log = dm.get_daily_log(placement_id, date_str)
-                is_absent = daily_log and daily_log.get('dayType') == 'absent'
+                is_absent = is_absent_day
                 
                 end_date = _parse_iso_date_safe(placement.get('endDate'))
                 days_assigned = placement.get('daysAssigned', 1) or 1

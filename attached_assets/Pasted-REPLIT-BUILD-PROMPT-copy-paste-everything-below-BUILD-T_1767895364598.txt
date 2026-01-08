@@ -1,0 +1,42 @@
+REPLIT BUILD PROMPT (copy/paste everything below)
+BUILD TASK: Fix ISS Dashboard points leak caused by widget key collisions.
+
+Context:
+There is a confirmed bug where adding a behavior/point to one ISS record also adds the point to another ISS record (different student) when both are checked in.
+
+Root cause (already confirmed):
+In app.py, function render_iss_session_card(), widget keys and pending keys are built using session_id alone:
+  pos_key = f"iss_pos_{session_id}"
+  pending_pos_key = f"pending_pos_{session_id}"
+
+For full-day ISS placements, session_id is None. This causes multiple ISS cards to share identical keys like:
+  iss_pos_None
+  pending_pos_None
+
+When a behavior is selected for one card, Streamlit stores it under this shared key, and another card consumes it on rerun, applying the point to the wrong placement.
+
+Required fix:
+Make all ISS widget keys and pending keys UNIQUE per placement by including placement_id in the key, and safely handling session_id == None.
+
+Specifically:
+1) In render_iss_session_card(), replace the existing pos_key / pending_pos_key / neg_key / pending_neg_key definitions.
+2) Use placement_id + session_id (or a literal "full" when session_id is None).
+3) Ensure all later references (resetting, deleting, reading session_state) use the updated variables.
+
+Do NOT change any database logic. This is a UI key-collision fix only.
+
+Please apply the following paste-in code exactly.
+
+✅ PASTE-IN PYTHON CODE (Replit will insert this)
+Replace the existing key definitions inside render_iss_session_card() with this block:
+# ---------------------------------------------------------
+# IMPORTANT: Unique widget keys per ISS card
+# Full-day ISS can have session_id = None, so include placement_id
+# ---------------------------------------------------------
+session_key = session_id if session_id is not None else "full"
+
+pos_key = f"iss_pos_{placement_id}_{session_key}"
+pending_pos_key = f"pending_pos_{placement_id}_{session_key}"
+
+neg_key = f"iss_neg_{placement_id}_{session_key}"
+pending_neg_key = f"pending_neg_{placement_id}_{session_key}"

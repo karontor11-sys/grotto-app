@@ -2318,8 +2318,14 @@ if page == "Dashboard":
                     with pos_col:
                         positive_menu = ps.get_positive_point_menu()
                         positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
-                        pos_key = f"iss_pos_{session_id}"
-                        pending_pos_key = f"pending_pos_{session_id}"
+                        # ---------------------------------------------------------
+                        # IMPORTANT: Unique widget keys per ISS card
+                        # Full-day ISS can have session_id = None, so include placement_id
+                        # ---------------------------------------------------------
+                        session_key = session_id if session_id is not None else "full"
+                        
+                        pos_key = f"iss_pos_{placement_id}_{session_key}"
+                        pending_pos_key = f"pending_pos_{placement_id}_{session_key}"
                         
                         # Check if we need to process a pending selection (from previous render)
                         # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
@@ -2384,8 +2390,8 @@ if page == "Dashboard":
                     with neg_col:
                         negative_menu = ps.get_negative_point_menu()
                         negative_options = ["- Negative"] + [item['label'] for item in negative_menu]
-                        neg_key = f"iss_neg_{session_id}"
-                        pending_neg_key = f"pending_neg_{session_id}"
+                        neg_key = f"iss_neg_{placement_id}_{session_key}"
+                        pending_neg_key = f"pending_neg_{placement_id}_{session_key}"
                         
                         # Check if we need to process a pending selection (from previous render)
                         # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
@@ -2536,11 +2542,12 @@ if page == "Dashboard":
                         }
 
                         # Clear any pending behavior or widget keys to prevent re-fire
+                        # Use placement_id + session_key for unique keys (matches behavior dropdown keys)
                         for k in (
-                            f"pending_pos_{session_id}",
-                            f"pending_neg_{session_id}",
-                            f"iss_pos_{session_id}",
-                            f"iss_neg_{session_id}",
+                            f"pending_pos_{placement_id}_{session_key}",
+                            f"pending_neg_{placement_id}_{session_key}",
+                            f"iss_pos_{placement_id}_{session_key}",
+                            f"iss_neg_{placement_id}_{session_key}",
                         ):
                             if k in st.session_state:
                                 del st.session_state[k]
@@ -2577,11 +2584,12 @@ if page == "Dashboard":
                         }
 
                         # Clear any pending behavior or widget keys to prevent re-fire
+                        # Use placement_id + session_key for unique keys (matches behavior dropdown keys)
                         for k in (
-                            f"pending_pos_{session_id}",
-                            f"pending_neg_{session_id}",
-                            f"iss_pos_{session_id}",
-                            f"iss_neg_{session_id}",
+                            f"pending_pos_{placement_id}_{session_key}",
+                            f"pending_neg_{placement_id}_{session_key}",
+                            f"iss_pos_{placement_id}_{session_key}",
+                            f"iss_neg_{placement_id}_{session_key}",
                         ):
                             if k in st.session_state:
                                 del st.session_state[k]

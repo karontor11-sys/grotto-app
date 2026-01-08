@@ -1,0 +1,117 @@
+BUILD PROMPT (copy/paste as-is)
+BUILD TASK: Implement “Red overrides Yellow at the day level” for circle/status logic across Dashboard (collapsed) and expanded cards.
+
+Context:
+In app.py, circle colors are currently derived mostly from placement-level progressStatus:
+- NOT_STARTED -> 🟢
+- IN_PROGRESS -> 🟡
+- COMPLETED -> 🔴
+ISS also has an extra day-level red when is_day_completed/fulfilled.
+
+Goal:
+For ANY multi-day placement type, once the placement is IN_PROGRESS, if a specific day is marked Absent/No-Show for that placement on that date, then that day’s circle must be 🔴 (red) even while the overall placement remains IN_PROGRESS (yellow).
+Before the first check-in (NOT_STARTED), circles must remain 🟢 even if the first scheduled day is marked absent (so absent does NOT override NOT_STARTED).
+Completed placement remains 🔴.
+
+Requirements:
+1) Add a single source-of-truth helper in app.py:
+   - _is_absent_for_date(dm, placement_id, date_str) -> bool (use dm.get_daily_log(placement_id, date_str) and check daily_log["dayType"] for "absent" / "no_show", and also fallback to dm.is_marked_absent(placement_id, date_str)).
+   - _circle_for_day(progress_status, is_absent_day=False, is_day_completed=False) -> "🔴"|"🟡"|"🟢" using these rules:
+        - if progress_status == "COMPLETED" OR is_day_completed: 🔴
+        - elif progress_status == "IN_PROGRESS": 🔴 if is_absent_day else 🟡
+        - else: 🟢
+   - _status_text_for_day(progress_status, is_absent_day=False, is_day_completed=False) returning:
+        - Completed / In Progress / Not Started (and "Absent" when IN_PROGRESS + is_absent_day)
+2) Replace existing repeated if/elif blocks that set status_circle based on progress_status in BOTH:
+   - Dashboard collapsed sections: ISS, Lunch Detention, CPR
+   - Expanded render functions: render_lunch_detention_card(), render_unified_class_referral_card(), render_iss_session_card()
+   Each location must compute is_absent_day for the relevant placement_id + date_str and then call _circle_for_day(...) (and for expanded cards also _status_text_for_day(...)).
+3) Preserve existing ISS “fulfilled day” red behavior by passing is_day_completed into _circle_for_day/_status_text_for_day in ISS contexts.
+4) Ensure behavior is consistent whether cards are collapsed or expanded.
+
+Implementation Details:
+- Use date_str = selected_date.isoformat() (or existing date_str variable in scope). If a function uses a different date source, use the existing date string it already uses.
+- For ISS status in render_iss_session_card(): consider is_day_completed = (iss_session.get("status") == "fulfilled") if present, otherwise preserve your current fulfilled logic.
+
+IMPORTANT: This is a Build change. Please directly modify app.py accordingly.
+After applying changes, ensure the app runs (no NameError for dm/placement_id/date_str), and circles now show red on absent/no-show days only when placement is IN_PROGRESS or day fulfilled/completed, while NOT_STARTED remains green.
+
+PASTE-IN CODE TO INSERT (helpers):
+<insert the helper code block below near the top of app.py, in a safe shared area>
+
+PASTE-IN CODE TO USE (pattern):
+Replace the old progress_status if/elif circle mapping with:
+- is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+- status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed_if_applicable)
+
+Replace expanded Status display with:
+- progress_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed_if_applicable)
+- progress_text = _status_text_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed_if_applicable)
+- st.markdown(f"**Status:** {progress_circle} {progress_text}")
+
+Now apply these edits across the 6 locations identified above.
+
+✅ PASTE-IN CODE BLOCK (include this in the Build prompt right after the “helpers” mention)
+# =========================================================
+# Circle Color Logic — Day-level overrides placement-level
+# =========================================================
+
+def _is_absent_for_date(dm, placement_id: str, date_str: str) -> bool:
+    """
+    Returns True if the given placement/day is marked absent or no-show.
+    Uses DailyLog.dayType when available and falls back to dm.is_marked_absent.
+    """
+    try:
+        daily_log = dm.get_daily_log(placement_id, date_str)
+    except Exception:
+        daily_log = None
+
+    day_type = daily_log.get("dayType") if daily_log else None
+
+    return (
+        day_type == "absent"
+        or day_type == "no_show"
+        or dm.is_marked_absent(placement_id, date_str)
+    )
+
+
+def _circle_for_day(
+    progress_status: str,
+    *,
+    is_absent_day: bool = False,
+    is_day_completed: bool = False
+) -> str:
+    """
+    Final circle rules (single source of truth):
+
+    1) COMPLETED placement OR fulfilled day → 🔴
+    2) IN_PROGRESS:
+        - Absent day → 🔴
+        - Otherwise → 🟡
+    3) NOT_STARTED → 🟢 (even if absent marked)
+    """
+    if progress_status == "COMPLETED" or is_day_completed:
+        return "🔴"
+
+    if progress_status == "IN_PROGRESS":
+        return "🔴" if is_absent_day else "🟡"
+
+    return "🟢"
+
+
+def _status_text_for_day(
+    progress_status: str,
+    *,
+    is_absent_day: bool = False,
+    is_day_completed: bool = False
+) -> str:
+    """
+    Text that accompanies the status circle.
+    """
+    if progress_status == "COMPLETED" or is_day_completed:
+        return "Completed"
+
+    if progress_status == "IN_PROGRESS":
+        return "Absent" if is_absent_day else "In Progress"
+
+    return "Not Started"

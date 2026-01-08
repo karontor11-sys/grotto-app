@@ -122,23 +122,43 @@ def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, tar
 # Circle Color Logic — Day-level overrides placement-level
 # =========================================================
 
-def _is_absent_for_date(dm, placement_id: str, date_str: str) -> bool:
+def _is_absent_for_date(dm, placement_id: str, date_str: str, *, daily_log: dict = None) -> bool:
     """
     Returns True if the given placement/day is marked absent or no-show.
-    Uses DailyLog.dayType when available and falls back to dm.is_marked_absent.
+    Uses DailyLog.dayType when available.
+    
+    Args:
+        dm: DatabaseManager instance
+        placement_id: Placement ID
+        date_str: ISO format date string
+        daily_log: Optional pre-fetched daily log to avoid duplicate fetch
     """
-    try:
-        daily_log = dm.get_daily_log(placement_id, date_str)
-    except Exception:
-        daily_log = None
+    if daily_log is None:
+        try:
+            daily_log = dm.get_daily_log(placement_id, date_str)
+        except Exception:
+            daily_log = None
 
     day_type = daily_log.get("dayType") if daily_log else None
+    return day_type == "absent" or day_type == "no_show"
 
-    return (
-        day_type == "absent"
-        or day_type == "no_show"
-        or dm.is_marked_absent(placement_id, date_str)
-    )
+
+def _is_day_completed_for_date(daily_log: dict = None, *, session_status: str = None) -> bool:
+    """
+    Returns True if the given day is completed.
+    Checks dailyFulfillment, overrideUsed, and optionally session_status (for ISS).
+    
+    Args:
+        daily_log: Daily log dictionary (may be None)
+        session_status: Optional session status for ISS ('fulfilled' means completed)
+    """
+    if session_status == 'fulfilled':
+        return True
+    if daily_log is None:
+        return False
+    fulfillment = daily_log.get('dailyFulfillment')
+    override_used = daily_log.get('overrideUsed', False)
+    return fulfillment == 'yes' or override_used
 
 
 def _circle_for_day(
@@ -1426,14 +1446,15 @@ if page == "Dashboard":
 
         future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
-        # Get progress status and compute day-level absent status for circle/text
+        # Get progress status
         progress_status = placement.get('progressStatus', 'NOT_STARTED')
-        is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
-        is_day_completed = False  # Will be set below after fetching daily log
         
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
-        is_day_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+        
+        # Use centralized helpers for day-level absent and completion status (pass pre-fetched daily_log)
+        is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+        is_day_completed = _is_day_completed_for_date(daily_log)
         
         # Use centralized helpers for circle and text
         progress_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
@@ -1576,15 +1597,15 @@ if page == "Dashboard":
 
         future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
-        # Get progress status and compute day-level absent status for circle/text
+        # Get progress status
         progress_status = placement.get('progressStatus', 'NOT_STARTED')
         
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         
-        # Compute absent and completion status for circle logic
-        is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
-        is_day_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+        # Use centralized helpers for day-level absent and completion status (pass pre-fetched daily_log)
+        is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+        is_day_completed = _is_day_completed_for_date(daily_log)
         
         # Use centralized helpers for circle and text
         progress_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
@@ -2002,13 +2023,11 @@ if page == "Dashboard":
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         
-        # Get progress status and compute day-level absent/completion status for circle/text
+        # Get progress status and use centralized helpers for day-level absent/completion (pass pre-fetched daily_log)
         progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
-        is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
         session_status = iss_session.get('status', 'scheduled')
-        fulfillment = (daily_log.get('dailyFulfillment') or '') if daily_log else ''
-        override_used = (daily_log.get('overrideUsed', False) if daily_log else False)
-        is_day_completed = session_status == 'fulfilled' or fulfillment == 'yes' or override_used
+        is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+        is_day_completed = _is_day_completed_for_date(daily_log, session_status=session_status)
         
         # Use centralized helpers for circle and text
         progress_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
@@ -2778,9 +2797,9 @@ if page == "Dashboard":
                 placement_id = iss_session.get('placement_id')
                 date_str = selected_date.isoformat()
                 
-                # Determine absent for this date
+                # Fetch daily log once and use centralized helpers
                 daily_log = dm.get_daily_log(placement_id, date_str)
-                is_absent = daily_log and daily_log.get('dayType') == 'absent'
+                is_absent = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
                 
                 # Pull placement to get endDate reliably
                 placement_obj = dm.get_placement(placement_id) or {}
@@ -2812,13 +2831,17 @@ if page == "Dashboard":
                 )
                 continue
             
+            # Get placement_id for non-COMPLETED sessions
+            placement_id = iss_session.get('placement_id')
+            date_str = selected_date.isoformat()
+            
+            # Fetch daily log once for both absent and completion checks
+            daily_log = dm.get_daily_log(placement_id, date_str)
+            
             # Check if this day is completed (session status = 'fulfilled' or dailyFulfillment = 'yes')
             session_status = iss_session.get('status', 'scheduled')
-            is_day_completed = session_status == 'fulfilled'
-            
-            # Compute day-level absent status for circle logic
-            date_str = selected_date.isoformat()
-            is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+            is_day_completed = _is_day_completed_for_date(daily_log, session_status=session_status)
             
             # Use centralized helper for colored circle
             status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
@@ -2856,15 +2879,18 @@ if page == "Dashboard":
             days_assigned = placement.get('daysAssigned', 1)
             date_str = selected_date.isoformat()
             
-            # Compute day-level absent status for circle logic
-            is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+            # Fetch daily log once for both absent and completion checks
+            daily_log = dm.get_daily_log(placement_id, date_str)
+            
+            # Use centralized helpers for day-level absent and completion status (pass pre-fetched daily_log)
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+            is_day_completed = _is_day_completed_for_date(daily_log)
             
             # Use centralized helper for colored circle
-            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=False)
+            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
             
             # COMPLETED placements: Show as non-interactive collapsed card (no expander)
             if progress_status == "COMPLETED":
-                daily_log = dm.get_daily_log(placement_id, date_str)
                 is_absent = is_absent_day
                 
                 end_date = _parse_iso_date_safe(placement.get('endDate'))
@@ -2918,15 +2944,18 @@ if page == "Dashboard":
             }
             subtype_display = subtype_labels.get(referral_subtype.lower() if referral_subtype else '', referral_subtype or 'Referral')
             
-            # Compute day-level absent status for circle logic
-            is_absent_day = _is_absent_for_date(dm, placement_id, date_str)
+            # Fetch daily log once for both absent and completion checks
+            daily_log = dm.get_daily_log(placement_id, date_str)
+            
+            # Use centralized helpers for day-level absent and completion status (pass pre-fetched daily_log)
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+            is_day_completed = _is_day_completed_for_date(daily_log)
             
             # Use centralized helper for colored circle
-            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=False)
+            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
             
             # COMPLETED placements: Show as non-interactive collapsed card (no expander)
             if progress_status == "COMPLETED":
-                daily_log = dm.get_daily_log(placement_id, date_str)
                 is_absent = is_absent_day
                 
                 end_date = _parse_iso_date_safe(placement.get('endDate'))

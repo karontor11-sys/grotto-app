@@ -558,6 +558,23 @@ if page == "Dashboard":
     
     st.header("Dashboard")
     
+    # -------------------------------
+    # DEBUG TOGGLE: ISS points logging
+    # -------------------------------
+    debug_col1, debug_col2 = st.columns([1, 3])
+    with debug_col1:
+        st.checkbox("Debug: ISS points logging", key="DEBUG_ISS_POINTS", value=False)
+
+    def iss_debug_log(msg: str):
+        """Console log only when DEBUG_ISS_POINTS is enabled."""
+        if st.session_state.get("DEBUG_ISS_POINTS"):
+            print(msg)
+
+    # Increment a per-rerun counter (helps detect double-consumption on a single rerun)
+    if st.session_state.get("DEBUG_ISS_POINTS"):
+        st.session_state["_ISS_DEBUG_RUN"] = st.session_state.get("_ISS_DEBUG_RUN", 0) + 1
+        iss_debug_log(f"[ISS_DEBUG] ===== RUN {st.session_state['_ISS_DEBUG_RUN']} =====")
+    
     # Show success message if placement was just created
     if st.session_state.get('placement_created'):
         st.success("Placement created successfully!")
@@ -1971,6 +1988,10 @@ if page == "Dashboard":
         student_id = iss_session['student_id']
         student_name = iss_session['student_name']
         date_str = iss_session['date']
+        
+        # Debug fingerprint for ISS points logging
+        card_fp = f"student={student_name}|placement={placement_id}|session={session_id}|date={date_str}"
+        
         periods = iss_session.get('periods', list(range(1, 11)))
         is_full_day = len(periods) == 10 and periods == list(range(1, 11))
         is_past_session = target_date < central_today()
@@ -2306,10 +2327,15 @@ if page == "Dashboard":
                             pass  # Skip processing - already logged above
                         elif pending_pos_key in st.session_state:
                             pending_label = st.session_state[pending_pos_key]
+                            
+                            iss_debug_log(f"[ISS_CONSUME_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} pending_key={pending_pos_key} value={pending_label}")
+                            
+                            # Clear pending key FIRST so we can detect double-consumption
                             del st.session_state[pending_pos_key]
+                            
                             item = next((i for i in positive_menu if i['label'] == pending_label), None)
                             if item:
-                                dm.add_point_event({
+                                payload = {
                                     'placementId': placement_id,
                                     'studentId': student_id,
                                     'sessionId': session_id,
@@ -2317,11 +2343,19 @@ if page == "Dashboard":
                                     'type': 'positive',
                                     'value': item['value'],
                                     'date': date_str
-                                })
+                                }
+                                iss_debug_log(f"[ISS_ADD_POINT_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} payload={payload}")
+                                dm.add_point_event(payload)
+                            else:
+                                iss_debug_log(f"[ISS_WARN_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} No menu item found for label={pending_label}")
+                            
                             # Reset the selectbox key before widget creation
                             if pos_key in st.session_state:
                                 del st.session_state[pos_key]
+                                iss_debug_log(f"[ISS_RESET_POS_WIDGET] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} cleared={pos_key}")
+                            
                             clear_dashboard_caches()
+                            iss_debug_log(f"[ISS_RERUN_AFTER_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp}")
                             st.rerun()
                         
                         # Always reset selectbox key before rendering to force default
@@ -2334,6 +2368,10 @@ if page == "Dashboard":
                             selected = st.session_state.get(pos_key, "+ Positive")
                             if selected != "+ Positive":
                                 st.session_state[pending_pos_key] = selected
+                                iss_debug_log(
+                                    f"[ISS_CREATE_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} "
+                                    f"widget_key={pos_key} pending_key={pending_pos_key} value={selected}"
+                                )
                         
                         st.selectbox(
                             "Positive",
@@ -2355,10 +2393,15 @@ if page == "Dashboard":
                             pass  # Skip processing - already logged above
                         elif pending_neg_key in st.session_state:
                             pending_label = st.session_state[pending_neg_key]
+                            
+                            iss_debug_log(f"[ISS_CONSUME_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} pending_key={pending_neg_key} value={pending_label}")
+                            
+                            # Clear pending key FIRST so we can detect double-consumption
                             del st.session_state[pending_neg_key]
+                            
                             item = next((i for i in negative_menu if i['label'] == pending_label), None)
                             if item:
-                                dm.add_point_event({
+                                payload = {
                                     'placementId': placement_id,
                                     'studentId': student_id,
                                     'sessionId': session_id,
@@ -2366,11 +2409,19 @@ if page == "Dashboard":
                                     'type': 'negative',
                                     'value': item['value'],
                                     'date': date_str
-                                })
+                                }
+                                iss_debug_log(f"[ISS_ADD_POINT_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} payload={payload}")
+                                dm.add_point_event(payload)
+                            else:
+                                iss_debug_log(f"[ISS_WARN_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} No menu item found for label={pending_label}")
+                            
                             # Reset the selectbox key before widget creation
                             if neg_key in st.session_state:
                                 del st.session_state[neg_key]
+                                iss_debug_log(f"[ISS_RESET_NEG_WIDGET] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} cleared={neg_key}")
+                            
                             clear_dashboard_caches()
+                            iss_debug_log(f"[ISS_RERUN_AFTER_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp}")
                             st.rerun()
                         
                         # Always reset selectbox key before rendering to force default
@@ -2383,6 +2434,10 @@ if page == "Dashboard":
                             selected = st.session_state.get(neg_key, "- Negative")
                             if selected != "- Negative":
                                 st.session_state[pending_neg_key] = selected
+                                iss_debug_log(
+                                    f"[ISS_CREATE_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} "
+                                    f"widget_key={neg_key} pending_key={pending_neg_key} value={selected}"
+                                )
                         
                         st.selectbox(
                             "Negative",

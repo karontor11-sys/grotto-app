@@ -1,0 +1,80 @@
+REPLIT PLAN MODE PROMPT (Logging Diagnosis Only)
+
+Title: Diagnose ISS “points leak” across multiple active records using targeted logging
+
+Problem:
+When two ISS records are active (two different students, both checked in), awarding points / adding a behavior to one ISS record sometimes also awards the same point to the other ISS record. This occurs regardless of whether the other record is collapsed or expanded.
+
+Goal of this task:
+Add temporary diagnostic logging (no behavior changes yet) to pinpoint exactly where the second record is being updated.
+
+What to log
+
+Add logs in every location where an ISS point/behavior action is created or consumed, especially inside render_iss_session_card() and any dashboard ISS loop that calls it.
+
+Log these values whenever a point-award is about to happen:
+
+placement_id (target placement)
+
+session_id (PartialDaySession id)
+
+student_name (or student_id if available)
+
+date_str (the date the point applies to)
+
+progress_status
+
+The session_state keys involved:
+
+the selectbox widget key (pos/neg)
+
+the pending key (pending_pos / pending_neg)
+
+the value stored in the pending key (behavior label)
+
+A unique per-card identifier (example: f"{student_name}|{placement_id}|{session_id}|{date_str}")
+
+A short marker identifying which branch is executing:
+
+“CREATED pending_pos”
+
+“CONSUME pending_pos”
+
+“CREATED pending_neg”
+
+“CONSUME pending_neg”
+
+“CALLING dm.add_point_event”
+
+Where to log
+
+Wherever the pending key is set (on select/change)
+
+Wherever the pending key is consumed (the block that calls dm.add_point_event)
+
+Immediately before the dm.add_point_event(...) call, log the final payload target placement_id/session_id/date.
+
+How to log
+
+Use print() (server console) OR st.write() behind a DEBUG_LOGGING toggle in session state.
+
+Add a simple toggle at top of dashboard:
+
+DEBUG_ISS_POINTS = st.checkbox("Debug: ISS points logging", value=False)
+
+Only output logs when the toggle is ON.
+
+Deliverable
+
+After adding logs, describe:
+
+The exact execution sequence when the bug happens
+
+Whether two different cards are consuming the same pending key
+
+Whether the pending key name is shared/colliding
+
+Whether dm.add_point_event is invoked twice on the same rerun with two different placement_ids
+
+Important:
+This task is diagnosis only. Do not implement the fix yet.

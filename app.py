@@ -482,11 +482,26 @@ if page == "Dashboard":
 
     pending = st.session_state.pop(ISS_PENDING_KEY, None)
     if pending:
-        action = pending.get("action")  # "complete" or "override"
+        action = pending.get("action")  # "complete", "override", or "add_point"
         print(f"[ISS_DISPATCH] Processing action={action} payload={pending}")
 
         try:
-            if action == "override":
+            if action == "add_point":
+                # Payload comes from the card dropdown, but execution happens here (single targeted action)
+                payload = pending.get("payload")
+                if not payload:
+                    st.error("Missing payload for add_point")
+                else:
+                    dm.add_point_event(payload)
+
+                # Safety: reset the dropdown widgets for that specific card so future selections trigger cleanly
+                card_uid = pending.get("card_uid")
+                if card_uid:
+                    for k in (f"iss_pos_{card_uid}", f"iss_neg_{card_uid}"):
+                        if k in st.session_state:
+                            del st.session_state[k]
+
+            elif action == "override":
                 # Execute override
                 result = dm.complete_iss_day(
                     placement_id=pending["placement_id"],
@@ -2320,12 +2335,6 @@ if page == "Dashboard":
             if is_checked_in and not is_completed:
                 points_col, behaviors_col = st.columns([1, 1])
                 
-                # Check and clear suppression flag ONCE at the start of behavior processing
-                # This ensures the flag is always cleared regardless of which code paths run
-                suppress_pending_points = st.session_state.pop("suppress_pending_points_once", False)
-                if suppress_pending_points:
-                    print(f"[DEBUG SUPPRESS] Suppression flag detected and cleared - skipping all pending behavior processing this rerun")
-                
                 with behaviors_col:
                     st.markdown("**Add Behaviors**")
                     pos_col, neg_col = st.columns(2)
@@ -2333,139 +2342,93 @@ if page == "Dashboard":
                     with pos_col:
                         positive_menu = ps.get_positive_point_menu()
                         positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
-                        # ---------------------------------------------------------
-                        # IMPORTANT: Unique widget keys per ISS card
-                        # Full-day ISS can have session_id = None, so include placement_id
-                        # ---------------------------------------------------------
-                        session_key = session_id if session_id is not None else "full"
-                        
+
+                        # Unique per-card widget key
                         pos_key = f"iss_pos_{card_uid}"
-                        pending_pos_key = f"pending_pos_{card_uid}"
-                        
-                        # Check if we need to process a pending selection (from previous render)
-                        # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
-                        if suppress_pending_points:
-                            pass  # Skip processing - already logged above
-                        elif pending_pos_key in st.session_state:
-                            pending_label = st.session_state[pending_pos_key]
-                            
-                            iss_debug_log(f"[ISS_CONSUME_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} pending_key={pending_pos_key} value={pending_label}")
-                            
-                            # Clear pending key FIRST so we can detect double-consumption
-                            del st.session_state[pending_pos_key]
-                            
-                            item = next((i for i in positive_menu if i['label'] == pending_label), None)
-                            if item:
-                                payload = {
-                                    'placementId': placement_id,
-                                    'studentId': student_id,
-                                    'sessionId': session_id,
-                                    'code': item['code'],
-                                    'type': 'positive',
-                                    'value': item['value'],
-                                    'date': date_str
-                                }
-                                iss_debug_log(f"[ISS_ADD_POINT_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} payload={payload}")
-                                dm.add_point_event(payload)
-                            else:
-                                iss_debug_log(f"[ISS_WARN_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} No menu item found for label={pending_label}")
-                            
-                            # Reset the selectbox key before widget creation
-                            if pos_key in st.session_state:
-                                del st.session_state[pos_key]
-                                iss_debug_log(f"[ISS_RESET_POS_WIDGET] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} cleared={pos_key}")
-                            
-                            clear_dashboard_caches()
-                            iss_debug_log(f"[ISS_RERUN_AFTER_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp}")
-                            st.rerun()
-                        
-                        # Always reset selectbox key before rendering to force default
-                        # This prevents stale selections from persisting
+
+                        # Reset stale selection before rendering (keeps UX consistent)
                         if pos_key in st.session_state and st.session_state[pos_key] != "+ Positive":
                             del st.session_state[pos_key]
-                        
+
                         def on_positive_change():
-                            """Store selection in pending key when user changes dropdown."""
                             selected = st.session_state.get(pos_key, "+ Positive")
-                            if selected != "+ Positive":
-                                st.session_state[pending_pos_key] = selected
-                                iss_debug_log(
-                                    f"[ISS_CREATE_POS] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} "
-                                    f"widget_key={pos_key} pending_key={pending_pos_key} value={selected}"
-                                )
-                        
+                            if selected == "+ Positive":
+                                return
+
+                            item = next((i for i in positive_menu if i["label"] == selected), None)
+                            if not item:
+                                return
+
+                            payload = {
+                                "placementId": placement_id,
+                                "studentId": student_id,
+                                "sessionId": session_id,
+                                "code": item["code"],
+                                "type": "positive",
+                                "value": item["value"],
+                                "date": date_str,
+                            }
+
+                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state["ISS_PENDING_ACTION"] = {
+                                "action": "add_point",
+                                "card_uid": card_uid,
+                                "payload": payload,
+                            }
+                            st.rerun()
+
                         st.selectbox(
                             "Positive",
                             positive_options,
                             key=pos_key,
                             label_visibility="collapsed",
-                            on_change=on_positive_change
+                            on_change=on_positive_change,
                         )
                     
                     with neg_col:
                         negative_menu = ps.get_negative_point_menu()
                         negative_options = ["- Negative"] + [item['label'] for item in negative_menu]
+
+                        # Unique per-card widget key
                         neg_key = f"iss_neg_{card_uid}"
-                        pending_neg_key = f"pending_neg_{card_uid}"
-                        
-                        # Check if we need to process a pending selection (from previous render)
-                        # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
-                        if suppress_pending_points:
-                            pass  # Skip processing - already logged above
-                        elif pending_neg_key in st.session_state:
-                            pending_label = st.session_state[pending_neg_key]
-                            
-                            iss_debug_log(f"[ISS_CONSUME_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} pending_key={pending_neg_key} value={pending_label}")
-                            
-                            # Clear pending key FIRST so we can detect double-consumption
-                            del st.session_state[pending_neg_key]
-                            
-                            item = next((i for i in negative_menu if i['label'] == pending_label), None)
-                            if item:
-                                payload = {
-                                    'placementId': placement_id,
-                                    'studentId': student_id,
-                                    'sessionId': session_id,
-                                    'code': item['code'],
-                                    'type': 'negative',
-                                    'value': item['value'],
-                                    'date': date_str
-                                }
-                                iss_debug_log(f"[ISS_ADD_POINT_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} payload={payload}")
-                                dm.add_point_event(payload)
-                            else:
-                                iss_debug_log(f"[ISS_WARN_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} No menu item found for label={pending_label}")
-                            
-                            # Reset the selectbox key before widget creation
-                            if neg_key in st.session_state:
-                                del st.session_state[neg_key]
-                                iss_debug_log(f"[ISS_RESET_NEG_WIDGET] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} cleared={neg_key}")
-                            
-                            clear_dashboard_caches()
-                            iss_debug_log(f"[ISS_RERUN_AFTER_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp}")
-                            st.rerun()
-                        
-                        # Always reset selectbox key before rendering to force default
-                        # This prevents stale selections from persisting
+
+                        # Reset stale selection before rendering (keeps UX consistent)
                         if neg_key in st.session_state and st.session_state[neg_key] != "- Negative":
                             del st.session_state[neg_key]
-                        
+
                         def on_negative_change():
-                            """Store selection in pending key when user changes dropdown."""
                             selected = st.session_state.get(neg_key, "- Negative")
-                            if selected != "- Negative":
-                                st.session_state[pending_neg_key] = selected
-                                iss_debug_log(
-                                    f"[ISS_CREATE_NEG] RUN={st.session_state.get('_ISS_DEBUG_RUN')} {card_fp} "
-                                    f"widget_key={neg_key} pending_key={pending_neg_key} value={selected}"
-                                )
-                        
+                            if selected == "- Negative":
+                                return
+
+                            item = next((i for i in negative_menu if i["label"] == selected), None)
+                            if not item:
+                                return
+
+                            payload = {
+                                "placementId": placement_id,
+                                "studentId": student_id,
+                                "sessionId": session_id,
+                                "code": item["code"],
+                                "type": "negative",
+                                "value": item["value"],
+                                "date": date_str,
+                            }
+
+                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state["ISS_PENDING_ACTION"] = {
+                                "action": "add_point",
+                                "card_uid": card_uid,
+                                "payload": payload,
+                            }
+                            st.rerun()
+
                         st.selectbox(
                             "Negative",
                             negative_options,
                             key=neg_key,
                             label_visibility="collapsed",
-                            on_change=on_negative_change
+                            on_change=on_negative_change,
                         )
                 
                 with points_col:
@@ -2485,14 +2448,15 @@ if page == "Dashboard":
                         is_full_day_display = stored_day_type_display == 'full'
                     else:
                         # Fall back to session state for pre-check-in state
-                        current_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
+                        # Use card_uid-safe keys (matches widget definitions)
+                        current_day_type = st.session_state.get(day_type_key, "Full Day")
                         is_full_day_display = current_day_type == "Full Day"
                         if is_full_day_display:
                             display_required_points = 10
                             display_periods_count = 10
                         else:
-                            current_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
-                            current_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+                            current_start = st.session_state.get(start_period_key, 1)
+                            current_end = st.session_state.get(end_period_key, 10)
                             display_periods_count = max(1, current_end - current_start + 1) if current_end >= current_start else 1
                             display_required_points = display_periods_count
                     
@@ -2528,9 +2492,6 @@ if page == "Dashboard":
                     complete_label = "✓ Complete Day (Retroactive)" if is_past_session else "✓ Complete Day"
 
                     def _defer_complete_day():
-                        # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
-                        st.session_state["suppress_pending_points_once"] = True
-
                         print(f"[DEBUG COMPLETE_DAY] Phase 1 (on_click): Deferring completion for card_uid={card_uid}")
 
                         # Use stored values from daily_log (source of truth after Check In)
@@ -2583,9 +2544,6 @@ if page == "Dashboard":
                     override_label = "🔓 Override (Retroactive)" if is_past_session else "🔓 Override & Count Full"
 
                     def _defer_override_day():
-                        # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
-                        st.session_state["suppress_pending_points_once"] = True
-
                         print(f"[DEBUG OVERRIDE] Phase 1 (on_click): Deferring override for card_uid={card_uid}")
 
                         override_note = "Retroactive override: Student released early due to positive behavior; remaining periods waived."

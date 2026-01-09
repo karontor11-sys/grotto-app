@@ -1,0 +1,163 @@
+Route ALL ISS point adds through the global dispatcher + remove pending point consumption
+
+This patch makes Positive/Negative dropdown selections dispatch a single targeted action (add_point) to the Dashboard-level ISS_PENDING_ACTION handler, and removes the fragile “pending_pos/pending_neg consume” logic inside each card. It also fixes the last remaining ISS session-state reads that still use session_id keys (collision-prone when session_id=None).
+
+# ============================================
+# FILE: app.py
+# PROMPT 2 PATCH (dispatcher + card dropdown wiring)
+# ============================================
+
+# ------------------------------------------------------------
+# (A) DASHBOARD DISPATCHER: add support for action == "add_point"
+# ------------------------------------------------------------
+# FIND this block near the top of Dashboard page:
+#
+# if page == "Dashboard":
+#     # ===== ISS PENDING ACTION DISPATCHER (best long-term fix) =====
+#     ISS_PENDING_KEY = "ISS_PENDING_ACTION"
+#     pending = st.session_state.pop(ISS_PENDING_KEY, None)
+#     if pending:
+#         action = pending.get("action")  # "complete" or "override"
+#
+# Add the "add_point" branch inside the try: (alongside override/complete)
+
+# --- PASTE THIS inside the existing try: block, near the top (before override/complete is fine) ---
+            if action == "add_point":
+                # Payload comes from the card dropdown, but execution happens here (single targeted action)
+                payload = pending.get("payload")
+                if not payload:
+                    st.error("Missing payload for add_point")
+                else:
+                    dm.add_point_event(payload)
+
+                # Safety: reset the dropdown widgets for that specific card so future selections trigger cleanly
+                card_uid = pending.get("card_uid")
+                if card_uid:
+                    for k in (f"iss_pos_{card_uid}", f"iss_neg_{card_uid}"):
+                        if k in st.session_state:
+                            del st.session_state[k]
+
+# ------------------------------------------------------------
+# (B) ISS CARD: Positive/Negative dropdowns dispatch add_point action
+# ------------------------------------------------------------
+# FIND this section inside render_iss_session_card() under:
+#   with behaviors_col:
+#       st.markdown("**Add Behaviors**")
+#       pos_col, neg_col = st.columns(2)
+#
+# There is currently logic that:
+#   - builds pos_key / pending_pos_key
+#   - checks pending_pos_key in st.session_state and consumes it
+#   - on_change writes to pending_pos_key
+#
+# We are replacing that fragile pending mechanism with direct dispatch.
+
+# --- REPLACE the ENTIRE Positive dropdown block (inside "with pos_col:") with this: ---
+                    with pos_col:
+                        positive_menu = ps.get_positive_point_menu()
+                        positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
+
+                        # Unique per-card widget key
+                        pos_key = f"iss_pos_{card_uid}"
+
+                        # Reset stale selection before rendering (keeps UX consistent)
+                        if pos_key in st.session_state and st.session_state[pos_key] != "+ Positive":
+                            del st.session_state[pos_key]
+
+                        def on_positive_change():
+                            selected = st.session_state.get(pos_key, "+ Positive")
+                            if selected == "+ Positive":
+                                return
+
+                            item = next((i for i in positive_menu if i["label"] == selected), None)
+                            if not item:
+                                return
+
+                            payload = {
+                                "placementId": placement_id,
+                                "studentId": student_id,
+                                "sessionId": session_id,
+                                "code": item["code"],
+                                "type": "positive",
+                                "value": item["value"],
+                                "date": date_str,
+                            }
+
+                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state["ISS_PENDING_ACTION"] = {
+                                "action": "add_point",
+                                "card_uid": card_uid,
+                                "payload": payload,
+                            }
+                            st.rerun()
+
+                        st.selectbox(
+                            "Positive",
+                            positive_options,
+                            key=pos_key,
+                            label_visibility="collapsed",
+                            on_change=on_positive_change,
+                        )
+
+# --- REPLACE the ENTIRE Negative dropdown block (inside "with neg_col:") with this: ---
+                    with neg_col:
+                        negative_menu = ps.get_negative_point_menu()
+                        negative_options = ["- Negative"] + [item['label'] for item in negative_menu]
+
+                        # Unique per-card widget key
+                        neg_key = f"iss_neg_{card_uid}"
+
+                        # Reset stale selection before rendering (keeps UX consistent)
+                        if neg_key in st.session_state and st.session_state[neg_key] != "- Negative":
+                            del st.session_state[neg_key]
+
+                        def on_negative_change():
+                            selected = st.session_state.get(neg_key, "- Negative")
+                            if selected == "- Negative":
+                                return
+
+                            item = next((i for i in negative_menu if i["label"] == selected), None)
+                            if not item:
+                                return
+
+                            payload = {
+                                "placementId": placement_id,
+                                "studentId": student_id,
+                                "sessionId": session_id,
+                                "code": item["code"],
+                                "type": "negative",
+                                "value": item["value"],
+                                "date": date_str,
+                            }
+
+                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state["ISS_PENDING_ACTION"] = {
+                                "action": "add_point",
+                                "card_uid": card_uid,
+                                "payload": payload,
+                            }
+                            st.rerun()
+
+                        st.selectbox(
+                            "Negative",
+                            negative_options,
+                            key=neg_key,
+                            label_visibility="collapsed",
+                            on_change=on_negative_change,
+                        )
+
+# ------------------------------------------------------------
+# (C) ISS CARD: remove the last session_id-based state reads (collision-prone)
+# ------------------------------------------------------------
+# FIND these three lines inside render_iss_session_card():
+#   current_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
+#   current_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
+#   current_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+#
+# REPLACE them with the card_uid-safe keys you already define:
+#   day_type_key, start_period_key, end_period_key
+
+# --- REPLACE those three lines with: ---
+                    current_day_type = st.session_state.get(day_type_key, "Full Day")
+                    current_start = st.session_state.get(start_period_key, 1)
+                    current_end = st.session_state.get(end_period_key, 10)

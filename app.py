@@ -2146,42 +2146,6 @@ if page == "Dashboard":
             iss_total_days = 1
         is_multi_day_iss = iss_total_days > 1
         
-        # TEMP DEBUG: Show ISS daily log state for all past & current days
-        today_str = central_today().isoformat()
-        if placement_data:
-            start_date_raw = placement_data.get('startDate')
-            if start_date_raw:
-                from datetime import timedelta
-                if isinstance(start_date_raw, str):
-                    start_dt = datetime.fromisoformat(start_date_raw).date()
-                else:
-                    start_dt = start_date_raw
-                # Calculate all scheduled session days (skip weekends)
-                session_days = []
-                current_dt = start_dt
-                days_added = 0
-                while days_added < iss_total_days:
-                    if current_dt.weekday() < 5:  # Mon-Fri
-                        session_days.append(current_dt.isoformat())
-                        days_added += 1
-                    current_dt = current_dt + timedelta(days=1)
-                
-                debug_days = [d for d in session_days if d <= today_str]
-                debug_parts = []
-                for d in debug_days:
-                    log = dm.get_daily_log(placement_id, d)
-                    if log:
-                        debug_parts.append(
-                            f"{d}: chk={log.get('checkedIn')} "
-                            f"abs={log.get('absent')} "
-                            f"dt={log.get('dayType')}"
-                        )
-                    else:
-                        debug_parts.append(f"{d}: no_log")
-                
-                if debug_parts:
-                    st.caption("DEBUG — ISS Logs → " + " | ".join(debug_parts))
-        
         # Get period-based ISS tracking fields
         required_total_periods = placement_data.get('requiredTotalPeriods', 0) if placement_data else 0
         served_periods_total = placement_data.get('servedPeriodsTotal', 0) if placement_data else 0

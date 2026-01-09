@@ -1,0 +1,48 @@
+Fix multi-day gating when daily_log is missing (treat as not checked in / not absent)
+
+This patch makes the Check In / Absent gate behave consistently on later days of multi-day ISS placements by explicitly treating daily_log=None as “unchecked-in and not absent.” It does not create daily logs automatically; logs are created only when the user checks in or marks absent.
+
+# ============================================
+# FILE: app.py
+# PROMPT 2 — MULTI-DAY GATE FIX WHEN daily_log IS NONE
+# ============================================
+
+# Inside render_iss_session_card(), you already have:
+#   daily_log = dm.get_daily_log(placement_id, date_str)
+# and later:
+#   is_checked_in = (daily_log.get('checkedIn', False) if daily_log else False)
+#
+# (A) Replace that is_checked_in line with this explicit normalization:
+
+has_daily_log = daily_log is not None
+is_checked_in = bool(daily_log and daily_log.get('checkedIn', False))
+
+# ------------------------------------------------------------
+# (B) In the "Attendance-first controls" block, REPLACE the current DB absent source:
+#     db_absent = dm.is_marked_absent(placement_id, date_str)
+#
+# with this log-safe version (does NOT create logs and avoids weird cross-day inference):
+# ------------------------------------------------------------
+
+db_absent = bool(daily_log and daily_log.get("dayType") == "absent")
+
+# ------------------------------------------------------------
+# (C) Keep your absent_key initialization, but make sure it initializes from db_absent
+#     (and therefore is always False when daily_log is missing):
+# ------------------------------------------------------------
+# You already have:
+# if absent_key not in st.session_state:
+#     st.session_state[absent_key] = bool(db_absent)
+#
+# Leave that as-is (it will now do the right thing consistently).
+
+# ------------------------------------------------------------
+# (D) OPTIONAL (recommended): ensure "is_absent" used by the Day Type gate
+#     is derived from the checkbox state (already true in your code),
+#     but make sure it can never be 'sticky' across reruns when no log exists.
+#     Insert this right BEFORE rendering the checkbox, only for the no-log case:
+# ------------------------------------------------------------
+
+if not has_daily_log and absent_key in st.session_state:
+    # No daily log exists for this day yet; treat as not absent until user explicitly marks it.
+    st.session_state[absent_key] = False

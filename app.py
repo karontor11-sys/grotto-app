@@ -2101,7 +2101,9 @@ if page == "Dashboard":
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
         
         # Only fetch point events if student is checked in (lazy loading)
-        is_checked_in = (daily_log.get('checkedIn', False) if daily_log else False)
+        # (A) Explicit normalization for multi-day gating when daily_log is None
+        has_daily_log = daily_log is not None
+        is_checked_in = bool(daily_log and daily_log.get('checkedIn', False))
         if is_checked_in:
             point_events = dm.get_point_events_for_date(placement_id, date_str)
             positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
@@ -2236,10 +2238,11 @@ if page == "Dashboard":
                 # --- Attendance-first controls ---
                 absent_key = f"iss_absent_{card_uid}"
 
-                # Source of truth from DB
-                db_absent = dm.is_marked_absent(placement_id, date_str)
+                # (B) Log-safe source of truth: default to False when no log exists
+                # (this prevents cross-day inference from placement-level data)
+                db_absent = bool(daily_log and daily_log.get("dayType") == "absent")
 
-                # Init widget state
+                # Init widget state on FIRST render only (not every rerun)
                 if absent_key not in st.session_state:
                     st.session_state[absent_key] = bool(db_absent)
 

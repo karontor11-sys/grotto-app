@@ -589,22 +589,11 @@ if page == "Dashboard":
     
     st.header("Dashboard")
     
-    # -------------------------------
-    # DEBUG TOGGLE: ISS points logging
-    # -------------------------------
-    debug_col1, debug_col2 = st.columns([1, 3])
-    with debug_col1:
-        st.checkbox("Debug: ISS points logging", key="DEBUG_ISS_POINTS", value=False)
-
+    # Helper for debug logging (only logs when DEBUG_ISS_POINTS env var or session state is set)
     def iss_debug_log(msg: str):
         """Console log only when DEBUG_ISS_POINTS is enabled."""
         if st.session_state.get("DEBUG_ISS_POINTS"):
             print(msg)
-
-    # Increment a per-rerun counter (helps detect double-consumption on a single rerun)
-    if st.session_state.get("DEBUG_ISS_POINTS"):
-        st.session_state["_ISS_DEBUG_RUN"] = st.session_state.get("_ISS_DEBUG_RUN", 0) + 1
-        iss_debug_log(f"[ISS_DEBUG] ===== RUN {st.session_state['_ISS_DEBUG_RUN']} =====")
     
     # Show success message if placement was just created
     if st.session_state.get('placement_created'):

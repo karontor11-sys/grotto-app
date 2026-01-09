@@ -494,12 +494,17 @@ if page == "Dashboard":
                 else:
                     dm.add_point_event(payload)
 
-                # Safety: reset the dropdown widgets for that specific card so future selections trigger cleanly
+                # Reset dropdowns by setting defaults (not deleting keys) so the next selection triggers cleanly
                 card_uid = pending.get("card_uid")
                 if card_uid:
-                    for k in (f"iss_pos_{card_uid}", f"iss_neg_{card_uid}"):
-                        if k in st.session_state:
-                            del st.session_state[k]
+                    pos_k = f"iss_pos_{card_uid}"
+                    neg_k = f"iss_neg_{card_uid}"
+
+                    # Set back to the default option so the next selection always triggers cleanly
+                    if pos_k in st.session_state:
+                        st.session_state[pos_k] = "+ Positive"
+                    if neg_k in st.session_state:
+                        st.session_state[neg_k] = "- Negative"
 
             elif action == "override":
                 # Execute override
@@ -2346,10 +2351,6 @@ if page == "Dashboard":
                         # Unique per-card widget key
                         pos_key = f"iss_pos_{card_uid}"
 
-                        # Reset stale selection before rendering (keeps UX consistent)
-                        if pos_key in st.session_state and st.session_state[pos_key] != "+ Positive":
-                            del st.session_state[pos_key]
-
                         def on_positive_change():
                             selected = st.session_state.get(pos_key, "+ Positive")
                             if selected == "+ Positive":
@@ -2391,10 +2392,6 @@ if page == "Dashboard":
 
                         # Unique per-card widget key
                         neg_key = f"iss_neg_{card_uid}"
-
-                        # Reset stale selection before rendering (keeps UX consistent)
-                        if neg_key in st.session_state and st.session_state[neg_key] != "- Negative":
-                            del st.session_state[neg_key]
 
                         def on_negative_change():
                             selected = st.session_state.get(neg_key, "- Negative")

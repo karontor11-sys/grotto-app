@@ -1,0 +1,51 @@
+Remove “delete widget state during render” + reset dropdowns only in dispatcher
+
+This patch prevents Streamlit from accidentally firing dropdown callbacks on other cards during reruns by removing the del st.session_state[...] lines inside the card renderer. It keeps the safe reset in the Dashboard dispatcher, but changes it to set the widget back to its default value instead of deleting it.
+
+# ============================================
+# FILE: app.py
+# PROMPT 3 PATCH (stop mutating widget state during render)
+# ============================================
+
+# ------------------------------------------------------------
+# (A) ISS CARD: Remove the "Reset stale selection before rendering" deletes
+# ------------------------------------------------------------
+# FIND in render_iss_session_card() inside the Positive dropdown block:
+#
+#   if pos_key in st.session_state and st.session_state[pos_key] != "+ Positive":
+#       del st.session_state[pos_key]
+#
+# DELETE those two lines entirely.
+
+# FIND in render_iss_session_card() inside the Negative dropdown block:
+#
+#   if neg_key in st.session_state and st.session_state[neg_key] != "- Negative":
+#       del st.session_state[neg_key]
+#
+# DELETE those two lines entirely.
+
+
+# ------------------------------------------------------------
+# (B) DASHBOARD DISPATCHER: Reset dropdowns by setting defaults (not deleting keys)
+# ------------------------------------------------------------
+# FIND the dispatcher branch you added in Prompt 2:
+#
+#   if action == "add_point":
+#       ...
+#       if card_uid:
+#           for k in (f"iss_pos_{card_uid}", f"iss_neg_{card_uid}"):
+#               if k in st.session_state:
+#                   del st.session_state[k]
+#
+# REPLACE just that reset loop with this:
+
+                card_uid = pending.get("card_uid")
+                if card_uid:
+                    pos_k = f"iss_pos_{card_uid}"
+                    neg_k = f"iss_neg_{card_uid}"
+
+                    # Set back to the default option so the next selection always triggers cleanly
+                    if pos_k in st.session_state:
+                        st.session_state[pos_k] = "+ Positive"
+                    if neg_k in st.session_state:
+                        st.session_state[neg_k] = "- Negative"

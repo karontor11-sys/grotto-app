@@ -1,0 +1,92 @@
+REPLIT BUILD MODE PROMPT (PASTE THIS)
+
+We are getting this runtime error when expanding an ISS session card on the Dashboard:
+
+AttributeError: 'DatabaseManager' object has no attribute 'get_iss_daily_log'
+
+Trace shows render_iss_session_card() calls:
+
+log = dm.get_iss_daily_log(placement_id, d)
+
+
+So the UI can’t render because DatabaseManager is missing this method. Fix by reintroducing get_iss_daily_log() inside the DatabaseManager class as a thin DB wrapper that returns the daily log row (dict) for a given placement_id + log_date, or None if no row exists.
+
+Requirements
+
+Must accept log_date as datetime.date, datetime.datetime, or "YYYY-MM-DD" string.
+
+Normalize to "YYYY-MM-DD" before querying.
+
+Use the project’s existing DB connection style:
+
+If self.get_connection() exists, use that
+
+Otherwise use self.conn
+
+Query the existing ISS daily log table. Start with table name iss_daily_logs.
+
+Return:
+
+None if no row found
+
+otherwise a dict (works whether sqlite returns sqlite3.Row or tuple)
+
+IMPORTANT
+
+If the app immediately throws sqlite3.OperationalError: no such table: iss_daily_logs, do not invent new tables blindly. Instead:
+
+Search the codebase for the actual daily log table name by looking for:
+
+iss_daily_logs
+
+daily_log
+
+CREATE TABLE
+
+placement_id and log_date together
+
+Update ONLY the table name in the SQL query below to match the real table.
+
+PASTE-IN CODE
+
+Find class DatabaseManager: in app.py and paste this method inside the class (near other ISS methods):
+
+def get_iss_daily_log(self, placement_id, log_date):
+    """
+    Returns the ISS daily log row for a given placement + date, or None if not found.
+
+    log_date can be a datetime.date, datetime.datetime, or YYYY-MM-DD string.
+    """
+    if log_date is None:
+        return None
+
+    # Normalize date to YYYY-MM-DD
+    try:
+        date_str = log_date.strftime("%Y-%m-%d")  # date/datetime objects
+    except Exception:
+        date_str = str(log_date)[:10]  # strings
+
+    # Support both connection patterns used in this project
+    conn = self.get_connection() if hasattr(self, "get_connection") else self.conn
+    cur = conn.cursor()
+
+    # NOTE: If your project uses a different table name, update it here after searching the codebase.
+    cur.execute(
+        """
+        SELECT *
+        FROM iss_daily_logs
+        WHERE placement_id = ? AND log_date = ?
+        LIMIT 1
+        """,
+        (placement_id, date_str),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+
+    # Convert to dict in a way that works for sqlite Row OR tuple
+    try:
+        return dict(row)  # sqlite3.Row case
+    except Exception:
+        cols = [d[0] for d in cur.description]
+        return dict(zip(cols, row))

@@ -2169,7 +2169,7 @@ if page == "Dashboard":
                 debug_days = [d for d in session_days if d <= today_str]
                 debug_parts = []
                 for d in debug_days:
-                    log = dm.get_iss_daily_log(placement_id, d)
+                    log = dm.get_daily_log(placement_id, d)
                     if log:
                         debug_parts.append(
                             f"{d}: chk={log.get('checkedIn')} "

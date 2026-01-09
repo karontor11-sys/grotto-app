@@ -1,0 +1,108 @@
+Seatbelt: move Full-Day Complete into dispatcher + make Override modal keys card-unique
+
+This patch routes the Full-Day “✅ Complete” button through the same ISS_PENDING_ACTION dispatcher used elsewhere and upgrades Override modal widget keys to use card_uid, preventing any cross-card state bleed. It does not change business logic, only how the click is dispatched.
+
+# ============================================
+# FILE: app.py
+# PROMPT 4 PATCH (Full-Day Complete -> dispatcher + card_uid keys for Override modal)
+# ============================================
+
+# ------------------------------------------------------------
+# (A) FULL-DAY "✅ Complete" button: stop direct dm.complete_iss_full_day_session(...)
+#     and dispatch a "complete" action instead.
+# ------------------------------------------------------------
+# FIND this block inside render_iss_session_card() (Full Day session UI):
+#
+# if st.button("✅ Complete", key=f"complete_full_{placement_id}_{date_str}", type="primary",
+#              use_container_width=True, disabled=not can_complete):
+#     dm.complete_iss_full_day_session(placement_id, date_str, "Admin",
+#                                       points_earned=total_points)
+#     makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+#     if makeup_check.get('needsMakeup', False):
+#         st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+#         st.session_state[f"makeup_info_{placement_id}"] = makeup_check
+#     st.rerun()
+#
+# REPLACE that whole inner "if st.button(...)" body with this dispatcher version:
+
+if st.button(
+    "✅ Complete",
+    key=f"complete_full_{card_uid}",
+    type="primary",
+    use_container_width=True,
+    disabled=not can_complete
+):
+    st.session_state["ISS_PENDING_ACTION"] = {
+        "action": "complete",
+        "card_uid": card_uid,
+        "placement_id": placement_id,
+        "session_id": session_id,
+        "log_date": date_str,
+        "completed_by": "Admin",
+        "day_type": "Full Day",
+        "start_period": 1,
+        "end_period": 10,
+        "points_earned": total_points,
+        "is_present": True,
+    }
+    st.rerun()
+
+# NOTE: The makeup prompt logic already happens in the dispatcher after dm.complete_iss_day(),
+# so we do not do it here anymore.
+
+
+# ------------------------------------------------------------
+# (B) OVERRIDE modal keys: switch from placement_id/date_str to card_uid
+#     to eliminate any chance of state collision between cards.
+# ------------------------------------------------------------
+# FIND these key definitions in the Full-Day Complete/Override section:
+#
+# override_key = f"show_override_{placement_id}_{date_str}"
+# st.button("⚡ Override", key=f"override_btn_{placement_id}_{date_str}", ...)
+# st.text_area(..., key=f"override_note_{placement_id}_{date_str}", ...)
+# st.button("Confirm Override", key=f"confirm_override_{placement_id}_{date_str}", ...)
+# st.button("Cancel", key=f"cancel_override_{placement_id}_{date_str}", ...)
+#
+# REPLACE them with card_uid-based versions:
+
+override_key = f"show_override_{card_uid}"
+if override_key not in st.session_state:
+    st.session_state[override_key] = False
+
+if st.button("⚡ Override", key=f"override_btn_{card_uid}", use_container_width=True):
+    st.session_state[override_key] = True
+    st.rerun()
+
+if st.session_state.get(override_key, False):
+    st.warning(f"**Override: Complete with full {full_day_periods}-period credit**")
+    override_note = st.text_area(
+        "Reason for Override (required)",
+        key=f"override_note_{card_uid}",
+        placeholder="Enter reason for early release with full credit...",
+        height=80
+    )
+
+    col_confirm, col_cancel = st.columns(2)
+    with col_confirm:
+        if st.button("Confirm Override", key=f"confirm_override_{card_uid}", use_container_width=True):
+            if not override_note or not override_note.strip():
+                st.error("Override reason is required.")
+            else:
+                st.session_state["ISS_PENDING_ACTION"] = {
+                    "action": "override",
+                    "card_uid": card_uid,
+                    "placement_id": placement_id,
+                    "session_id": session_id,
+                    "log_date": date_str,
+                    "completed_by": "Admin",
+                    "points_earned": total_points,
+                    "override_note": override_note.strip(),
+                    "is_present": True,
+                }
+                st.session_state[override_key] = False
+                st.rerun()
+
+    with col_cancel:
+        if st.button("Cancel", key=f"cancel_override_{card_uid}", use_container_width=True):
+            st.session_state[override_key] = False
+            st.rerun()

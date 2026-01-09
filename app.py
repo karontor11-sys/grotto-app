@@ -772,6 +772,9 @@ if page == "Dashboard":
                     full_day_periods = daily_log.get('endPeriod', 10) - daily_log.get('startPeriod', 1) + 1 if daily_log else 10
                     full_day_required_points = daily_log.get('requiredPoints') or full_day_periods
                     
+                    # card_uid for Full Day sessions (session_id is None for full-day)
+                    card_uid = f"{placement_id}_full_{date_str}"
+                    
                     if is_makeup_session or is_makeup_day:
                         st.markdown(f"### 📋 Make-Up Full Day Session ({full_day_periods} periods)")
                         st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Make-Up Session")
@@ -859,56 +862,72 @@ if page == "Dashboard":
                     
                     with col_complete:
                         can_complete = total_points >= full_day_required_points
-                        if st.button("✅ Complete", key=f"complete_full_{placement_id}_{date_str}", type="primary", 
-                                     use_container_width=True, disabled=not can_complete):
-                            dm.complete_iss_full_day_session(placement_id, date_str, "Admin", 
-                                                              points_earned=total_points)
-                            # Check if make-up is needed after completing
-                            makeup_check = dm.check_iss_session_needs_makeup(placement_id)
-                            if makeup_check.get('needsMakeup', False):
-                                st.session_state[f"show_makeup_prompt_{placement_id}"] = True
-                                st.session_state[f"makeup_info_{placement_id}"] = makeup_check
+                        if st.button(
+                            "✅ Complete",
+                            key=f"complete_full_{card_uid}",
+                            type="primary",
+                            use_container_width=True,
+                            disabled=not can_complete
+                        ):
+                            st.session_state["ISS_PENDING_ACTION"] = {
+                                "action": "complete",
+                                "card_uid": card_uid,
+                                "placement_id": placement_id,
+                                "session_id": None,
+                                "log_date": date_str,
+                                "completed_by": "Admin",
+                                "day_type": "Full Day",
+                                "start_period": 1,
+                                "end_period": 10,
+                                "points_earned": total_points,
+                                "is_present": True,
+                            }
                             st.rerun()
                         if not can_complete:
                             st.caption(f"Requires {full_day_required_points}+ points")
                     
                     with col_override:
                         # Initialize session state for override modal
-                        override_key = f"show_override_{placement_id}_{date_str}"
+                        override_key = f"show_override_{card_uid}"
                         if override_key not in st.session_state:
                             st.session_state[override_key] = False
                         
-                        if st.button("⚡ Override", key=f"override_btn_{placement_id}_{date_str}", use_container_width=True):
+                        if st.button("⚡ Override", key=f"override_btn_{card_uid}", use_container_width=True):
                             st.session_state[override_key] = True
                             st.rerun()
                     
                     # Override panel (shown when Override button is clicked)
-                    if st.session_state.get(f"show_override_{placement_id}_{date_str}", False):
+                    if st.session_state.get(override_key, False):
                         st.warning(f"**Override: Complete with full {full_day_periods}-period credit**")
                         override_note = st.text_area(
                             "Reason for Override (required)",
-                            key=f"override_note_{placement_id}_{date_str}",
+                            key=f"override_note_{card_uid}",
                             placeholder="Enter reason for early release with full credit...",
                             height=80
                         )
                         
                         col_confirm, col_cancel = st.columns(2)
                         with col_confirm:
-                            if st.button("Confirm Override", key=f"confirm_override_{placement_id}_{date_str}", 
-                                        type="primary", use_container_width=True, disabled=not override_note.strip()):
-                                dm.complete_iss_full_day_session(placement_id, date_str, "Admin", 
-                                                                  is_override=True, override_note=override_note.strip(),
-                                                                  points_earned=total_points)
-                                st.session_state[f"show_override_{placement_id}_{date_str}"] = False
-                                # Check if make-up is needed after completing
-                                makeup_check = dm.check_iss_session_needs_makeup(placement_id)
-                                if makeup_check.get('needsMakeup', False):
-                                    st.session_state[f"show_makeup_prompt_{placement_id}"] = True
-                                    st.session_state[f"makeup_info_{placement_id}"] = makeup_check
-                                st.rerun()
+                            if st.button("Confirm Override", key=f"confirm_override_{card_uid}", use_container_width=True):
+                                if not override_note or not override_note.strip():
+                                    st.error("Override reason is required.")
+                                else:
+                                    st.session_state["ISS_PENDING_ACTION"] = {
+                                        "action": "override",
+                                        "card_uid": card_uid,
+                                        "placement_id": placement_id,
+                                        "session_id": None,
+                                        "log_date": date_str,
+                                        "completed_by": "Admin",
+                                        "points_earned": total_points,
+                                        "override_note": override_note.strip(),
+                                        "is_present": True,
+                                    }
+                                    st.session_state[override_key] = False
+                                    st.rerun()
                         with col_cancel:
-                            if st.button("Cancel", key=f"cancel_override_{placement_id}_{date_str}", use_container_width=True):
-                                st.session_state[f"show_override_{placement_id}_{date_str}"] = False
+                            if st.button("Cancel", key=f"cancel_override_{card_uid}", use_container_width=True):
+                                st.session_state[override_key] = False
                                 st.rerun()
                     
                     # Convert to Partial Day section (for early departures)

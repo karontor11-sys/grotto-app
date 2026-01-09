@@ -476,74 +476,85 @@ if warning_count > 0:
 
 # Dashboard Page
 if page == "Dashboard":
-    # ===== GLOBAL TWO-PHASE COMPLETION HANDLER =====
-    # Process ALL deferred completions/overrides FIRST, before any cards render
-    # This ensures Phase 2 runs even if expanders are collapsed after rerun
-    deferred_keys_to_process = [k for k in st.session_state.keys() 
-                                 if k.startswith('deferred_complete_') or k.startswith('deferred_override_')]
-    
-    for deferred_key in deferred_keys_to_process:
-        deferred_data = st.session_state.pop(deferred_key)
-        is_override = 'override_note' in deferred_data
-        
-        print(f"[DEBUG GLOBAL PHASE 2] Processing deferred {'override' if is_override else 'completion'}: {deferred_key}")
-        
-        if is_override:
-            # Execute override
-            result = dm.complete_iss_day(
-                placement_id=deferred_data['placement_id'],
-                log_date=deferred_data['log_date'],
-                completed_by=deferred_data['completed_by'],
-                day_type="Full Day",
-                start_period=1,
-                end_period=10,
-                points_earned=deferred_data['points_earned'],
-                is_override=True,
-                override_note=deferred_data['override_note']
-            )
-            if result.get('success'):
-                dm.mark_session_completed(deferred_data['session_id'], "Admin", is_override=True, 
-                                         override_comment=deferred_data['override_note'])
-                if not deferred_data.get('is_present', False):
-                    dm.update_iss_attendance(deferred_data['placement_id'], deferred_data['log_date'], True)
-                st.success("Override applied! ISS Session complete." if result.get('isCompleted') else "Override applied!")
-            else:
-                st.error(result.get('message', 'Failed to apply override'))
-        else:
-            # Execute regular completion
-            result = dm.complete_iss_day(
-                placement_id=deferred_data['placement_id'],
-                log_date=deferred_data['log_date'],
-                completed_by=deferred_data['completed_by'],
-                day_type=deferred_data['day_type'],
-                start_period=deferred_data['start_period'],
-                end_period=deferred_data['end_period'],
-                points_earned=deferred_data['points_earned']
-            )
-            if result.get('success'):
-                dm.mark_session_completed(deferred_data['session_id'], "Admin")
-                if not deferred_data.get('is_present', False):
-                    dm.update_iss_attendance(deferred_data['placement_id'], deferred_data['log_date'], True)
-                if result.get('isCompleted'):
-                    st.success("ISS Session complete! All required periods served.")
+    # ===== ISS PENDING ACTION DISPATCHER (best long-term fix) =====
+    # Instead of scanning deferred_* keys (fragile), we process exactly ONE explicit action per rerun.
+    ISS_PENDING_KEY = "ISS_PENDING_ACTION"
+
+    pending = st.session_state.pop(ISS_PENDING_KEY, None)
+    if pending:
+        action = pending.get("action")  # "complete" or "override"
+        print(f"[ISS_DISPATCH] Processing action={action} payload={pending}")
+
+        try:
+            if action == "override":
+                # Execute override
+                result = dm.complete_iss_day(
+                    placement_id=pending["placement_id"],
+                    log_date=pending["log_date"],
+                    completed_by=pending.get("completed_by", "Admin"),
+                    day_type="Full Day",
+                    start_period=1,
+                    end_period=10,
+                    points_earned=pending["points_earned"],
+                    is_override=True,
+                    override_note=pending["override_note"],
+                )
+
+                if result.get("success"):
+                    # Only mark session completed if session_id exists
+                    if pending.get("session_id") is not None:
+                        dm.mark_session_completed(
+                            pending["session_id"],
+                            "Admin",
+                            is_override=True,
+                            override_comment=pending["override_note"],
+                        )
+                    if not pending.get("is_present", False):
+                        dm.update_iss_attendance(pending["placement_id"], pending["log_date"], True)
+
+                    st.success("Override applied! ISS Session complete." if result.get("isCompleted") else "Override applied!")
                 else:
-                    makeup_check = dm.check_iss_session_needs_makeup(deferred_data['placement_id'])
-                    if makeup_check.get('needsMakeup', False):
-                        st.session_state[f"show_makeup_prompt_{deferred_data['placement_id']}"] = True
-                        st.session_state[f"makeup_info_{deferred_data['placement_id']}"] = makeup_check
-                    st.success("ISS day completed successfully!")
+                    st.error(result.get("message", "Failed to apply override"))
+
             else:
-                st.error(result.get('message', 'Failed to complete ISS day'))
-        
-        # Clear caches after processing each completion
-        if hasattr(st, 'cache_data'):
-            st.cache_data.clear()
-    
-    # If we processed any deferred completions, rerun to show updated state
-    if deferred_keys_to_process:
-        print(f"[DEBUG GLOBAL PHASE 2] Processed {len(deferred_keys_to_process)} deferred operations, rerunning")
+                # Execute regular completion
+                result = dm.complete_iss_day(
+                    placement_id=pending["placement_id"],
+                    log_date=pending["log_date"],
+                    completed_by=pending.get("completed_by", "Admin"),
+                    day_type=pending["day_type"],
+                    start_period=pending["start_period"],
+                    end_period=pending["end_period"],
+                    points_earned=pending["points_earned"],
+                )
+
+                if result.get("success"):
+                    # Only mark session completed if session_id exists
+                    if pending.get("session_id") is not None:
+                        dm.mark_session_completed(pending["session_id"], "Admin")
+
+                    if not pending.get("is_present", False):
+                        dm.update_iss_attendance(pending["placement_id"], pending["log_date"], True)
+
+                    if result.get("isCompleted"):
+                        st.success("ISS Session complete! All required periods served.")
+                    else:
+                        makeup_check = dm.check_iss_session_needs_makeup(pending["placement_id"])
+                        if makeup_check.get("needsMakeup", False):
+                            st.session_state[f"show_makeup_prompt_{pending['placement_id']}"] = True
+                            st.session_state[f"makeup_info_{pending['placement_id']}"] = makeup_check
+                        st.success("ISS day completed successfully!")
+                else:
+                    st.error(result.get("message", "Failed to complete ISS day"))
+
+        finally:
+            # Clear caches after processing
+            if hasattr(st, "cache_data"):
+                st.cache_data.clear()
+
+        # Always rerun after dispatch so UI reflects updated DB state
         st.rerun()
-    # ===== END GLOBAL TWO-PHASE COMPLETION HANDLER =====
+    # ===== END ISS PENDING ACTION DISPATCHER =====
     
     # Navigation buttons - Create New Placement and Completed Placements
     btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
@@ -1989,6 +2000,10 @@ if page == "Dashboard":
         student_name = iss_session['student_name']
         date_str = iss_session['date']
         
+        # Unique per-card namespace (prevents key collisions for full-day ISS where session_id can be None)
+        session_key = session_id if session_id is not None else "full"
+        card_uid = f"{placement_id}_{session_key}_{date_str}"
+        
         # Debug fingerprint for ISS points logging
         card_fp = f"student={student_name}|placement={placement_id}|session={session_id}|date={date_str}"
         
@@ -2033,7 +2048,7 @@ if page == "Dashboard":
                 
                 with header_col2:
                     # Disabled Check In button
-                    st.button("Check In", key=f"iss_checkin_{session_id}", disabled=True)
+                    st.button("Check In", key=f"iss_checkin_{card_uid}", disabled=True)
                 
                 st.caption("This session has not started yet. Check-in will be available on the start date.")
                 
@@ -2118,9 +2133,9 @@ if page == "Dashboard":
         
         with st.container():
             # Initialize session state for day type - preload from daily log if available
-            day_type_key = f"iss_day_type_{session_id}"
-            start_period_key = f"iss_start_period_{session_id}"
-            end_period_key = f"iss_end_period_{session_id}"
+            day_type_key = f"iss_day_type_{card_uid}"
+            start_period_key = f"iss_start_period_{card_uid}"
+            end_period_key = f"iss_end_period_{card_uid}"
             
             # Preload existing values from daily log if they exist
             stored_day_type = daily_log.get('dayType') if daily_log else None
@@ -2155,7 +2170,7 @@ if page == "Dashboard":
             
             with header_col3:
                 # --- Attendance-first controls ---
-                absent_key = f"iss_absent_{session_id}_{date_str}"
+                absent_key = f"iss_absent_{card_uid}"
 
                 # Source of truth from DB
                 db_absent = dm.is_marked_absent(placement_id, date_str)
@@ -2190,7 +2205,7 @@ if page == "Dashboard":
                     checkin_disabled = is_checked_in or is_completed or is_absent
                     if st.button(
                         "Check In",
-                        key=f"iss_checkin_{session_id}",
+                        key=f"iss_checkin_{card_uid}",
                         type="primary" if not checkin_disabled else "secondary",
                         disabled=checkin_disabled
                     ):
@@ -2240,7 +2255,7 @@ if page == "Dashboard":
                     if day_type == "Full Day" and not is_day_type_locked:
                         # Show Confirm button for Full Day (requires explicit user action)
                         st.caption("Full Day: Periods 1-10 (all periods)")
-                        if st.button("Confirm Full Day", key=f"confirm_full_{session_id}", type="primary"):
+                        if st.button("Confirm Full Day", key=f"confirm_full_{card_uid}", type="primary"):
                             dm.update_iss_day_type(placement_id, date_str, 'full', 1, 10)
                             clear_dashboard_caches()
                             st.rerun()
@@ -2284,7 +2299,7 @@ if page == "Dashboard":
                             # Show Confirm button to lock in the partial day selection
                             with confirm_col:
                                 st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)  # Align with selectboxes
-                                if st.button("Confirm", key=f"confirm_partial_{session_id}", type="primary"):
+                                if st.button("Confirm", key=f"confirm_partial_{card_uid}", type="primary"):
                                     dm.update_iss_day_type(placement_id, date_str, 'partial', 
                                                          selected_start_period, selected_end_period)
                                     clear_dashboard_caches()
@@ -2496,8 +2511,8 @@ if page == "Dashboard":
                     has_period_error = False
                     if not is_full_day_display and not is_checked_in:
                         # Only validate session state periods if not yet checked in
-                        curr_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
-                        curr_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+                        curr_start = st.session_state.get(start_period_key, 1)
+                        curr_end = st.session_state.get(end_period_key, 10)
                         if curr_end < curr_start:
                             has_period_error = True
                     
@@ -2516,7 +2531,7 @@ if page == "Dashboard":
                         # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
                         st.session_state["suppress_pending_points_once"] = True
 
-                        print(f"[DEBUG COMPLETE_DAY] Phase 1 (on_click): Deferring completion for session_id={session_id}")
+                        print(f"[DEBUG COMPLETE_DAY] Phase 1 (on_click): Deferring completion for card_uid={card_uid}")
 
                         # Use stored values from daily_log (source of truth after Check In)
                         if is_checked_in and stored_day_type_display is not None:
@@ -2524,21 +2539,23 @@ if page == "Dashboard":
                             selected_start = stored_start
                             selected_end = stored_end
                         else:
-                            selected_day_type = st.session_state.get(f"iss_day_type_{session_id}", "Full Day")
-                            selected_start = st.session_state.get(f"iss_start_period_{session_id}", 1)
-                            selected_end = st.session_state.get(f"iss_end_period_{session_id}", 10)
+                            selected_day_type = st.session_state.get(day_type_key, "Full Day")
+                            selected_start = st.session_state.get(start_period_key, 1)
+                            selected_end = st.session_state.get(end_period_key, 10)
 
-                        # Store deferred completion data
-                        st.session_state[f"deferred_complete_{session_id}"] = {
-                            'placement_id': placement_id,
-                            'session_id': session_id,
-                            'log_date': date_str,
-                            'completed_by': "Admin",
-                            'day_type': selected_day_type,
-                            'start_period': selected_start,
-                            'end_period': selected_end,
-                            'points_earned': total_points,
-                            'is_present': is_present
+                        # Store pending action data (single dispatcher pattern - replaces deferred_* keys)
+                        st.session_state["ISS_PENDING_ACTION"] = {
+                            "action": "complete",
+                            "placement_id": placement_id,
+                            "session_id": session_id,
+                            "log_date": date_str,
+                            "completed_by": "Admin",
+                            "day_type": selected_day_type,
+                            "start_period": selected_start,
+                            "end_period": selected_end,
+                            "points_earned": total_points,
+                            "is_present": is_present,
+                            "card_uid": card_uid,
                         }
 
                         # Clear any pending behavior or widget keys to prevent re-fire
@@ -2554,7 +2571,7 @@ if page == "Dashboard":
 
                     st.button(
                         complete_label,
-                        key=f"iss_complete_{session_id}",
+                        key=f"iss_complete_{card_uid}",
                         type="primary",
                         use_container_width=True,
                         disabled=not can_complete,
@@ -2569,18 +2586,21 @@ if page == "Dashboard":
                         # Prevent ghost points by suppressing pending behavior processing BEFORE rerun
                         st.session_state["suppress_pending_points_once"] = True
 
-                        print(f"[DEBUG OVERRIDE] Phase 1 (on_click): Deferring override for session_id={session_id}")
+                        print(f"[DEBUG OVERRIDE] Phase 1 (on_click): Deferring override for card_uid={card_uid}")
 
                         override_note = "Retroactive override: Student released early due to positive behavior; remaining periods waived."
 
-                        st.session_state[f"deferred_override_{session_id}"] = {
-                            'placement_id': placement_id,
-                            'session_id': session_id,
-                            'log_date': date_str,
-                            'completed_by': "Admin",
-                            'points_earned': total_points,
-                            'override_note': override_note,
-                            'is_present': is_present
+                        # Store pending action data (single dispatcher pattern - replaces deferred_* keys)
+                        st.session_state["ISS_PENDING_ACTION"] = {
+                            "action": "override",
+                            "placement_id": placement_id,
+                            "session_id": session_id,
+                            "log_date": date_str,
+                            "completed_by": "Admin",
+                            "points_earned": total_points,
+                            "override_note": override_note,
+                            "is_present": is_present,
+                            "card_uid": card_uid,
                         }
 
                         # Clear any pending behavior or widget keys to prevent re-fire
@@ -2596,7 +2616,7 @@ if page == "Dashboard":
 
                     st.button(
                         override_label,
-                        key=f"iss_override_btn_{session_id}",
+                        key=f"iss_override_btn_{card_uid}",
                         use_container_width=True,
                         type="secondary",
                         on_click=_defer_override_day
@@ -2610,7 +2630,7 @@ if page == "Dashboard":
                 
                 retro_col1, retro_col2 = st.columns(2)
                 with retro_col1:
-                    if st.button("Mark Complete (Retroactive)", key=f"iss_retro_complete_{session_id}"):
+                    if st.button("Mark Complete (Retroactive)", key=f"iss_retro_complete_{card_uid}"):
                         # Use complete_iss_day for retroactive completion
                         result = dm.complete_iss_day(
                             placement_id=placement_id,
@@ -2631,7 +2651,7 @@ if page == "Dashboard":
                         else:
                             st.error(result.get('message', 'Failed to complete session'))
                 with retro_col2:
-                    if st.button("Apply Override", key=f"iss_retro_override_{session_id}"):
+                    if st.button("Apply Override", key=f"iss_retro_override_{card_uid}"):
                         override_note = "Retroactive override: session marked complete after end-of-day processing."
                         result = dm.complete_iss_day(
                             placement_id=placement_id,

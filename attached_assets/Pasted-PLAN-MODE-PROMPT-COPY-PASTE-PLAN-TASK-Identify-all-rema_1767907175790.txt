@@ -1,0 +1,45 @@
+PLAN MODE PROMPT (COPY/PASTE)
+PLAN TASK: Identify all remaining Streamlit key collisions causing ISS cross-card state leakage.
+
+Context:
+There is a persistent ISS Dashboard bug where adding points/behaviors to one ISS record sometimes also updates another ISS record (different student). A prior fix addressed behavior dropdown keys by including placement_id, but the bug persists intermittently.
+
+Known facts:
+- Full-day ISS sessions have session_id = None.
+- Any Streamlit widget or session_state key using session_id alone can collide as "..._None".
+- render_iss_session_card() is executed for every ISS card on each rerun (even when cards are collapsed).
+- Some fixes have already been applied to behavior/pending keys, but other keys may still collide.
+
+Request:
+Please audit app.py, specifically render_iss_session_card() and any Dashboard-level handlers, and:
+
+1) Enumerate **every Streamlit widget key and session_state key** used for ISS records.
+2) Identify which keys are built using:
+   - session_id alone (unsafe when None),
+   - placement_id alone,
+   - or a combination of placement_id + session_id + date (safe).
+3) Confirm whether **any ISS-related keys** (including but not limited to):
+   - day type selectors
+   - start/end period selectors
+   - check-in buttons
+   - complete / override buttons
+   - deferred_complete / deferred_override keys
+   - retroactive action keys
+   - absent checkboxes
+   are still using session_id alone.
+4) Identify any global or deferred handlers that scan session_state keys (e.g., deferred_complete_*) and could act on multiple ISS cards if keys collide.
+5) Confirm whether partial-day ISS and full-day ISS share the same render logic and whether the same key strategy should apply to both.
+
+Scope:
+- Analysis only.
+- Do NOT change code yet.
+- Do NOT propose fixes yet.
+
+Deliverable:
+A clear list of:
+- All ISS Streamlit keys
+- Which ones are unsafe (collision-prone)
+- Exactly where in the code they appear
+- A confirmation of whether adopting a single per-card namespace
+  (placement_id + session_id or "full" + date)
+  would fully eliminate the issue for ALL ISS placement types.

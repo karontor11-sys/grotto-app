@@ -1,0 +1,287 @@
+BUILD PROMPT (copy/paste)
+BUILD TASK: Replace the global “scan deferred_* keys” ISS handler with a single-action dispatcher, and fully namespace ISS card keys.
+
+Context:
+ISS cards leak state when session_id is None (full-day ISS). We confirmed 13 ISS keys still use session_id alone, causing ..._None collisions. Also, the Dashboard currently uses a global two-phase completion handler that scans st.session_state for deferred_complete_* / deferred_override_* keys. This scan pattern is fragile and can process the wrong card if keys collide.
+
+Goal:
+1) Remove the global scan-based handler.
+2) Implement a best-practice Streamlit dispatcher: a single session_state object ISS_PENDING_ACTION that stores exactly ONE pending action at a time, with explicit placement_id + date + session_key.
+3) Update render_iss_session_card() to:
+   - create a per-card unique namespace:
+       session_key = session_id if session_id is not None else "full"
+       card_uid = f"{placement_id}_{session_key}_{date_str}"
+   - update ALL ISS widget keys and session_state keys that currently use session_id alone to use card_uid instead.
+   - store deferred completion/override into ISS_PENDING_ACTION (not deferred_* keys).
+4) Keep the existing dm.complete_iss_day(...) logic and success/error messaging, but process it only through the dispatcher.
+5) Add safety: only call dm.mark_session_completed(...) if session_id is not None.
+
+Apply the exact paste-in code below to app.py.
+
+✅ EXACT PASTE-IN CODE (app.py)
+A) Replace the entire “GLOBAL TWO-PHASE COMPLETION HANDLER” block on Dashboard
+
+In app.py, inside:
+
+if page == "Dashboard":
+
+
+Find the block:
+
+# ===== GLOBAL TWO-PHASE COMPLETION HANDLER =====
+...
+# ===== END GLOBAL TWO-PHASE COMPLETION HANDLER =====
+
+
+(around lines ~479–546 in your Zip)
+
+✅ DELETE that whole block and replace it with this:
+
+# ===== ISS PENDING ACTION DISPATCHER (best long-term fix) =====
+# Instead of scanning deferred_* keys (fragile), we process exactly ONE explicit action per rerun.
+ISS_PENDING_KEY = "ISS_PENDING_ACTION"
+
+pending = st.session_state.pop(ISS_PENDING_KEY, None)
+if pending:
+    action = pending.get("action")  # "complete" or "override"
+    print(f"[ISS_DISPATCH] Processing action={action} payload={pending}")
+
+    try:
+        if action == "override":
+            # Execute override
+            result = dm.complete_iss_day(
+                placement_id=pending["placement_id"],
+                log_date=pending["log_date"],
+                completed_by=pending.get("completed_by", "Admin"),
+                day_type="Full Day",
+                start_period=1,
+                end_period=10,
+                points_earned=pending["points_earned"],
+                is_override=True,
+                override_note=pending["override_note"],
+            )
+
+            if result.get("success"):
+                # Only mark session completed if session_id exists
+                if pending.get("session_id") is not None:
+                    dm.mark_session_completed(
+                        pending["session_id"],
+                        "Admin",
+                        is_override=True,
+                        override_comment=pending["override_note"],
+                    )
+                if not pending.get("is_present", False):
+                    dm.update_iss_attendance(pending["placement_id"], pending["log_date"], True)
+
+                st.success("Override applied! ISS Session complete." if result.get("isCompleted") else "Override applied!")
+            else:
+                st.error(result.get("message", "Failed to apply override"))
+
+        else:
+            # Execute regular completion
+            result = dm.complete_iss_day(
+                placement_id=pending["placement_id"],
+                log_date=pending["log_date"],
+                completed_by=pending.get("completed_by", "Admin"),
+                day_type=pending["day_type"],
+                start_period=pending["start_period"],
+                end_period=pending["end_period"],
+                points_earned=pending["points_earned"],
+            )
+
+            if result.get("success"):
+                # Only mark session completed if session_id exists
+                if pending.get("session_id") is not None:
+                    dm.mark_session_completed(pending["session_id"], "Admin")
+
+                if not pending.get("is_present", False):
+                    dm.update_iss_attendance(pending["placement_id"], pending["log_date"], True)
+
+                if result.get("isCompleted"):
+                    st.success("ISS Session complete! All required periods served.")
+                else:
+                    makeup_check = dm.check_iss_session_needs_makeup(pending["placement_id"])
+                    if makeup_check.get("needsMakeup", False):
+                        st.session_state[f"show_makeup_prompt_{pending['placement_id']}"] = True
+                        st.session_state[f"makeup_info_{pending['placement_id']}"] = makeup_check
+                    st.success("ISS day completed successfully!")
+            else:
+                st.error(result.get("message", "Failed to complete ISS day"))
+
+    finally:
+        # Clear caches after processing
+        if hasattr(st, "cache_data"):
+            st.cache_data.clear()
+
+    # Always rerun after dispatch so UI reflects updated DB state
+    st.rerun()
+# ===== END ISS PENDING ACTION DISPATCHER =====
+
+B) Update render_iss_session_card() to namespace all ISS keys and use the dispatcher
+
+In render_iss_session_card() (starts around line ~1978 in your Zip), after these lines:
+
+session_id = iss_session['session_id']
+placement_id = iss_session['placement_id']
+student_id = iss_session['student_id']
+student_name = iss_session['student_name']
+date_str = iss_session['date']
+
+
+✅ Insert this immediately:
+
+# Unique per-card namespace (prevents key collisions for full-day ISS where session_id can be None)
+session_key = session_id if session_id is not None else "full"
+card_uid = f"{placement_id}_{session_key}_{date_str}"
+
+
+Now make these exact replacements inside render_iss_session_card():
+
+1) Replace the day type / period keys block
+
+Find:
+
+day_type_key = f"iss_day_type_{session_id}"
+start_period_key = f"iss_start_period_{session_id}"
+end_period_key = f"iss_end_period_{session_id}"
+
+
+Replace with:
+
+day_type_key = f"iss_day_type_{card_uid}"
+start_period_key = f"iss_start_period_{card_uid}"
+end_period_key = f"iss_end_period_{card_uid}"
+
+2) Replace absent checkbox key
+
+Find:
+
+absent_key = f"iss_absent_{session_id}_{date_str}"
+
+
+Replace with:
+
+absent_key = f"iss_absent_{card_uid}"
+
+3) Replace Check In button key(s)
+
+Find any:
+
+key=f"iss_checkin_{session_id}"
+
+
+Replace with:
+
+key=f"iss_checkin_{card_uid}"
+
+
+(There are at least two: future placement and active placement.)
+
+4) Replace Confirm buttons
+
+Find:
+
+key=f"confirm_full_{session_id}"
+
+
+Replace with:
+
+key=f"confirm_full_{card_uid}"
+
+
+Find:
+
+key=f"confirm_partial_{session_id}"
+
+
+Replace with:
+
+key=f"confirm_partial_{card_uid}"
+
+5) Replace Complete / Override button keys
+
+Find:
+
+key=f"iss_complete_{session_id}"
+
+
+Replace with:
+
+key=f"iss_complete_{card_uid}"
+
+
+Find:
+
+key=f"iss_override_btn_{session_id}"
+
+
+Replace with:
+
+key=f"iss_override_btn_{card_uid}"
+
+6) Replace Retro buttons
+
+Find:
+
+key=f"iss_retro_complete_{session_id}"
+
+
+Replace with:
+
+key=f"iss_retro_complete_{card_uid}"
+
+
+Find:
+
+key=f"iss_retro_override_{session_id}"
+
+
+Replace with:
+
+key=f"iss_retro_override_{card_uid}"
+
+C) Replace the “defer” storage to use the dispatcher (NO deferred_* keys)
+
+Inside _defer_complete_day(), replace:
+
+st.session_state[f"deferred_complete_{session_id}"] = { ... }
+
+
+with:
+
+st.session_state["ISS_PENDING_ACTION"] = {
+    "action": "complete",
+    "placement_id": placement_id,
+    "session_id": session_id,
+    "log_date": date_str,
+    "completed_by": "Admin",
+    "day_type": selected_day_type,
+    "start_period": selected_start,
+    "end_period": selected_end,
+    "points_earned": total_points,
+    "is_present": is_present,
+    "card_uid": card_uid,
+}
+
+
+Inside _defer_override_day(), replace:
+
+st.session_state[f"deferred_override_{session_id}"] = { ... }
+
+
+with:
+
+st.session_state["ISS_PENDING_ACTION"] = {
+    "action": "override",
+    "placement_id": placement_id,
+    "session_id": session_id,
+    "log_date": date_str,
+    "completed_by": "Admin",
+    "points_earned": total_points,
+    "override_note": override_note,
+    "is_present": is_present,
+    "card_uid": card_uid,
+}
+
+
+✅ Leave your existing “suppress_pending_points_once” logic intact (it’s good).

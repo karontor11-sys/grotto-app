@@ -2339,8 +2339,8 @@ if page == "Dashboard":
                         # ---------------------------------------------------------
                         session_key = session_id if session_id is not None else "full"
                         
-                        pos_key = f"iss_pos_{placement_id}_{session_key}"
-                        pending_pos_key = f"pending_pos_{placement_id}_{session_key}"
+                        pos_key = f"iss_pos_{card_uid}"
+                        pending_pos_key = f"pending_pos_{card_uid}"
                         
                         # Check if we need to process a pending selection (from previous render)
                         # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
@@ -2405,8 +2405,8 @@ if page == "Dashboard":
                     with neg_col:
                         negative_menu = ps.get_negative_point_menu()
                         negative_options = ["- Negative"] + [item['label'] for item in negative_menu]
-                        neg_key = f"iss_neg_{placement_id}_{session_key}"
-                        pending_neg_key = f"pending_neg_{placement_id}_{session_key}"
+                        neg_key = f"iss_neg_{card_uid}"
+                        pending_neg_key = f"pending_neg_{card_uid}"
                         
                         # Check if we need to process a pending selection (from previous render)
                         # GUARD: Skip if suppression flag was active (during Complete Day / Override rerun)
@@ -2559,12 +2559,12 @@ if page == "Dashboard":
                         }
 
                         # Clear any pending behavior or widget keys to prevent re-fire
-                        # Use placement_id + session_key for unique keys (matches behavior dropdown keys)
+                        # Use card_uid for unique keys (matches behavior dropdown keys)
                         for k in (
-                            f"pending_pos_{placement_id}_{session_key}",
-                            f"pending_neg_{placement_id}_{session_key}",
-                            f"iss_pos_{placement_id}_{session_key}",
-                            f"iss_neg_{placement_id}_{session_key}",
+                            f"pending_pos_{card_uid}",
+                            f"pending_neg_{card_uid}",
+                            f"iss_pos_{card_uid}",
+                            f"iss_neg_{card_uid}",
                         ):
                             if k in st.session_state:
                                 del st.session_state[k]
@@ -2604,12 +2604,12 @@ if page == "Dashboard":
                         }
 
                         # Clear any pending behavior or widget keys to prevent re-fire
-                        # Use placement_id + session_key for unique keys (matches behavior dropdown keys)
+                        # Use card_uid for unique keys (matches behavior dropdown keys)
                         for k in (
-                            f"pending_pos_{placement_id}_{session_key}",
-                            f"pending_neg_{placement_id}_{session_key}",
-                            f"iss_pos_{placement_id}_{session_key}",
-                            f"iss_neg_{placement_id}_{session_key}",
+                            f"pending_pos_{card_uid}",
+                            f"pending_neg_{card_uid}",
+                            f"iss_pos_{card_uid}",
+                            f"iss_neg_{card_uid}",
                         ):
                             if k in st.session_state:
                                 del st.session_state[k]

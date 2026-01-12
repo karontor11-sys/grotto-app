@@ -1,0 +1,96 @@
+REPLIT BUILD MODE PROMPT (PASTE THIS)
+
+We need to update the ISS “Points Total” hover tooltip (flag) so it displays:
+
+Final POINT TOTALS per category (not event counts)
+
+Negative Points as the absolute total of negative points for the day
+
+A final line at the bottom: Total Points — X, where X equals the current daily total shown on the main card (the left side of 8 / 10)
+
+The tooltip should include all categories (including zeros), in the same order as the positive menu, with “Negative Points” near the end and “Total Points” as the final line.
+
+Do not change DB schema. Use existing point_events and existing point values (verbal apology should naturally display 2 because it is stored as +2).
+
+✅ PASTE-IN PATCH
+1) In app.py, find your helper function:
+def build_points_hover_tooltip_html(...)
+
+2) Replace it with this updated version (paste over the whole function)
+def build_points_hover_tooltip_html(total_points, required_points, point_events, positive_menu):
+    """
+    Builds the hover tooltip HTML for the big Points Total (e.g., 8 / 10).
+
+    Tooltip shows ALL categories (including zeros) and displays POINT TOTALS per category,
+    not event counts. Negative points are grouped into one final line and shown as an
+    absolute total. Adds a final line: "Total Points — X".
+    """
+    import html as _html  # local safety (in case name conflicts)
+
+    def _clean_label(lbl: str) -> str:
+        # Removes trailing "(+1)" "(+2)" "(–1)" etc.
+        if not lbl:
+            return ""
+        return lbl.split(" (")[0].strip()
+
+    # Ordered list of positive categories from the existing menu
+    ordered = []
+    for item in (positive_menu or []):
+        code = item.get("code")
+        if code:
+            ordered.append((code, _clean_label(item.get("label", ""))))
+
+    # Sum POINTS per category (not counts)
+    pos_points = {code: 0 for code, _ in ordered}
+    neg_abs_points = 0
+
+    for e in (point_events or []):
+        e_type = e.get("type")
+        val = int(e.get("value", 0) or 0)
+
+        if e_type == "negative":
+            neg_abs_points += abs(val)   # show as positive number in tooltip
+        else:
+            code = e.get("code")
+            if code in pos_points:
+                pos_points[code] += val  # verbal apology naturally contributes +2 here
+
+    # Build tooltip lines (categories only)
+    lines = [f"{label} — {pos_points.get(code, 0)}" for code, label in ordered]
+
+    # Negative Points line at the bottom (before total)
+    lines.append(f"Negative Points — {neg_abs_points}")
+
+    # Final total line (matches the big number shown on the card)
+    lines.append(f"Total Points — {int(total_points)}")
+
+    tooltip_text = "\n".join(lines)
+    tooltip_attr = _html.escape(tooltip_text).replace("\n", "&#10;")
+
+    meets_target = total_points >= required_points
+    h2_style = "margin: 0;" + (" color: green;" if meets_target else "")
+
+    return f"""
+    <div title="{tooltip_attr}" style="display:inline-flex; align-items:center; gap:6px; cursor: help;">
+        <h2 style="{h2_style}">{int(total_points)} / {int(required_points)}</h2>
+        <span style="font-size: 14px; opacity: 0.6;">ⓘ</span>
+    </div>
+    """
+
+✅ What you should see after this change
+
+If you add Repair the harm – verbal once (worth +2):
+
+Big display: 9 / 10 → 11 / 10
+
+Tooltip line: Repair the harm – verbal — 2
+
+Tooltip bottom: Total Points — 11
+
+If you add 2 negative events (each −1):
+
+Tooltip: Negative Points — 2
+
+Total points decreases accordingly
+
+Bottom still matches the big number

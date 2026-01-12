@@ -39,9 +39,10 @@ STAFF_OPTIONS = AUTHORIZED_STAFF + ["Add Staff"]  # "Add Staff" is a non-functio
 def build_points_hover_tooltip_html(total_points, required_points, point_events, positive_menu):
     """
     Builds the hover tooltip HTML for the big Points Total (e.g., 8 / 10).
+
     Tooltip shows ALL categories (including zeros) and displays POINT TOTALS per category,
     not event counts. Negative points are grouped into one final line and shown as an
-    absolute total.
+    absolute total. Adds a final line: "Total Points — X".
     """
     def _clean_label(lbl: str) -> str:
         if not lbl:
@@ -60,16 +61,22 @@ def build_points_hover_tooltip_html(total_points, required_points, point_events,
 
     for e in (point_events or []):
         e_type = e.get("type")
-        val = e.get("value", 0) or 0
+        val = int(e.get("value", 0) or 0)
         if e_type == "negative":
-            neg_abs_points += abs(int(val))
+            neg_abs_points += abs(val)
         else:
             code = e.get("code")
             if code in pos_points:
-                pos_points[code] += int(val)
+                pos_points[code] += val
 
+    # Build tooltip lines (categories only)
     lines = [f"{label} — {pos_points.get(code, 0)}" for code, label in ordered]
+
+    # Negative Points line at the bottom (before total)
     lines.append(f"Negative Points — {neg_abs_points}")
+
+    # Final total line (matches the big number shown on the card)
+    lines.append(f"Total Points — {int(total_points)}")
 
     tooltip_text = "\n".join(lines)
     tooltip_attr = html.escape(tooltip_text).replace("\n", "&#10;")
@@ -79,7 +86,7 @@ def build_points_hover_tooltip_html(total_points, required_points, point_events,
 
     return f"""
     <div title="{tooltip_attr}" style="display:inline-flex; align-items:center; gap:6px; cursor: help;">
-        <h2 style="{h2_style}">{total_points} / {required_points}</h2>
+        <h2 style="{h2_style}">{int(total_points)} / {int(required_points)}</h2>
         <span style="font-size: 14px; opacity: 0.6;">ⓘ</span>
     </div>
     """

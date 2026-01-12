@@ -2166,6 +2166,15 @@ if page == "Dashboard":
             if iss_total_days is None:
                 iss_total_days = 1
             
+            # Format date with ordinal suffix (e.g., "Jan. 13th, 2026")
+            def ordinal_suffix(day):
+                if 11 <= day <= 13:
+                    return 'th'
+                return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            
+            day = target_date.day
+            formatted_lock_date = f"{target_date.strftime('%b')}. {day}{ordinal_suffix(day)}, {target_date.year}"
+            
             with st.container():
                 st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
                 
@@ -2173,7 +2182,7 @@ if page == "Dashboard":
                 st.markdown(f"**{iss_total_days}-{days_label} ISS Session**")
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
                 
-                st.caption(f"🔒 Locked until {target_date.strftime('%b')} {target_date.day}")
+                st.caption(f"🔒 Locked until {formatted_lock_date}")
                 
                 st.markdown("</div>", unsafe_allow_html=True)
             

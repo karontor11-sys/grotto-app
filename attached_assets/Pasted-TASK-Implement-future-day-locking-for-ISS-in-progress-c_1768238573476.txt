@@ -1,0 +1,72 @@
+TASK
+Implement future-day locking for ISS in-progress cards so future dates remain collapsed-only, while past dates retain full retroactive functionality.
+
+CONTEXT
+The app uses a date-based dashboard with ISS sessions rendered by:
+render_iss_session_card(iss_session: dict, target_date: date)
+
+REQUIREMENTS
+1) Future days (target_date > central_today()):
+   - Render ONLY the collapsed card header/summary
+   - Display a small caption: “🔒 Locked until MMM D”
+   - Do NOT render expanders, buttons, or interactive controls
+   - Do NOT create or mutate daily logs or points
+   - Exit the function early after rendering the collapsed header
+
+2) Today (target_date == central_today()):
+   - No change; fully interactive behavior remains
+
+3) Past days (target_date < central_today()):
+   - No change
+   - Retroactive completion, override, and other past-day workflows must continue working
+
+IMPLEMENTATION STEPS
+A) In app.py, inside render_iss_session_card(iss_session, target_date):
+
+   1. Near the top of the function, compute:
+      today = central_today()
+      is_future_day_view = target_date > today
+
+   2. Locate the section that renders the ISS card’s collapsed header
+      (student name, progress label, status circle, etc.).
+
+   3. Immediately AFTER the collapsed header is rendered, insert:
+      - A caption showing “🔒 Locked until {target_date}” when is_future_day_view is True
+      - A return statement to prevent any expanded UI from rendering
+
+   4. Do NOT apply locking logic to past dates.
+      Past days must continue to render expanded UI with retroactive controls.
+
+B) Do NOT disable widgets individually.
+   The early return is the primary guard for future days.
+
+C) Do NOT modify any existing retroactive logic.
+   Only future-day behavior is restricted.
+
+CODE TO INSERT
+Insert the following logic inside render_iss_session_card at the appropriate locations:
+
+--- BEGIN INSERT ---
+
+today = central_today()
+is_future_day_view = target_date > today
+
+--- END INSERT ---
+
+Then, immediately after the collapsed header rendering block:
+
+--- BEGIN INSERT ---
+
+if is_future_day_view:
+    st.caption(f"🔒 Locked until {target_date.strftime('%b')} {target_date.day}")
+    return
+
+--- END INSERT ---
+
+EXPECTED RESULT
+- Clicking a future date shows ISS cards in collapsed form only
+- Staff cannot expand or interact with tomorrow’s records
+- Past dates remain fully functional with retroactive tools
+- Today behaves exactly as before
+
+Apply changes directly to app.py.

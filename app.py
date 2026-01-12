@@ -2133,6 +2133,37 @@ if page == "Dashboard":
             
             return  # Exit early for future placements
         
+        # Future-day locking: When viewing a future date (not the placement start date)
+        # show collapsed-only card to prevent interaction with future days
+        today = central_today()
+        is_future_day_view = target_date > today
+        
+        if is_future_day_view:
+            # Get ISS days for the collapsed header
+            placement_data = dm.get_placement(placement_id)
+            iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
+            if iss_total_days is None:
+                iss_total_days = 1
+            
+            with st.container():
+                st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
+                
+                header_col1, header_col2 = st.columns([3, 1])
+                
+                with header_col1:
+                    days_label = "Day" if iss_total_days == 1 else "Days"
+                    st.markdown(f"**{iss_total_days}-{days_label} ISS Session**")
+                    st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
+                
+                with header_col2:
+                    st.button("Check In", key=f"iss_checkin_{card_uid}", disabled=True)
+                
+                st.caption(f"🔒 Locked until {target_date.strftime('%b')} {target_date.day}")
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            return  # Exit early for future day views
+        
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         

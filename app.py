@@ -1712,6 +1712,7 @@ if page == "Dashboard":
         if placement_status == 'scheduled' and start_date_obj and start_date_obj > central_today():
             is_future_placement = True
 
+        # Default future check-in message (for Behavior and Cool-Down)
         future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
         # Get progress status
@@ -1749,6 +1750,16 @@ if page == "Dashboard":
         # Determine subtype from placement data
         placement_type = placement.get('placementType', '').upper()
         referral_subtype = placement.get('referralSubtype', '')
+        
+        # Pre-Planned specific: Update future_checkin_msg with formatted start date
+        if (placement_type == 'PRE_PLANNED_REFERRAL' or referral_subtype == 'pre_planned') and is_future_placement and start_date_obj:
+            def ordinal_suffix(day):
+                if 11 <= day <= 13:
+                    return 'th'
+                return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            day = start_date_obj.day
+            formatted_start_date = f"{start_date_obj.strftime('%b')}. {day}{ordinal_suffix(day)}, {start_date_obj.year}"
+            future_checkin_msg = f"Check-in will be available on: {formatted_start_date}"
         
         # Map to display names and determine subtype
         if placement_type == 'COOL_DOWN':

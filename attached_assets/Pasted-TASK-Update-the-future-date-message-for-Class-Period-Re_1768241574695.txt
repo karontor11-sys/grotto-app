@@ -1,0 +1,70 @@
+TASK
+Update the future-date message for Class Period Referrals (subtype: Pre-Planned ONLY).
+
+CURRENT TEXT (future / not started)
+"This session has not started yet. Check-in will be available on the start date."
+
+NEW TEXT (future / not started)
+"Check-in will be available on: Jan. 13th, 2026"
+
+SCOPE / RULES
+- Apply ONLY when referral subtype == "Pre-Planned" AND the viewed/target date is before the referral’s start date.
+- Do NOT change messages/logic for Behavioral or Cool-Down subtypes.
+- Do NOT change check-in logic, locking logic, or retroactive past-day behavior—display text only.
+
+IMPLEMENTATION
+1) In app.py, ensure there is a reusable date formatter that outputs:
+   "Jan. 13th, 2026" (month abbrev with period + ordinal suffix + year).
+   If a helper already exists (e.g., format_date_with_suffix), reuse it.
+   If not, add the helper below near other formatting helpers.
+
+2) Find the Pre-Planned Class Period Referral branch where the future/not-started message is rendered.
+   Replace the existing two-sentence message with exactly:
+   f"Check-in will be available on: {format_date_with_suffix(start_date)}"
+
+3) Make sure the code uses the actual pre-planned start date field (whatever your code currently uses, e.g. referral["start_date"] / session_start / start_date).
+
+EXPECTED RESULT
+When viewing a Pre-Planned Class Period Referral before it begins, the card shows:
+"Check-in will be available on: Jan. 13th, 2026"
+and does NOT show: "This session has not started yet."
+
+Paste-in code (Replit should insert this where appropriate)
+1) Helper (add to app.py once, if you don’t already have it)
+
+from datetime import date
+
+def _ordinal(n: int) -> str:
+    # 11th, 12th, 13th are special cases
+    if 10 <= (n % 100) <= 13:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+def format_date_with_suffix(d: date) -> str:
+    mon = d.strftime("%b") + "."
+    day = d.day
+    return f"{mon} {day}{_ordinal(day)}, {d.year}"
+
+2) Replace the Pre-Planned “not started yet” message block (display-only)
+
+Wherever you currently have the Pre-Planned future/not-started message like:
+
+st.info("This session has not started yet. Check-in will be available on the start date.")
+
+(or st.caption, st.warning, etc.)
+
+Replace it with:
+
+# Pre-Planned future view message (include formatted start date)
+# start_date must be the pre-planned referral's start date
+st.info(f"Check-in will be available on: {format_date_with_suffix(start_date)}")
+
+✅ Important: start_date should be whatever your code already uses for Pre-Planned referrals, commonly something like:
+
+    start_date = referral_start_date
+
+    start_date = _to_date(referral["start_date"])
+
+    start_date = planned_start_date
+
+Replit should wire it to your existing variable/field.

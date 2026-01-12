@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import html
 from datetime import datetime, date, timedelta
 from db_manager import DatabaseManager
 from point_system import PointSystem
@@ -2468,11 +2469,51 @@ if page == "Dashboard":
                             display_periods_count = max(1, current_end - current_start + 1) if current_end >= current_start else 1
                             display_required_points = display_periods_count
                     
-                    if total_points >= display_required_points:
-                        st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points} / {display_required_points}</h2>", unsafe_allow_html=True)
+                    # ---- Hover breakdown (categories + counts, including zeros) ----
+                    # Build from existing point_events for the day (ledger source of truth)
+                    try:
+                        positive_menu_all = ps.get_positive_point_menu('iss_full_day')
+                    except TypeError:
+                        positive_menu_all = ps.get_positive_point_menu()
+
+                    positive_order = [(item.get("code"), item.get("label", "")) for item in positive_menu_all if item.get("code")]
+                    pos_counts = {code: 0 for code, _ in positive_order}
+                    neg_count = 0
+
+                    for e in (point_events or []):
+                        if e.get("type") == "negative":
+                            neg_count += 1
+                        else:
+                            c = e.get("code")
+                            if c in pos_counts:
+                                pos_counts[c] += 1
+
+                    def _clean_label(lbl: str) -> str:
+                        if not lbl:
+                            return ""
+                        return lbl.split(" (")[0].strip()
+
+                    tooltip_lines = [f"{_clean_label(label)} — {pos_counts.get(code, 0)}" for code, label in positive_order]
+                    tooltip_lines.append(f"Negative Points — {neg_count}")
+
+                    tooltip_text = "\n".join(tooltip_lines)
+                    tooltip_attr = html.escape(tooltip_text).replace("\n", "&#10;")
+
+                    meets_target = total_points >= display_required_points
+                    h2_style = "margin: 0;" + (" color: green;" if meets_target else "")
+
+                    points_html = f"""
+                    <div title="{tooltip_attr}" style="display:inline-flex; align-items:center; gap:6px; cursor: help;">
+                        <h2 style="{h2_style}">{total_points} / {display_required_points}</h2>
+                        <span style="font-size: 14px; opacity: 0.6;">ⓘ</span>
+                    </div>
+                    """
+
+                    st.markdown(points_html, unsafe_allow_html=True)
+
+                    if meets_target:
                         st.caption(f"✓ Eligible for completion ({display_periods_count} periods)")
                     else:
-                        st.markdown(f"<h2 style='margin: 0;'>{total_points} / {display_required_points}</h2>", unsafe_allow_html=True)
                         st.caption(f"Need {display_required_points - total_points} more points ({display_periods_count} periods)")
                 
                 action_col1, action_col2 = st.columns(2)

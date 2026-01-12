@@ -1,0 +1,143 @@
+BUILD MODE PROMPT (PASTE THIS)
+
+We want a lightweight hover breakdown on the ISS Dashboard card “Points Total” display (the big 8 / 10 number). When staff hover over the number (or the small ⓘ icon next to it), a tooltip/flag should appear that lists all behavior categories (including zeros) with the count earned that day, plus Negative Points at the bottom (also a count). No section headers. No totals inside the tooltip.
+
+Required Tooltip Content (exact format)
+
+Show all categories, always, in this order:
+
+Repair the harm – written — X
+
+Repair the harm – verbal — X
+
+Complete an assignment — X
+
+Read a chapter — X
+
+Meet with counselor — X
+
+Restorative discussion — X
+
+Helpful task — X
+
+Grotto is clean & damage free — X
+
+Other — X
+
+Negative Points — X
+
+Notes:
+
+Counts only, no point totals.
+
+Remove the (+1) / (+2) / (–1) parts from labels in the tooltip.
+
+Negative Points should count all negative events for the day (regardless of specific negative code).
+
+Minimal Change Constraint
+
+Do NOT change the database schema. Use the existing point_events already retrieved for the day in render_iss_session_card(). Compute counts by code for positive items and a single neg_count for negatives.
+
+Implementation Location
+
+Update app.py inside render_iss_session_card() in the with points_col: block where the app currently renders:
+
+st.markdown(f"<h2 ...>{total_points} / {display_required_points}</h2>", unsafe_allow_html=True)
+
+
+Replace that rendering with a tooltip-wrapped HTML block + a subtle ⓘ icon, using the browser-native title="..." tooltip with newline support (&#10;).
+
+✅ PASTE-IN CODE PATCH
+1) Add this import near the top of app.py with the other imports
+import html
+
+2) In app.py, inside render_iss_session_card(), find this block:
+with points_col:
+    st.markdown("**Points Total**")
+    ...
+    if total_points >= display_required_points:
+        st.markdown(f"<h2 style='color: green; margin: 0;'>{total_points} / {display_required_points}</h2>", unsafe_allow_html=True)
+        st.caption(f"✓ Eligible for completion ({display_periods_count} periods)")
+    else:
+        st.markdown(f"<h2 style='margin: 0;'>{total_points} / {display_required_points}</h2>", unsafe_allow_html=True)
+        st.caption(f"Need {display_required_points - total_points} more points ({display_periods_count} periods)")
+
+3) Replace ONLY the <h2 ...> rendering lines (keep your captions) with this:
+with points_col:
+    st.markdown("**Points Total**")
+    # After Check In, use daily_log as source of truth for required_points
+    # This ensures consistency across all display sections
+    stored_day_type_display = daily_log.get('dayType') if daily_log else None
+    stored_required_points = daily_log.get('requiredPoints') if daily_log else None
+    stored_start = daily_log.get('startPeriod', 1) if daily_log else 1
+    stored_end = daily_log.get('endPeriod', 10) if daily_log else 10
+
+    # Use stored values if checked in, otherwise fall back to session state
+    if is_checked_in and stored_required_points is not None:
+        # Use stored values from daily_log (source of truth after Check In)
+        display_required_points = stored_required_points
+        display_periods_count = stored_end - stored_start + 1
+        is_full_day_display = stored_day_type_display == 'full'
+    else:
+        # Fall back to session state for pre-check-in state
+        # Use card_uid-safe keys (matches widget definitions)
+        current_day_type = st.session_state.get(day_type_key, "Full Day")
+        is_full_day_display = current_day_type == "Full Day"
+        if is_full_day_display:
+            display_required_points = 10
+            display_periods_count = 10
+        else:
+            current_start = st.session_state.get(start_period_key, 1)
+            current_end = st.session_state.get(end_period_key, 10)
+            display_periods_count = max(1, current_end - current_start + 1) if current_end >= current_start else 1
+            display_required_points = display_periods_count
+
+    # ---- Hover breakdown (categories + counts, including zeros) ----
+    # Build from existing point_events for the day (ledger source of truth)
+    # Always show all positive categories (even 0) + one "Negative Points" line at bottom
+    try:
+        positive_menu_all = ps.get_positive_point_menu('iss_full_day')
+    except TypeError:
+        # In case the method signature differs
+        positive_menu_all = ps.get_positive_point_menu()
+
+    positive_order = [(item.get("code"), item.get("label", "")) for item in positive_menu_all if item.get("code")]
+    pos_counts = {code: 0 for code, _ in positive_order}
+    neg_count = 0
+
+    for e in (point_events or []):
+        if e.get("type") == "negative":
+            neg_count += 1
+        else:
+            c = e.get("code")
+            if c in pos_counts:
+                pos_counts[c] += 1
+
+    def _clean_label(lbl: str) -> str:
+        # Removes trailing "(+1)" "(+2)" "(–1)" etc
+        if not lbl:
+            return ""
+        return lbl.split(" (")[0].strip()
+
+    tooltip_lines = [f"{_clean_label(label)} — {pos_counts.get(code, 0)}" for code, label in positive_order]
+    tooltip_lines.append(f"Negative Points — {neg_count}")
+
+    tooltip_text = "\n".join(tooltip_lines)
+    tooltip_attr = html.escape(tooltip_text).replace("\n", "&#10;")
+
+    meets_target = total_points >= display_required_points
+    h2_style = "margin: 0;" + (" color: green;" if meets_target else "")
+
+    points_html = f"""
+    <div title="{tooltip_attr}" style="display:inline-flex; align-items:center; gap:6px; cursor: help;">
+        <h2 style="{h2_style}">{total_points} / {display_required_points}</h2>
+        <span style="font-size: 14px; opacity: 0.6;">ⓘ</span>
+    </div>
+    """
+
+    st.markdown(points_html, unsafe_allow_html=True)
+
+    if meets_target:
+        st.caption(f"✓ Eligible for completion ({display_periods_count} periods)")
+    else:
+        st.caption(f"Need {display_required_points - total_points} more points ({display_periods_count} periods)")

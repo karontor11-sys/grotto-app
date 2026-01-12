@@ -99,6 +99,43 @@ def build_completion_label_with_tooltip(label: str, tooltip: str) -> str:
     tooltip_escaped = html.escape(tooltip or "").replace("\n", "&#10;")
     return f'<span title="{tooltip_escaped}" style="cursor: help; text-decoration: underline dotted; text-underline-offset: 3px;">{label}</span>'
 
+def build_iss_points_breakdown_tooltip(point_events, positive_menu) -> str:
+    """
+    Build a tooltip string that shows POINT TOTALS per category (not counts),
+    always including zeros, plus Negative Points (absolute) and Total Points (net).
+    """
+    def _clean_label(lbl: str) -> str:
+        if not lbl:
+            return ""
+        return lbl.split(" (")[0].strip()
+
+    ordered = []
+    for item in (positive_menu or []):
+        code = item.get("code")
+        if code:
+            ordered.append((code, _clean_label(item.get("label", ""))))
+
+    pos_points = {code: 0 for code, _ in ordered}
+    neg_abs_points = 0
+    total_net_points = 0
+
+    for e in (point_events or []):
+        val = int(e.get("value", 0) or 0)
+        total_net_points += val
+
+        if e.get("type") == "negative":
+            neg_abs_points += abs(val)
+        else:
+            code = e.get("code")
+            if code in pos_points:
+                pos_points[code] += val
+
+    lines = [f"{label} — {pos_points.get(code, 0)}" for code, label in ordered]
+    lines.append(f"Negative Points — {neg_abs_points}")
+    lines.append(f"Total Points — {total_net_points}")
+
+    return "\n".join(lines)
+
 # ===== CACHING LAYER =====
 # Cached wrappers for expensive read-only operations to improve Dashboard performance.
 # TTL of 60 seconds balances responsiveness with data freshness.
@@ -3039,14 +3076,15 @@ if page == "Dashboard":
                 # Show completed day info
                 completion_label = "Completed" if progress_status == "COMPLETED" else "Day Completed"
                 
-                # For RED-circle completed records, add hover tooltip to completion label
-                is_red_circle = status_circle == "🔴"
-                if is_red_circle:
-                    # Build tooltip showing completion details
-                    tooltip_text = f"This ISS session day was marked complete for {selected_date.strftime('%b')}. {selected_date.day}, {selected_date.year}"
-                    completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
-                else:
-                    completion_label_html = completion_label
+                # For ISS collapsed completed cards, hover tooltip shows the daily points breakdown
+                try:
+                    positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+                except Exception:
+                    positive_menu_for_breakdown = ps.get_positive_point_menu()
+                
+                point_events_for_day = dm.get_point_events_for_date(placement_id, date_str)
+                tooltip_text = build_iss_points_breakdown_tooltip(point_events_for_day, positive_menu_for_breakdown)
+                completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
                 
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 

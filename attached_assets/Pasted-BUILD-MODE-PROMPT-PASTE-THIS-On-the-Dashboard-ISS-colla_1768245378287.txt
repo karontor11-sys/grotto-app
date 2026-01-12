@@ -1,0 +1,164 @@
+BUILD MODE PROMPT (PASTE THIS)
+
+On the Dashboard, ISS collapsed completed cards (where the expander is not shown) display a completion label such as “Day Completed” or “Completed”. Right now, hovering over that label shows a tooltip like:
+
+“This ISS session day was marked complete for Jan 12, 2026”
+
+That is NOT what we want.
+
+What we want instead (ISS only)
+
+When hovering over the completion label (“Day Completed” or “Completed”), the tooltip must show the daily points breakdown computed from that day’s point_events, with the following lines (all categories always included, even if 0), and include a final line:
+
+Repair the harm – written — X
+
+Repair the harm – verbal — X
+
+Complete an assignment — X
+
+Read a chapter — X
+
+Meet with counselor — X
+
+Restorative discussion — X
+
+Helpful task — X
+
+Grotto is clean & damage free — X
+
+Other — X
+
+Negative Points — X
+
+Total Points — X
+
+Rules
+
+Tooltip values are POINT TOTALS per category (not event counts).
+
+Verbal apology should show 2 if it’s worth +2.
+
+“Negative Points” should be the absolute total of negative points for the day.
+
+“Total Points” is the net total for the day and should match the card’s daily total.
+
+This tooltip should apply to ISS collapsed completed cards for past days and the current day when completed (not just red circle days).
+
+Do NOT change database schema. Use existing dm.get_point_events_for_date(placement_id, date_str).
+
+Where to change
+
+In app.py, inside the ISS Dashboard rendering logic, there is a block:
+
+if progress_status == "COMPLETED" or is_day_completed:
+
+it sets completion_label = "Completed" ... else "Day Completed"
+
+it currently builds tooltip_text = f"This ISS session day was..."
+
+it wraps with build_completion_label_with_tooltip(...)
+
+Replace that old tooltip with the new points-breakdown tooltip.
+
+✅ PASTE-IN CODE
+1) In app.py, ensure html is imported (near the top with other imports)
+
+If you don’t already have it, add:
+
+import html
+
+2) In app.py, find the existing function:
+def build_completion_label_with_tooltip(label: str, tooltip: str) -> str:
+
+
+Directly underneath it, paste this new helper:
+
+def build_iss_points_breakdown_tooltip(point_events, positive_menu) -> str:
+    """
+    Build a tooltip string that shows POINT TOTALS per category (not counts),
+    always including zeros, plus Negative Points (absolute) and Total Points (net).
+    """
+    def _clean_label(lbl: str) -> str:
+        if not lbl:
+            return ""
+        # Remove trailing "(+1)" "(+2)" etc if present
+        return lbl.split(" (")[0].strip()
+
+    # Preserve menu order for display
+    ordered = []
+    for item in (positive_menu or []):
+        code = item.get("code")
+        if code:
+            ordered.append((code, _clean_label(item.get("label", ""))))
+
+    # Sum POINTS per category
+    pos_points = {code: 0 for code, _ in ordered}
+    neg_abs_points = 0
+    total_net_points = 0
+
+    for e in (point_events or []):
+        val = int(e.get("value", 0) or 0)
+        total_net_points += val
+
+        if e.get("type") == "negative":
+            neg_abs_points += abs(val)
+        else:
+            code = e.get("code")
+            if code in pos_points:
+                pos_points[code] += val
+
+    # Build lines: all categories including zeros
+    lines = [f"{label} — {pos_points.get(code, 0)}" for code, label in ordered]
+    lines.append(f"Negative Points — {neg_abs_points}")
+    lines.append(f"Total Points — {total_net_points}")
+
+    return "\n".join(lines)
+
+3) Now patch the ISS collapsed completed card tooltip block
+
+In app.py, search for this exact line (or very close to it):
+
+# For RED-circle completed records, add hover tooltip to completion label
+
+
+You will see a block that currently looks like this (or extremely similar):
+
+# For RED-circle completed records, add hover tooltip to completion label
+is_red_circle = status_circle == "🔴"
+if is_red_circle:
+    # Build tooltip showing completion details
+    tooltip_text = f"This ISS session day was ..."
+    completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
+else:
+    completion_label_html = completion_label
+
+
+✅ Replace that entire block with this:
+
+# For ISS collapsed completed cards, hover tooltip should show the daily points breakdown
+try:
+    positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+except Exception:
+    positive_menu_for_breakdown = ps.get_positive_point_menu()
+
+point_events_for_day = dm.get_point_events_for_date(placement_id, date_str)
+tooltip_text = build_iss_points_breakdown_tooltip(point_events_for_day, positive_menu_for_breakdown)
+
+completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
+
+
+This makes the hover breakdown available for past days and current day when completed, not just red-circle days.
+
+What you should see after this
+
+When an ISS card is collapsed and shows Day Completed (or Completed):
+
+Hovering over that label will show:
+
+Repair the harm – verbal — 2 (when used once)
+
+Negative Points — 2 (two -1 events)
+
+Total Points — X (net), matching the day’s actual total
+
+…and all other categories will still show 0 if unused.

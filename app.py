@@ -2109,8 +2109,17 @@ if page == "Dashboard":
             if iss_total_days is None:
                 iss_total_days = 1
             
-            # Format start date for display
-            formatted_start_date = start_date_obj.strftime('%B %d, %Y') if start_date_obj else 'Unknown'
+            # Format start date for display with ordinal suffix (e.g., "Jan. 13th, 2026")
+            def ordinal_suffix(day):
+                if 11 <= day <= 13:
+                    return 'th'
+                return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            
+            if start_date_obj:
+                day = start_date_obj.day
+                formatted_start_date = f"{start_date_obj.strftime('%b')}. {day}{ordinal_suffix(day)}, {start_date_obj.year}"
+            else:
+                formatted_start_date = 'Unknown'
             
             with st.container():
                 # Grayed-out header
@@ -2127,7 +2136,7 @@ if page == "Dashboard":
                     # Disabled Check In button
                     st.button("Check In", key=f"iss_checkin_{card_uid}", disabled=True)
                 
-                st.caption("This session has not started yet. Check-in will be available on the start date.")
+                st.caption(f"This session has not started yet. Check-in will be available on the start date: {formatted_start_date}.")
                 
                 st.markdown("</div>", unsafe_allow_html=True)
             

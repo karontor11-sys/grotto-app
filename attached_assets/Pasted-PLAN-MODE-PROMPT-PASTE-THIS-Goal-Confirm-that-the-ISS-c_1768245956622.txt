@@ -1,0 +1,69 @@
+PLAN MODE PROMPT (PASTE THIS)
+Goal
+
+Confirm that the ISS collapsed completed card hover tooltip (the flag shown when hovering over “Day Completed” / “Completed”) is computing category totals correctly and that the “Total Points — X” row is always accurate.
+
+Current Behavior
+
+We recently replaced the old “marked complete” tooltip with a tooltip that shows point totals per category (including zeros), plus:
+
+Negative Points — X (absolute total of negatives)
+
+Total Points — X (net total)
+
+This tooltip is built from that day’s point_events using dm.get_point_events_for_date(placement_id, date_str).
+
+Requirements to Confirm
+
+Category point totals are correct
+For the given date:
+
+Each category row should show the sum of point values for that category’s code.
+
+Verbal apology (Repair the harm – verbal) must show 2 when used once (because its stored value is +2).
+
+Negative Points row is correct
+
+“Negative Points — X” must equal the sum of absolute values of all negative events for the day.
+
+Total Points row is correct and consistent
+
+“Total Points — X” must equal the net total of all point events for the day, i.e.:
+
+Total Points = (sum of all positive values) + (sum of all negative values)
+
+
+(where negative values are stored as negative integers)
+
+Additionally, Total Points must always equal:
+
+(sum of category point totals) - (Negative Points absolute total)
+
+
+No drift
+The Total Points line must be derived from the same underlying point_events used to compute category lines, so it can never get out of sync.
+
+Implementation Guidance (Lightweight)
+
+Do not change DB schema.
+
+Do not change UI layout.
+
+Add a small internal validation step inside the tooltip builder (ISS-only) that:
+
+computes total_net = sum(event.value)
+
+computes sum_pos = sum(category_points)
+
+computes neg_abs = sum(abs(negative.value))
+
+confirms:
+
+total_net == (sum_pos - neg_abs)
+
+
+If mismatch occurs, fail gracefully:
+
+Prefer using total_net for the “Total Points” line (source of truth),
+
+and optionally log a debug warning (no Streamlit error shown to users).

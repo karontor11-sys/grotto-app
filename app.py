@@ -2148,15 +2148,9 @@ if page == "Dashboard":
             with st.container():
                 st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
                 
-                header_col1, header_col2 = st.columns([3, 1])
-                
-                with header_col1:
-                    days_label = "Day" if iss_total_days == 1 else "Days"
-                    st.markdown(f"**{iss_total_days}-{days_label} ISS Session**")
-                    st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
-                
-                with header_col2:
-                    st.button("Check In", key=f"iss_checkin_{card_uid}", disabled=True)
+                days_label = "Day" if iss_total_days == 1 else "Days"
+                st.markdown(f"**{iss_total_days}-{days_label} ISS Session**")
+                st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
                 
                 st.caption(f"🔒 Locked until {target_date.strftime('%b')} {target_date.day}")
                 

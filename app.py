@@ -1558,7 +1558,7 @@ if page == "Dashboard":
         
         if is_future_placement and start_date_obj:
             day = start_date_obj.day
-            formatted_start_date = f"{start_date_obj.strftime('%b')}. {day}{ordinal_suffix(day)}"
+            formatted_start_date = f"{start_date_obj.strftime('%b')}. {day}{ordinal_suffix(day)}, {start_date_obj.year}"
             future_checkin_msg = f"This session has not started yet. Check-in will be available on the start date: {formatted_start_date}."
         else:
             future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."

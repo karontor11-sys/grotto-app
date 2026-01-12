@@ -1539,6 +1539,7 @@ if page == "Dashboard":
         placement_status = placement.get('status', 'active')
         start_date_str = placement.get('startDate')
         is_future_placement = False
+        start_date_obj = None
         if start_date_str:
             try:
                 start_date_obj = datetime.fromisoformat(start_date_str).date()
@@ -1549,7 +1550,18 @@ if page == "Dashboard":
         if placement_status == 'scheduled' and start_date_obj and start_date_obj > central_today():
             is_future_placement = True
 
-        future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
+        # Format start date for display with ordinal suffix (e.g., "Jan. 13th")
+        def ordinal_suffix(day):
+            if 11 <= day <= 13:
+                return 'th'
+            return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+        
+        if is_future_placement and start_date_obj:
+            day = start_date_obj.day
+            formatted_start_date = f"{start_date_obj.strftime('%b')}. {day}{ordinal_suffix(day)}"
+            future_checkin_msg = f"This session has not started yet. Check-in will be available on the start date: {formatted_start_date}."
+        else:
+            future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
         # Get progress status
         progress_status = placement.get('progressStatus', 'NOT_STARTED')

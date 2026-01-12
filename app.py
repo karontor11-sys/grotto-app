@@ -84,6 +84,14 @@ def build_points_hover_tooltip_html(total_points, required_points, point_events,
     </div>
     """
 
+def build_completion_label_with_tooltip(label: str, tooltip: str) -> str:
+    """
+    Builds an HTML label with a hover tooltip for completed records.
+    Used for RED-circle completed records on past dates to show completion flag info.
+    """
+    tooltip_escaped = html.escape(tooltip or "").replace("\n", "&#10;")
+    return f'<span title="{tooltip_escaped}" style="cursor: help; text-decoration: underline dotted; text-underline-offset: 3px;">{label}</span>'
+
 # ===== CACHING LAYER =====
 # Cached wrappers for expensive read-only operations to improve Dashboard performance.
 # TTL of 60 seconds balances responsiveness with data freshness.
@@ -3023,11 +3031,21 @@ if page == "Dashboard":
                 iss_days = iss_session.get('iss_days_assigned') or iss_session.get('issDaysAssigned', 1)
                 # Show completed day info
                 completion_label = "Completed" if progress_status == "COMPLETED" else "Day Completed"
+                
+                # For RED-circle completed records, add hover tooltip to completion label
+                is_red_circle = status_circle == "🔴"
+                if is_red_circle:
+                    # Build tooltip showing completion details
+                    tooltip_text = f"This ISS session day was marked complete for {selected_date.strftime('%b')}. {selected_date.day}, {selected_date.year}"
+                    completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
+                else:
+                    completion_label_html = completion_label
+                
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
                     background-color: #fafafa; margin-bottom: 8px;">
                     <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
-                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {iss_days}-Day · {completion_label}</span>
+                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {iss_days}-Day · {completion_label_html}</span>
                     </div>""",
                     unsafe_allow_html=True
                 )
@@ -3078,7 +3096,15 @@ if page == "Dashboard":
                     day_number=day_num
                 )
                 
-                subtitle = f"Lunch Detention · {suffix}"
+                # For RED-circle completed records, add hover tooltip to suffix
+                is_red_circle = status_circle == "🔴"
+                if is_red_circle:
+                    tooltip_text = f"This Lunch Detention day was marked complete for {selected_date.strftime('%b')}. {selected_date.day}, {selected_date.year}"
+                    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+                else:
+                    suffix_html = suffix
+                
+                subtitle = f"Lunch Detention · {suffix_html}"
                 
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
@@ -3156,7 +3182,15 @@ if page == "Dashboard":
                     day_number=day_num
                 )
                 
-                subtitle = f"{placement_type_label} · {suffix}"
+                # For RED-circle completed records, add hover tooltip to suffix
+                is_red_circle = status_circle == "🔴"
+                if is_red_circle:
+                    tooltip_text = f"This {placement_type_label} day was marked complete for {selected_date.strftime('%b')}. {selected_date.day}, {selected_date.year}"
+                    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+                else:
+                    suffix_html = suffix
+                
+                subtitle = f"{placement_type_label} · {suffix_html}"
                 
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 

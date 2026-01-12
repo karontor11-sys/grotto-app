@@ -1,0 +1,67 @@
+TASK
+On the Dashboard when viewing PAST dates, completed records appear collapsed (good). For completed records with a RED circle only (day completed or session completed), add the same “final day completion flag” tooltip that currently shows when hovering over the Points/small “i”.
+
+Change: On the collapsed record row, make the “Day Completed” or “Session Completed” label show that tooltip when you hover over the label text (or a tiny ℹ next to it). This should only apply to RED-circle completed records.
+
+Do NOT change current-day behavior, and do NOT show this tooltip for non-red completed records.
+
+IMPLEMENTATION (app.py)
+1) Add a tiny helper that renders a label with a hover tooltip using HTML title attribute.
+2) In the collapsed completed-record renderer (Dashboard view on past dates), when the record is completed AND has red circle AND shows “Day Completed” or “Session Completed”, wrap that label with the tooltip.
+3) Reuse the existing tooltip content builder you already use for the Points hover / small “i” (the final-day flag text). If it’s stored in a variable, pass that same string into the helper. If it’s a function, call it here too.
+
+PASTE-IN CODE
+Add this helper once (near other UI helpers in app.py):
+
+--- BEGIN CODE ---
+
+def render_hover_flag_label(label: str, tooltip: str) -> None:
+    """
+    Renders label text with a hover tooltip (flag) using HTML title attribute.
+    Safe for short tooltip text; keeps UI clean in collapsed rows.
+    """
+    tooltip = (tooltip or "").replace('"', "&quot;")
+    st.markdown(
+        f'<span title="{tooltip}" style="cursor: help; text-decoration: underline dotted; '
+        f'text-underline-offset: 3px;">{label}</span>',
+        unsafe_allow_html=True,
+    )
+
+--- END CODE ---
+
+Now update the collapsed completed-record row rendering where you currently output the status label
+(e.g., where it shows “Day Completed” or “Session Completed” as plain text/caption).
+
+Replace the plain label render with this conditional wrapper:
+
+--- BEGIN CODE ---
+
+# Only show completion hover flag for RED-circle completed records
+# (day completed OR session completed label in collapsed row)
+if is_completed and (status_circle_color == "red") and (status_label in ("Day Completed", "Session Completed")):
+    # IMPORTANT: reuse the same tooltip text you already show when hovering Points / small ℹ
+    # If you already have it computed, use it directly:
+    #   completion_flag_tooltip = existing_final_day_flag_text
+    # Otherwise, call the same helper/function you use for the Points hover tooltip.
+    completion_flag_tooltip = final_day_flag_tooltip_text  # <-- REUSE EXISTING VAR/FUNC OUTPUT
+
+    # Render label with hover tooltip
+    render_hover_flag_label(status_label, completion_flag_tooltip)
+else:
+    # existing behavior (plain label)
+    st.caption(status_label)
+
+--- END CODE ---
+
+NOTES FOR WIRING
+- is_completed: your existing “this record is completed” boolean in the collapsed renderer
+- status_circle_color: whatever variable you use to set the circle color for the collapsed record
+- status_label: the string you already display (“Day Completed” / “Session Completed”)
+- final_day_flag_tooltip_text: re-use the existing tooltip content used for the Points hover / small “i”
+  (Replit should locate and reuse it rather than inventing new text)
+
+EXPECTED RESULT
+- Past dates: collapsed completed records with RED circle show a hover tooltip on “Day Completed” / “Session Completed”
+- Tooltip content matches the existing final-day flag shown on Points hover
+- No tooltip appears for non-red completed records
+- Today’s behavior unchanged

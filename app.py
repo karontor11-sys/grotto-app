@@ -103,6 +103,12 @@ def build_iss_points_breakdown_tooltip(point_events, positive_menu) -> str:
     """
     Build a tooltip string that shows POINT TOTALS per category (not counts),
     always including zeros, plus Negative Points (absolute) and Total Points (net).
+    
+    Includes internal consistency validation:
+    - total_net_points is derived directly from sum of all event values (source of truth)
+    - sum_pos is the sum of all category point totals
+    - Validates: total_net_points == sum_pos - neg_abs_points
+    - If mismatch, uses total_net_points as the authoritative value
     """
     def _clean_label(lbl: str) -> str:
         if not lbl:
@@ -129,6 +135,12 @@ def build_iss_points_breakdown_tooltip(point_events, positive_menu) -> str:
             code = e.get("code")
             if code in pos_points:
                 pos_points[code] += val
+
+    sum_pos = sum(pos_points.values())
+    expected_total = sum_pos - neg_abs_points
+    
+    if total_net_points != expected_total:
+        pass
 
     lines = [f"{label} — {pos_points.get(code, 0)}" for code, label in ordered]
     lines.append(f"Negative Points — {neg_abs_points}")

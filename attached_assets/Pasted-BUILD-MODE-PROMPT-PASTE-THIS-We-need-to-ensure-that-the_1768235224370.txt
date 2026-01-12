@@ -1,0 +1,129 @@
+BUILD MODE PROMPT (PASTE THIS)
+
+We need to ensure that the Points Total (e.g., 8 / 10) and the hover category counts always stay perfectly aligned.
+
+Core Rules (LOCK THESE)
+
+All positive behaviors are worth +1 point
+
+Verbal Apology (only) is worth +2 points
+
+All negative behaviors are worth −1 point
+
+Hover flag shows counts only, not point values
+
+The displayed daily total must always equal:
+
+(sum of positive points, including +2 for verbal apology)
+minus
+(sum of negative points)
+
+Scope
+
+Do NOT change database schema
+
+Do NOT add new UI elements
+
+Only ensure math alignment between:
+
+point_events
+
+daily total display
+
+hover category counts
+
+✅ WHAT NEEDS TO BE VERIFIED / FIXED
+1️⃣ Ensure verbal apology events are stored as +2
+
+Locate where point events are created (likely in point_system.py or the handler that processes the positive dropdown).
+
+Confirm this mapping exists (or fix it):
+{
+    "code": "REPAIR_HARM_VERBAL",
+    "label": "Repair the Harm (Verbal)",
+    "points": 2
+}
+
+
+✅ If verbal apology is already +2 → no change needed
+❌ If it’s +1 → update it to +2 only here
+
+This ensures:
+
+One event = one count in hover
+
+But contributes +2 to the total
+
+2️⃣ Ensure negative point events are always −1
+
+Verify negative menu definitions (usually in point_system.py):
+
+{
+    "code": "NEGATIVE",
+    "label": "Negative Points",
+    "points": -1
+}
+
+
+If multiple negative codes exist, that’s fine — the hover already groups them into one line.
+
+3️⃣ Confirm daily total is computed from delta_points (NOT counts)
+
+In render_iss_session_card() (or helper), confirm the total is calculated like this:
+
+total_points = sum(e["value"] for e in point_events)
+
+
+❌ If you see anything like:
+
+total_points = len(point_events)
+
+
+or
+
+total_points += 1
+
+
+that must be removed.
+
+The total must come only from summing stored point values.
+
+4️⃣ Hover counts must remain event-based
+
+No math changes needed here — but confirm logic is:
+
+count += 1  # one event = one tally
+
+
+Even for verbal apology:
+
+Hover shows 1
+
+Total increases by 2
+
+This is correct and intentional.
+
+✅ EXPECTED BEHAVIOR AFTER FIX
+Example sequence
+
+Student completes assignment → +1
+
+Total: 8 → 9
+
+Hover: “Complete an Assignment — 2 → 3”
+
+Student gives verbal apology → +2
+
+Total: 9 → 11
+
+Hover: “Repair the Harm (Verbal) — 0 → 1”
+
+Student receives negative point → −1
+
+Total: 11 → 10
+
+Hover: “Negative Points — 1”
+
+✔ Totals and hover always match
+✔ Counts remain intuitive
+✔ No visual clutter added

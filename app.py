@@ -148,6 +148,43 @@ def build_iss_points_breakdown_tooltip(point_events, positive_menu) -> str:
 
     return "\n".join(lines)
 
+def build_iss_session_points_summary(point_events, positive_menu):
+    """
+    Builds a SESSION-LEVEL ISS points summary across all days in the placement.
+    Returns a list of display lines with POINT TOTALS per category and Total Points.
+    """
+    def _clean_label(lbl: str) -> str:
+        if not lbl:
+            return ""
+        return lbl.split(" (")[0].strip()
+
+    ordered = []
+    for item in (positive_menu or []):
+        code = item.get("code")
+        if code:
+            ordered.append((code, _clean_label(item.get("label", ""))))
+
+    pos_points = {code: 0 for code, _ in ordered}
+    neg_abs_points = 0
+    total_net_points = 0
+
+    for e in (point_events or []):
+        val = int(e.get("value", 0) or 0)
+        total_net_points += val
+
+        if e.get("type") == "negative":
+            neg_abs_points += abs(val)
+        else:
+            code = e.get("code")
+            if code in pos_points:
+                pos_points[code] += val
+
+    lines = [f"{label} — {pos_points.get(code, 0)}" for code, label in ordered]
+    lines.append(f"Negative Points — {neg_abs_points}")
+    lines.append(f"Total Points — {total_net_points}")
+
+    return lines
+
 # ===== CACHING LAYER =====
 # Cached wrappers for expensive read-only operations to improve Dashboard performance.
 # TTL of 60 seconds balances responsiveness with data freshness.
@@ -4132,6 +4169,20 @@ elif page == "Completed Placements":
                                         makeup_note = placement.get('makeupNote')
                                         if makeup_note:
                                             st.caption(f"📋 {makeup_note}")
+                                        
+                                        # ISS SESSION-LEVEL POINT SUMMARY
+                                        st.divider()
+                                        try:
+                                            positive_menu_for_summary = ps.get_positive_point_menu('iss_full_day')
+                                        except Exception:
+                                            positive_menu_for_summary = ps.get_positive_point_menu()
+                                        
+                                        session_point_events = dm.get_all_point_events_for_placement(placement_id)
+                                        summary_lines = build_iss_session_points_summary(session_point_events, positive_menu_for_summary)
+                                        
+                                        st.markdown("**Points Summary**")
+                                        for line in summary_lines:
+                                            st.caption(line)
                                     
                                     # Lunch Detention specific details
                                     elif placement_type == 'LUNCH_DETENTION':

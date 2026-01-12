@@ -36,6 +36,54 @@ notifications = st.session_state.notification_manager
 AUTHORIZED_STAFF = ["Aaron Toronto", "Matthew Christie", "Todd Foster", "Chad Adamson"]
 STAFF_OPTIONS = AUTHORIZED_STAFF + ["Add Staff"]  # "Add Staff" is a non-functional placeholder
 
+def build_points_hover_tooltip_html(total_points, required_points, point_events, positive_menu):
+    """
+    Builds the hover tooltip HTML for the big Points Total (e.g., 8 / 10).
+    Tooltip shows ALL categories (including zeros) and displays POINT TOTALS per category,
+    not event counts. Negative points are grouped into one final line and shown as an
+    absolute total.
+    """
+    def _clean_label(lbl: str) -> str:
+        if not lbl:
+            return ""
+        return lbl.split(" (")[0].strip()
+
+    ordered = []
+    for item in (positive_menu or []):
+        code = item.get("code")
+        if code:
+            ordered.append((code, _clean_label(item.get("label", ""))))
+
+    # Sum POINTS per category (not counts)
+    pos_points = {code: 0 for code, _ in ordered}
+    neg_abs_points = 0
+
+    for e in (point_events or []):
+        e_type = e.get("type")
+        val = e.get("value", 0) or 0
+        if e_type == "negative":
+            neg_abs_points += abs(int(val))
+        else:
+            code = e.get("code")
+            if code in pos_points:
+                pos_points[code] += int(val)
+
+    lines = [f"{label} — {pos_points.get(code, 0)}" for code, label in ordered]
+    lines.append(f"Negative Points — {neg_abs_points}")
+
+    tooltip_text = "\n".join(lines)
+    tooltip_attr = html.escape(tooltip_text).replace("\n", "&#10;")
+
+    meets_target = total_points >= required_points
+    h2_style = "margin: 0;" + (" color: green;" if meets_target else "")
+
+    return f"""
+    <div title="{tooltip_attr}" style="display:inline-flex; align-items:center; gap:6px; cursor: help;">
+        <h2 style="{h2_style}">{total_points} / {required_points}</h2>
+        <span style="font-size: 14px; opacity: 0.6;">ⓘ</span>
+    </div>
+    """
+
 # ===== CACHING LAYER =====
 # Cached wrappers for expensive read-only operations to improve Dashboard performance.
 # TTL of 60 seconds balances responsiveness with data freshness.
@@ -2469,49 +2517,17 @@ if page == "Dashboard":
                             display_periods_count = max(1, current_end - current_start + 1) if current_end >= current_start else 1
                             display_required_points = display_periods_count
                     
-                    # ---- Hover breakdown (categories + counts, including zeros) ----
-                    # Build from existing point_events for the day (ledger source of truth)
-                    try:
-                        positive_menu_all = ps.get_positive_point_menu('iss_full_day')
-                    except TypeError:
-                        positive_menu_all = ps.get_positive_point_menu()
-
-                    positive_order = [(item.get("code"), item.get("label", "")) for item in positive_menu_all if item.get("code")]
-                    pos_counts = {code: 0 for code, _ in positive_order}
-                    neg_count = 0
-
-                    for e in (point_events or []):
-                        if e.get("type") == "negative":
-                            neg_count += 1
-                        else:
-                            c = e.get("code")
-                            if c in pos_counts:
-                                pos_counts[c] += 1
-
-                    def _clean_label(lbl: str) -> str:
-                        if not lbl:
-                            return ""
-                        return lbl.split(" (")[0].strip()
-
-                    tooltip_lines = [f"{_clean_label(label)} — {pos_counts.get(code, 0)}" for code, label in positive_order]
-                    tooltip_lines.append(f"Negative Points — {neg_count}")
-
-                    tooltip_text = "\n".join(tooltip_lines)
-                    tooltip_attr = html.escape(tooltip_text).replace("\n", "&#10;")
-
-                    meets_target = total_points >= display_required_points
-                    h2_style = "margin: 0;" + (" color: green;" if meets_target else "")
-
-                    points_html = f"""
-                    <div title="{tooltip_attr}" style="display:inline-flex; align-items:center; gap:6px; cursor: help;">
-                        <h2 style="{h2_style}">{total_points} / {display_required_points}</h2>
-                        <span style="font-size: 14px; opacity: 0.6;">ⓘ</span>
-                    </div>
-                    """
-
+                    # ---- Hover breakdown (POINT TOTALS per category, not counts) ----
+                    positive_menu_for_tooltip = ps.get_positive_point_menu()
+                    points_html = build_points_hover_tooltip_html(
+                        total_points,
+                        display_required_points,
+                        point_events,
+                        positive_menu_for_tooltip
+                    )
                     st.markdown(points_html, unsafe_allow_html=True)
 
-                    if meets_target:
+                    if total_points >= display_required_points:
                         st.caption(f"✓ Eligible for completion ({display_periods_count} periods)")
                     else:
                         st.caption(f"Need {display_required_points - total_points} more points ({display_periods_count} periods)")

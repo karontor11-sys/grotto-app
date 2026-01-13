@@ -1944,18 +1944,17 @@ if page == "Dashboard":
             else:
                 st.caption(f"📅 **{subtype_display}**")
             
-            # Day X of Y for Pre-Planned multi-day referrals (completion-based, not calendar-based)
+            # Day X of Y for Pre-Planned referrals (show for all placements, including single-day)
             if subtype_key == 'pre_planned':
                 days_assigned = placement.get('daysAssigned', 1)
-                if days_assigned > 1:
-                    preplanned_days_info = dm.get_preplanned_days_served_info(placement_id, date_str)
-                    preplanned_day_number = preplanned_days_info.get('current_day_number', 1)
-                    preplanned_total_days = preplanned_days_info.get('total_days', days_assigned)
-                    preplanned_is_absent = preplanned_days_info.get('is_today_absent', False)
-                    if preplanned_is_absent:
-                        st.caption(f"📅 Day {preplanned_day_number} of {preplanned_total_days} (Absent)")
-                    else:
-                        st.caption(f"📅 Day {preplanned_day_number} of {preplanned_total_days}")
+                preplanned_days_info = dm.get_preplanned_days_served_info(placement_id, date_str)
+                preplanned_day_number = max(preplanned_days_info.get('current_day_number', 1), 1)
+                preplanned_total_days = max(preplanned_days_info.get('total_days', days_assigned), 1)
+                preplanned_is_absent = preplanned_days_info.get('is_today_absent', False)
+                if preplanned_is_absent:
+                    st.caption(f"📅 Day {preplanned_day_number} of {preplanned_total_days} (Absent)")
+                else:
+                    st.caption(f"📅 Day {preplanned_day_number} of {preplanned_total_days}")
             
             # Reason
             st.caption(f"**Reason:** {reason}")

@@ -1888,6 +1888,41 @@ if page == "Dashboard":
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
         
+        # ------------------------------------------------------------
+        # UI STANDARDIZATION FIX: Pre-Planned + future dashboard date
+        # Render ONLY the standardized future-day block and return early
+        # (prevents duplicate Status/Grade lines from shared CPR header)
+        # ------------------------------------------------------------
+        placement_type_early = placement.get('placementType', '').upper()
+        referral_subtype_early = placement.get('referralSubtype', '')
+
+        is_preplanned_early = (
+            placement_type_early == 'PRE_PLANNED_REFERRAL'
+            or str(referral_subtype_early).strip().lower() in {'pre_planned', 'pre-planned', 'preplanned', 'pre planned'}
+        )
+
+        today_early = central_today()
+        if is_preplanned_early and target_date > today_early:
+            progress_status_early = placement.get('progressStatus', 'NOT_STARTED')
+
+            days_assigned = placement.get('daysAssigned', 1)
+            if not days_assigned or days_assigned < 1:
+                days_assigned = 1
+            day_label = "Day" if days_assigned == 1 else "Days"
+            title_line = f"{days_assigned}-{day_label} Pre-Planned Referral"
+
+            grade_early = student.get('grade', 'N/A')
+            homeroom_early = student.get('homeroomTeacher', '')
+
+            _render_standard_future_day_expanded_view(
+                progress_status=progress_status_early,
+                title_line=title_line,
+                grade=grade_early,
+                homeroom=homeroom_early,
+                lock_until_date=target_date
+            )
+            return
+        
         # FUTURE PLACEMENT LOCK: disable Check In until the start date
         placement_status = placement.get('status', 'active')
         start_date_str = placement.get('startDate')

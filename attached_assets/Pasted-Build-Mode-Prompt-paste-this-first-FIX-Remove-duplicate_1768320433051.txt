@@ -1,0 +1,90 @@
+Build Mode Prompt (paste this first)
+"""
+FIX: Remove duplicate Status + Grade/Homeroom lines on FUTURE-DATE expanded cards
+for Class Period Referral subtype Pre-Planned.
+
+CAUSE
+The unified CPR renderer prints the shared header (Status + Grade) first,
+then our standardized future-day block prints Status + Grade again.
+
+CHANGE
+Add a "front-door" early-return:
+If subtype == Pre-Planned AND target_date > central_today(),
+render ONLY the standardized future-day UI and return immediately.
+No other UI should render for that card on future dates.
+
+NO backend logic changes. UI-only routing fix.
+"""
+
+✅ Paste-in Patch (surgical edit in app.py)
+Step A — Insert this block near the TOP of the function
+
+In app.py, find:
+
+def render_unified_class_referral_card(placement: dict, target_date: date):
+
+
+Then inside that function, locate these lines near the top (they exist in your ZIP):
+
+student = placement['student']
+placement_id = placement['_id']
+student_name = f"{student['firstName']} {student['lastName']}"
+date_str = target_date.isoformat()
+
+
+✅ IMMEDIATELY AFTER date_str = target_date.isoformat(), paste this block:
+
+        # ------------------------------------------------------------
+        # UI STANDARDIZATION FIX: Pre-Planned + future dashboard date
+        # Render ONLY the standardized future-day block and return early
+        # (prevents duplicate Status/Grade lines from shared CPR header)
+        # ------------------------------------------------------------
+        placement_type_early = placement.get('placementType', '').upper()
+        referral_subtype_early = placement.get('referralSubtype', '')
+
+        is_preplanned_early = (
+            placement_type_early == 'PRE_PLANNED_REFERRAL'
+            or str(referral_subtype_early).strip().lower() in {'pre_planned', 'pre-planned', 'preplanned', 'pre planned'}
+        )
+
+        today = central_today()
+        if is_preplanned_early and target_date > today:
+            progress_status_early = placement.get('progressStatus', 'NOT_STARTED')
+
+            days_assigned = placement.get('daysAssigned', 1)
+            if not days_assigned or days_assigned < 1:
+                days_assigned = 1
+            day_label = "Day" if days_assigned == 1 else "Days"
+            title_line = f"{days_assigned}-{day_label} Pre-Planned Referral"
+
+            grade_early = student.get('grade', 'N/A')
+            homeroom_early = student.get('homeroomTeacher', '')
+
+            # Prefer the shared standardized renderer if present (from your earlier patch)
+            try:
+                _render_standard_future_day_expanded_view(
+                    progress_status=progress_status_early,
+                    title_line=title_line,
+                    grade=grade_early,
+                    homeroom=homeroom_early,
+                    lock_until_date=target_date
+                )
+            except NameError:
+                # Fallback: render the same standardized lines without the helper
+                progress_circle = _circle_for_day(progress_status_early, is_absent_day=False, is_day_completed=False)
+                progress_text = _status_text_for_day(progress_status_early, is_absent_day=False, is_day_completed=False)
+                st.markdown(f"**Status:** {progress_circle} {progress_text}")
+                st.markdown(f"**{title_line}**")
+                if homeroom_early:
+                    st.caption(f"Grade {grade_early} · {homeroom_early} (Homeroom teacher)")
+                else:
+                    st.caption(f"Grade {grade_early}")
+
+                # Use existing formatting if you have it, otherwise simple date
+                try:
+                    formatted_lock = _format_date_with_ordinal(target_date)
+                except NameError:
+                    formatted_lock = target_date.strftime("%b. %d, %Y").replace(" 0", " ")
+                st.info(f"🔒 Locked until {formatted_lock}")
+
+            return

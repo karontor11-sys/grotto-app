@@ -1664,6 +1664,33 @@ if page == "Dashboard":
         else:
             future_checkin_msg = "This session has not started yet. Check-in will be available on the start date."
         
+        # ---------- BEGIN: ISS-style future-day and future-placement locks ----------
+        def _format_date_with_ordinal(d: date) -> str:
+            def _ordinal_suffix(day: int) -> str:
+                if 11 <= day <= 13:
+                    return 'th'
+                return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            day_num = d.day
+            return f"{d.strftime('%b')}. {day_num}{_ordinal_suffix(day_num)}, {d.year}"
+
+        today = central_today()
+
+        # A) FUTURE PLACEMENT LOCK (start date is in the future relative to today)
+        if is_future_placement and start_date_obj:
+            formatted_start_date = _format_date_with_ordinal(start_date_obj)
+            st.info(
+                f"This session has not started yet. "
+                f"Check-in will be available on the start date: {formatted_start_date}."
+            )
+            return
+
+        # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future)
+        if target_date > today:
+            formatted_lock_date = _format_date_with_ordinal(target_date)
+            st.info(f"🔒 Locked until {formatted_lock_date}")
+            return
+        # ---------- END: ISS-style future-day and future-placement locks ----------
+        
         # Get progress status
         progress_status = placement.get('progressStatus', 'NOT_STARTED')
         
@@ -1804,6 +1831,7 @@ if page == "Dashboard":
         placement_status = placement.get('status', 'active')
         start_date_str = placement.get('startDate')
         is_future_placement = False
+        start_date_obj = None
         if start_date_str:
             try:
                 start_date_obj = datetime.fromisoformat(start_date_str).date()
@@ -1879,6 +1907,34 @@ if page == "Dashboard":
         else:
             subtype_display = "Behavior Referral"
             subtype_key = "behavior"
+        
+        # ---------- BEGIN: ISS-style locks for Pre-Planned only ----------
+        if subtype_key == "pre_planned":
+            def _format_date_with_ordinal(d: date) -> str:
+                def _ordinal_suffix(day: int) -> str:
+                    if 11 <= day <= 13:
+                        return 'th'
+                    return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+                day_num = d.day
+                return f"{d.strftime('%b')}. {day_num}{_ordinal_suffix(day_num)}, {d.year}"
+
+            today = central_today()
+
+            # A) FUTURE PLACEMENT LOCK (start date is in the future relative to today)
+            if is_future_placement and start_date_obj:
+                formatted_start_date = _format_date_with_ordinal(start_date_obj)
+                st.info(
+                    f"This session has not started yet. "
+                    f"Check-in will be available on the start date: {formatted_start_date}."
+                )
+                return
+
+            # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future)
+            if target_date > today:
+                formatted_lock_date = _format_date_with_ordinal(target_date)
+                st.info(f"🔒 Locked until {formatted_lock_date}")
+                return
+        # ---------- END: ISS-style locks for Pre-Planned only ----------
         
         # Check if no-show is set (for Pre-Planned only, safe access - daily_log may be None)
         is_no_show = daily_log.get('noShow', False) if daily_log else False

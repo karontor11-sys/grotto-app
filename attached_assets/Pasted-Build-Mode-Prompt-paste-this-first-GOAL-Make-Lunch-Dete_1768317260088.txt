@@ -1,0 +1,128 @@
+Build Mode Prompt (paste this first)
+"""
+GOAL
+Make Lunch Detention (single + multi-day) and Class Period Referral subtype Pre-Planned (single + multi-day)
+follow the same lock behavior as ISS on the Dashboard:
+
+1) FUTURE PLACEMENT LOCK (start date is in the future relative to today):
+   - Show "Check-in will be available on the start date: Jan. 16th, 2026"
+   - Return early (no interactive widgets)
+
+2) FUTURE-DAY VIEW LOCK (user is viewing a future calendar day on the Dashboard):
+   - Show "🔒 Locked until Jan. 16th, 2026" (based on the dashboard-selected date)
+   - Return early (no interactive widgets)
+
+SCOPE
+- Lunch Detention: apply both locks.
+- Class Period Referral: apply both locks ONLY when subtype is Pre-Planned.
+
+FILES
+- app.py
+"""
+
+✅ Paste-in Patch (targeted edits in app.py)
+
+Paste this entire patch into app.py by following the “INSERT HERE” notes.
+
+# =========================
+# PATCH 1 — Lunch Detention
+# =========================
+# In app.py, find:
+#     def render_lunch_detention_card(placement: dict, target_date: date):
+#
+# Then locate the section where it computes:
+#     is_future_placement
+# and defines:
+#     def ordinal_suffix(day):
+#
+# DIRECTLY AFTER the ordinal_suffix(...) helper (or right after future_checkin_msg is built),
+# INSERT the block below.
+
+        # ---------- BEGIN: ISS-style future-day and future-placement locks ----------
+        # Reuse the same ordinal date style ISS uses (e.g., "Jan. 16th, 2026")
+        def _format_date_with_ordinal(d: date) -> str:
+            def _ordinal_suffix(day: int) -> str:
+                if 11 <= day <= 13:
+                    return 'th'
+                return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            day_num = d.day
+            return f"{d.strftime('%b')}. {day_num}{_ordinal_suffix(day_num)}, {d.year}"
+
+        today = central_today()
+
+        # A) FUTURE PLACEMENT LOCK (start date is in the future relative to today)
+        # Match ISS behavior: show message and exit early (no widgets).
+        if is_future_placement and start_date_obj:
+            formatted_start_date = _format_date_with_ordinal(start_date_obj)
+            st.info(
+                f"This session has not started yet. "
+                f"Check-in will be available on the start date: {formatted_start_date}."
+            )
+            return
+
+        # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future)
+        # Match ISS behavior: lock until the viewed date and exit early.
+        if target_date > today:
+            formatted_lock_date = _format_date_with_ordinal(target_date)
+            st.info(f"🔒 Locked until {formatted_lock_date}")
+            return
+        # ---------- END: ISS-style future-day and future-placement locks ----------
+
+
+
+# ==========================================
+# PATCH 2 — Pre-Planned Class Period Referral
+# ==========================================
+# In app.py, find:
+#     def render_unified_class_referral_card(placement: dict, target_date: date):
+#
+# Inside that function, locate where subtype_key is determined:
+#     if placement_type == 'COOL_DOWN': ...
+#     elif placement_type == 'PRE_PLANNED_REFERRAL': ...
+#     ...
+#     else: subtype_key = "behavior"
+#
+# IMMEDIATELY AFTER subtype_key is set (right after that mapping block),
+# INSERT the block below.
+
+        # ---------- BEGIN: ISS-style locks for Pre-Planned only ----------
+        # Only apply these locks to Pre-Planned subtype (single + multi-day)
+        if subtype_key == "pre_planned":
+            def _format_date_with_ordinal(d: date) -> str:
+                def _ordinal_suffix(day: int) -> str:
+                    if 11 <= day <= 13:
+                        return 'th'
+                    return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+                day_num = d.day
+                return f"{d.strftime('%b')}. {day_num}{_ordinal_suffix(day_num)}, {d.year}"
+
+            today = central_today()
+
+            # A) FUTURE PLACEMENT LOCK (start date is in the future relative to today)
+            if is_future_placement and start_date_obj:
+                formatted_start_date = _format_date_with_ordinal(start_date_obj)
+                st.info(
+                    f"This session has not started yet. "
+                    f"Check-in will be available on the start date: {formatted_start_date}."
+                )
+                return
+
+            # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future)
+            if target_date > today:
+                formatted_lock_date = _format_date_with_ordinal(target_date)
+                st.info(f"🔒 Locked until {formatted_lock_date}")
+                return
+        # ---------- END: ISS-style locks for Pre-Planned only ----------
+
+What this patch will do (behavior check)
+Lunch Detention
+
+If the placement start date is after today → shows “Check-in will be available…” and exits.
+
+If you click forward on the dashboard (tomorrow / next week) → shows “🔒 Locked until …” and exits.
+
+Pre-Planned CPR
+
+Same behavior as above, but ONLY when it’s the Pre-Planned subtype.
+
+Behavior/Cool-Down referrals remain unchanged.

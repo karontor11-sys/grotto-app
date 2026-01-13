@@ -1623,6 +1623,51 @@ if page == "Dashboard":
             
             st.divider()
     
+    # ---------------------------------------------------------------------
+    # Shared UI helpers — Standardized FUTURE-DATE expanded card content
+    # (UI-only; does not change any underlying logic)
+    # ---------------------------------------------------------------------
+    def _ordinal_suffix_shared(day: int) -> str:
+        if 11 <= day <= 13:
+            return 'th'
+        return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+
+    def _format_date_with_ordinal_shared(d: date) -> str:
+        day_num = d.day
+        return f"{d.strftime('%b')}. {day_num}{_ordinal_suffix_shared(day_num)}, {d.year}"
+
+    def _format_grade_homeroom_line(grade, homeroom) -> str:
+        grade_str = str(grade) if grade is not None else "N/A"
+        if homeroom:
+            return f"Grade {grade_str} · {homeroom} (Homeroom teacher)"
+        return f"Grade {grade_str}"
+
+    def _render_standard_future_day_expanded_view(
+        *,
+        progress_status: str,
+        title_line: str,
+        grade,
+        homeroom,
+        lock_until_date: date
+    ) -> None:
+        """
+        Standard future-day expanded view:
+          Status line
+          Title line (bold)
+          Grade/Homeroom line
+          Blue info bar lock message
+        """
+        # For future dates we intentionally do NOT infer day-level absent/completed.
+        progress_circle = _circle_for_day(progress_status, is_absent_day=False, is_day_completed=False)
+        progress_text = _status_text_for_day(progress_status, is_absent_day=False, is_day_completed=False)
+
+        st.markdown(f"**Status:** {progress_circle} {progress_text}")
+        st.markdown(f"**{title_line}**")
+        st.caption(_format_grade_homeroom_line(grade, homeroom))
+
+        formatted_lock_date = _format_date_with_ordinal_shared(lock_until_date)
+        st.info(f"🔒 Locked until {formatted_lock_date}")
+
     # Helper function to render Lunch Detention student card
     def render_lunch_detention_card(placement: dict, target_date: date):
         """Render Lunch Detention card with attendance and Day X of Y.
@@ -1684,10 +1729,26 @@ if page == "Dashboard":
             )
             return
 
-        # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future)
+        # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future) - standardized UI
         if target_date > today:
-            formatted_lock_date = _format_date_with_ordinal(target_date)
-            st.info(f"🔒 Locked until {formatted_lock_date}")
+            total_days = placement.get('daysAssigned', 1)
+            if not total_days or total_days < 1:
+                total_days = 1
+
+            days_label = "Day" if total_days == 1 else "Days"
+            title_line = f"{total_days}-{days_label} Lunch Detention"
+
+            grade = student.get('grade', 'N/A')
+            homeroom = student.get('homeroomTeacher', '')
+            progress_status = placement.get('progressStatus', 'NOT_STARTED')
+
+            _render_standard_future_day_expanded_view(
+                progress_status=progress_status,
+                title_line=title_line,
+                grade=grade,
+                homeroom=homeroom,
+                lock_until_date=target_date
+            )
             return
         # ---------- END: ISS-style future-day and future-placement locks ----------
         
@@ -1929,10 +1990,25 @@ if page == "Dashboard":
                 )
                 return
 
-            # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future)
+            # B) FUTURE-DAY VIEW LOCK (dashboard date is in the future) - standardized UI
             if target_date > today:
-                formatted_lock_date = _format_date_with_ordinal(target_date)
-                st.info(f"🔒 Locked until {formatted_lock_date}")
+                days_assigned = placement.get('daysAssigned', 1)
+                if not days_assigned or days_assigned < 1:
+                    days_assigned = 1
+
+                days_label = "Day" if days_assigned == 1 else "Days"
+                title_line = f"{days_assigned}-{days_label} Pre-Planned Referral"
+
+                grade = student.get('grade', 'N/A')
+                homeroom = student.get('homeroomTeacher', '')
+
+                _render_standard_future_day_expanded_view(
+                    progress_status=progress_status,
+                    title_line=title_line,
+                    grade=grade,
+                    homeroom=homeroom,
+                    lock_until_date=target_date
+                )
                 return
         # ---------- END: ISS-style locks for Pre-Planned only ----------
         
@@ -2328,32 +2404,22 @@ if page == "Dashboard":
         is_future_day_view = target_date > today
         
         if is_future_day_view:
-            # Get ISS days for the collapsed header
+            # Get ISS days for the title line
             placement_data = dm.get_placement(placement_id)
             iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
             if iss_total_days is None:
                 iss_total_days = 1
-            
-            # Format date with ordinal suffix (e.g., "Jan. 13th, 2026")
-            def ordinal_suffix(day):
-                if 11 <= day <= 13:
-                    return 'th'
-                return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
-            
-            day = target_date.day
-            formatted_lock_date = f"{target_date.strftime('%b')}. {day}{ordinal_suffix(day)}, {target_date.year}"
-            
-            with st.container():
-                st.markdown(f"<div style='opacity: 0.6;'>", unsafe_allow_html=True)
-                
-                days_label = "Day" if iss_total_days == 1 else "Days"
-                st.markdown(f"**{iss_total_days}-{days_label} ISS Session**")
-                st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
-                
-                st.caption(f"🔒 Locked until {formatted_lock_date}")
-                
-                st.markdown("</div>", unsafe_allow_html=True)
-            
+
+            days_label = "Day" if iss_total_days == 1 else "Days"
+            title_line = f"{iss_total_days}-{days_label} ISS Session"
+
+            _render_standard_future_day_expanded_view(
+                progress_status=iss_session.get('progressStatus', 'NOT_STARTED'),
+                title_line=title_line,
+                grade=iss_session.get('grade', 'N/A'),
+                homeroom=iss_session.get('homeroom_teacher', ''),
+                lock_until_date=target_date
+            )
             return  # Exit early for future day views
         
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)

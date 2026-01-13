@@ -1721,9 +1721,10 @@ if page == "Dashboard":
                 else:
                     dm.unmark_absent(pid, ds)
             
-            # Day X of Y (show first for context)
-            if total_days > 1 and day_number > 0:
-                st.caption(f"📅 Day {day_number} of {total_days}")
+            # Day X of Y (show for all placements, including single-day)
+            display_total = max(total_days, 1)
+            display_day = max(day_number, 1)
+            st.caption(f"📅 Day {display_day} of {display_total}")
             
             # Check In / Absent controls in columns
             ctrl_col1, ctrl_col2 = st.columns(2)

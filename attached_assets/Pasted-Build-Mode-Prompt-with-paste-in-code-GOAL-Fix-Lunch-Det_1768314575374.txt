@@ -1,0 +1,117 @@
+Build Mode Prompt (with paste-in code)
+"""
+GOAL
+Fix Lunch Detention Dashboard day-progress label so it appears for single-day placements too.
+
+CURRENT
+The Lunch Detention dashboard card shows the label (e.g., "📅 Day 1 of 3") for multi-day records,
+but shows nothing for 1-day records.
+
+CHANGE
+Always render the label on the Lunch Detention dashboard card:
+- Single-day:  "📅 Day 1 of 1"
+- Multi-day:   "📅 Day X of Y" (unchanged logic)
+
+INSTRUCTIONS
+1) Find the Lunch Detention dashboard card renderer (where you currently show "📅 Day {current} of {total}"
+   ONLY when total_days > 1).
+2) Replace that conditional block with the code below so it always renders.
+"""
+
+# ---------------------------
+# PASTE-IN PATCH (Dashboard UI)
+# ---------------------------
+
+from datetime import date, datetime, timedelta
+
+def _to_date(d):
+    """Safely normalize datetime/date/iso-string -> date (or None)."""
+    if d is None:
+        return None
+    if isinstance(d, date) and not isinstance(d, datetime):
+        return d
+    if isinstance(d, datetime):
+        return d.date()
+    if isinstance(d, str):
+        try:
+            # Accept 'YYYY-MM-DD' and common datetime strings
+            return datetime.fromisoformat(d.replace("Z", "")).date()
+        except Exception:
+            return None
+    return None
+
+def _compute_day_of_n(active_day: date, start_day: date, total_days: int):
+    """
+    Compute "Day X of N" for a placement.
+    If anything is missing/invalid, fall back to Day 1 of max(total_days, 1).
+    """
+    n = max(int(total_days or 1), 1)
+
+    if not active_day or not start_day:
+        return 1, n
+
+    # Day number is inclusive from start_day
+    delta = (active_day - start_day).days
+    day_num = delta + 1
+
+    # Clamp to valid range
+    if day_num < 1:
+        day_num = 1
+    if day_num > n:
+        day_num = n
+
+    return day_num, n
+
+
+# -------------------------------------------------------------------
+# APPLY THIS INSIDE YOUR Lunch Detention dashboard card render section:
+# -------------------------------------------------------------------
+# You should already have:
+# - the placement record (often named placement / rec / p)
+# - the "active" date you're rendering the dashboard for (often selected_date / active_date)
+#
+# Replace your existing conditional like:
+#   if total_days > 1: st.caption(...)
+# with the always-on block below.
+
+def render_lunch_detention_day_progress(placement, active_date):
+    """
+    Returns the label string for the Lunch Detention dashboard card.
+    """
+    # Try multiple common field names safely
+    start_day = _to_date(getattr(placement, "start_date", None) or placement.get("start_date") if isinstance(placement, dict) else None)
+    total_days = getattr(placement, "total_days", None) if not isinstance(placement, dict) else placement.get("total_days")
+
+    # Some codebases store assigned days differently; attempt fallbacks:
+    if not total_days:
+        # Common alternatives: day_count, num_days, duration_days
+        total_days = (
+            (getattr(placement, "day_count", None) if not isinstance(placement, dict) else placement.get("day_count"))
+            or (getattr(placement, "num_days", None) if not isinstance(placement, dict) else placement.get("num_days"))
+            or (getattr(placement, "duration_days", None) if not isinstance(placement, dict) else placement.get("duration_days"))
+            or 1
+        )
+
+    day_num, n = _compute_day_of_n(_to_date(active_date), start_day, int(total_days))
+    return f"📅 Day {day_num} of {n}"
+
+
+# ---------------------------
+# Example usage in your card:
+# ---------------------------
+# day_label = render_lunch_detention_day_progress(placement, selected_date)
+# st.caption(day_label)
+#
+# IMPORTANT: Do NOT wrap this in "if total_days > 1".
+# This should render for both single-day and multi-day.
+
+Where to paste it
+
+Put the helper functions near other dashboard helpers (or at top of the dashboard file).
+
+Then in the Lunch Detention dashboard card UI, find the existing line that only shows the label for multi-day (usually something like if total_days > 1:), and replace it with:
+
+st.caption(render_lunch_detention_day_progress(placement, selected_date))
+
+
+(or whatever your “active date” variable is named).

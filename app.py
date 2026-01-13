@@ -261,9 +261,10 @@ def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, tar
     if end_date and target_date == end_date:
         return f"{total_days}-Day Session Completed"
 
-    # Prior served day
+    # Prior served day (multi-day, not final day)
+    # Per UI standard: show a simple "Day Completed" instead of day numbering.
     if day_number and day_number > 0:
-        return f"Day {day_number} of {total_days} Completed"
+        return "Day Completed"
 
     # Fallback (should rarely happen)
     return f"{total_days}-Day Session Completed"
@@ -3406,8 +3407,8 @@ if page == "Dashboard":
             # Use centralized helper for colored circle
             status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
             
-            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
-            if progress_status == "COMPLETED":
+            # COMPLETED placements OR (Pre-Planned day completed): Show as non-interactive collapsed card (no expander)
+            if progress_status == "COMPLETED" or (referral_subtype == "pre_planned" and is_day_completed):
                 is_absent = is_absent_day
                 
                 end_date = _parse_iso_date_safe(placement.get('endDate'))

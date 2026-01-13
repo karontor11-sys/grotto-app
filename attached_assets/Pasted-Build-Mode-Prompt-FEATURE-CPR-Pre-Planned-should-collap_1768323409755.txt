@@ -1,0 +1,72 @@
+Build Mode Prompt
+"""
+FEATURE: CPR Pre-Planned should collapse (unexpandable) when the DAY is completed,
+even if the overall session is still IN_PROGRESS (multi-day).
+
+Today:
+Dashboard only collapses CPR when progress_status == "COMPLETED".
+For multi-day Pre-Planned, completing a day sets the daily log as completed but often
+does not set placement progressStatus to COMPLETED, so the card remains expandable.
+
+Change:
+In the Dashboard loop for unified class referrals:
+- If referral_subtype == 'pre_planned' AND is_day_completed == True for the selected date,
+  treat it like a completed row (collapsed, no expander).
+
+Also:
+Standardize the suffix text via existing _completed_suffix_for_day so it shows:
+- "Day Completed" for non-final days in multi-day sessions
+- "X-Day Session Completed" for final day / session completion
+- "1-Day Session Completed" for single-day sessions
+
+UI-only routing + suffix wording. No backend logic changes.
+File: app.py
+"""
+
+✅ Paste-in Patch (app.py)
+Patch 1 — Update the Dashboard collapse condition for CPR
+
+In app.py, find this section (you have it around the Class Period Referral dashboard block):
+
+# COMPLETED placements: Show as non-interactive collapsed card (no expander)
+if progress_status == "COMPLETED":
+
+
+✅ Replace that if line with:
+
+# COMPLETED placements OR (Pre-Planned day completed): Show as non-interactive collapsed card (no expander)
+if progress_status == "COMPLETED" or (referral_subtype == "pre_planned" and is_day_completed):
+
+
+That’s the key routing change.
+
+Patch 2 — Make _completed_suffix_for_day(...) output “Day Completed” for non-final days
+
+In app.py, find the helper:
+
+def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, target_date: date,
+                             end_date: date, is_absent: bool, day_number: int | None):
+
+
+Inside it, locate this block:
+
+# Prior served day
+if day_number and day_number > 0:
+    return f"Day {day_number} of {total_days} Completed"
+
+
+✅ Replace that block with:
+
+# Prior served day (multi-day, not final day)
+# Per UI standard: show a simple "Day Completed" instead of day numbering.
+if day_number and day_number > 0:
+    return "Day Completed"
+
+
+Resulting behavior:
+
+1-day sessions → 1-Day Session Completed (unchanged)
+
+final day of a multi-day session → X-Day Session Completed (unchanged)
+
+non-final completed day in a multi-day session → Day Completed (now matches your request)

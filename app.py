@@ -1639,7 +1639,7 @@ if page == "Dashboard":
     def _format_grade_homeroom_line(grade, homeroom) -> str:
         grade_str = str(grade) if grade is not None else "N/A"
         if homeroom:
-            return f"Grade {grade_str} · {homeroom} (Homeroom teacher)"
+            return f"Grade {grade_str} · {homeroom}"
         return f"Grade {grade_str}"
 
     def _render_standard_future_day_expanded_view(

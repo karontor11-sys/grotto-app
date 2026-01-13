@@ -1947,6 +1947,9 @@ if page == "Dashboard":
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         
+        # Ensure is_checked_in is always defined (prevents UnboundLocalError after Complete/rerun paths)
+        is_checked_in = bool(daily_log and daily_log.get('checkedIn', False))
+        
         # Use centralized helpers for day-level absent and completion status (pass pre-fetched daily_log)
         is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
         is_day_completed = _is_day_completed_for_date(daily_log)

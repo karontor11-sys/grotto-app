@@ -1,0 +1,182 @@
+Build Mode Prompt (paste this into Build Mode)
+
+Goal: Make the ISS grey summary box mathematically correct and date-aware (snapshot as-of the Dashboard date), and standardize period math so front-end always matches backend truth.
+
+Implement in two parts:
+
+Backend (db_manager.py)
+Add two helpers:
+
+get_iss_periods_served_through_date(placement_id, through_date)
+
+get_iss_period_math_for_date(placement, placement_id, date_str) returning required/served/remaining
+
+These must compute “served” by summing completed daily logs (periods_added) where daily_log.date <= selected dashboard date, and remaining must include periodsWaived.
+
+Front-end (app.py)
+Replace the ISS period tracking variables so the summary uses backend helpers and becomes date-aware:
+
+Required = dm.get_iss_total_periods_required(placement)
+
+Served (as-of date) + Remaining (as-of date) = dm.get_iss_period_math_for_date(...)
+Update the summary line to:
+ISS: Required X periods | Served Y | Remaining Z
+
+Keep “session complete” logic based on overall placement status / totals (not the historical snapshot), but show the summary as-of the selected date.
+
+PATCH 1 — db_manager.py (Backend helpers)
+
+Find this method in db_manager.py:
+
+def get_iss_periods_served(self, placement: dict) -> int:
+
+
+Right after the end of get_iss_periods_served (and before def get_iss_periods_remaining) paste this block:
+
+    def get_iss_periods_served_through_date(self, placement_id: str, through_date: str) -> int:
+        """Get periods served for an ISS placement through (and including) a given date.
+
+        Used to make the Dashboard period summary *date-aware* when browsing past/future dates.
+
+        Args:
+            placement_id: Placement ID
+            through_date: ISO date string (YYYY-MM-DD)
+
+        Returns:
+            Sum of periods_added for all completed DailyLog rows with date <= through_date.
+            Includes make-up sessions (they also contribute periods_added when completed).
+        """
+        if not placement_id or not through_date:
+            return 0
+
+        try:
+            cutoff_date = date.fromisoformat(str(through_date)[:10])
+        except Exception:
+            return 0
+
+        with self.get_db_session() as session:
+            from sqlalchemy import func
+            total = session.query(func.coalesce(func.sum(DailyLog.periods_added), 0)).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.daily_fulfillment == 'yes',
+                DailyLog.periods_added.isnot(None),
+                DailyLog.date <= cutoff_date
+            ).scalar()
+            return int(total or 0)
+
+    def get_iss_period_math_for_date(self, placement: dict, placement_id: str, date_str: str) -> dict:
+        """Return consistent ISS period math for a given dashboard date.
+
+        Returns required/served/remaining (remaining accounts for periodsWaived).
+        """
+        total_required = self.get_iss_total_periods_required(placement)
+        served = self.get_iss_periods_served_through_date(placement_id, date_str)
+        waived = placement.get('periodsWaived') or 0
+        remaining = max(0, total_required - served - waived)
+        return {
+            "required": int(total_required or 0),
+            "served": int(served or 0),
+            "remaining": int(remaining or 0),
+            "waived": int(waived or 0),
+        }
+
+PATCH 2 — app.py (Date-aware summary + standardized variables)
+2A) Replace the ISS period tracking block
+
+In app.py, search for this block:
+
+# Get period-based ISS tracking fields
+        iss_days_assigned = placement.get('issDaysAssigned') ...acement.get('issTotalDays') or placement.get('daysAssigned', 1)
+        iss_total_required_periods = placement.get('issTotalRequiredPeriods') or (iss_days_assigned * 10)
+        iss_periods_served = placement.get('issPeriodsServed', 0) or 0
+        days_completed = placement.get('daysCompleted', 0) or 0
+
+
+Replace it with:
+
+# Get period-based ISS tracking fields
+        iss_days_assigned = placement.get('issDaysAssigned') or placement.get('issTotalDays') or placement.get('daysAssigned', 1)
+
+        # Date-aware ISS period math (snapshot as-of the Dashboard date)
+        iss_total_required_periods = dm.get_iss_total_periods_required(placement)
+        period_math_asof = dm.get_iss_period_math_for_date(placement, placement_id, date_str)
+        iss_periods_served = period_math_asof['served']
+        iss_periods_remaining = period_math_asof['remaining']
+
+        # Current/overall served periods (used for completion/make-up logic)
+        iss_periods_served_total = dm.get_iss_periods_served(placement)
+        periods_waived = placement.get('periodsWaived') or 0
+        iss_periods_remaining_total = max(0, iss_total_required_periods - iss_periods_served_total - periods_waived)
+
+        days_completed = placement.get('daysCompleted', 0) or 0
+
+2B) Make session-complete logic use overall totals (not the historical snapshot)
+
+Find:
+
+# Check if ISS Session is complete
+        is_session_complete = iss_periods_served >= iss_total_required_periods
+
+
+Replace with:
+
+# Check if ISS Session is complete (overall/current status)
+        is_session_complete = (placement.get('status') == 'completed') or (iss_periods_served_total >= iss_total_required_periods)
+
+2C) Replace the summary line with the date-aware grey summary
+
+Find the existing progress line:
+
+st.info(f"📊 Periods served: **{iss_periods_served}** of **{iss_total_required_periods}**")
+
+
+Replace it with:
+
+            # Grey summary snapshot (date-aware)
+            st.info(
+                f"📊 **ISS:** Required **{iss_total_required_periods}** periods | "
+                f"Served **{iss_periods_served}** | "
+                f"Remaining **{iss_periods_remaining}**"
+            )
+
+2D) Ensure “remaining periods” uses the snapshot math
+
+Find:
+
+remaining_periods = iss_total_required_periods - iss_periods_served
+
+
+Replace with:
+
+remaining_periods = iss_periods_remaining
+
+2E) Make the “Make-Up Session Needed” use overall remaining (current truth)
+
+Find inside the if needs_makeup: block:
+
+periods_remaining = iss_total_required_periods - iss_periods_served
+
+
+Replace with:
+
+periods_remaining = iss_periods_remaining_total
+
+What this accomplishes immediately
+
+The grey summary becomes mathematically correct and consistent:
+
+Required comes from the backend helper
+
+Served is sum of completed daily logs through the selected date
+
+Remaining is derived from required - served - waived
+
+It works across:
+
+single-day ISS
+
+multi-day ISS
+
+multiple partial days (because “served” is based on saved completed logs, not UI guesses)
+
+It respects your “midnight snapshot” philosophy: the display doesn’t “live-update” by time-of-day—only by what’s been saved/completed for that date.

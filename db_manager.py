@@ -2986,6 +2986,53 @@ class DatabaseManager:
             return 0
         
         return placement.get('issPeriodsServed') or 0
+
+    def get_iss_periods_served_through_date(self, placement_id: str, through_date: str) -> int:
+        """Get periods served for an ISS placement through (and including) a given date.
+
+        Used to make the Dashboard period summary *date-aware* when browsing past/future dates.
+
+        Args:
+            placement_id: Placement ID
+            through_date: ISO date string (YYYY-MM-DD)
+
+        Returns:
+            Sum of periods_added for all completed DailyLog rows with date <= through_date.
+            Includes make-up sessions (they also contribute periods_added when completed).
+        """
+        if not placement_id or not through_date:
+            return 0
+
+        try:
+            cutoff_date = date.fromisoformat(str(through_date)[:10])
+        except Exception:
+            return 0
+
+        with self.get_db_session() as session:
+            from sqlalchemy import func
+            total = session.query(func.coalesce(func.sum(DailyLog.periods_added), 0)).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.daily_fulfillment == 'yes',
+                DailyLog.periods_added.isnot(None),
+                DailyLog.date <= cutoff_date
+            ).scalar()
+            return int(total or 0)
+
+    def get_iss_period_math_for_date(self, placement: dict, placement_id: str, date_str: str) -> dict:
+        """Return consistent ISS period math for a given dashboard date.
+
+        Returns required/served/remaining (remaining accounts for periodsWaived).
+        """
+        total_required = self.get_iss_total_periods_required(placement)
+        served = self.get_iss_periods_served_through_date(placement_id, date_str)
+        waived = placement.get('periodsWaived') or 0
+        remaining = max(0, total_required - served - waived)
+        return {
+            "required": int(total_required or 0),
+            "served": int(served or 0),
+            "remaining": int(remaining or 0),
+            "waived": int(waived or 0),
+        }
     
     def get_iss_periods_remaining(self, placement: dict) -> int:
         """Get periods remaining for an ISS placement.

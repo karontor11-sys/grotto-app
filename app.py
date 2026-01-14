@@ -810,8 +810,18 @@ if page == "Dashboard":
         
         # Get period-based ISS tracking fields
         iss_days_assigned = placement.get('issDaysAssigned') or placement.get('issTotalDays') or placement.get('daysAssigned', 1)
-        iss_total_required_periods = placement.get('issTotalRequiredPeriods') or (iss_days_assigned * 10)
-        iss_periods_served = placement.get('issPeriodsServed', 0) or 0
+
+        # Date-aware ISS period math (snapshot as-of the Dashboard date)
+        iss_total_required_periods = dm.get_iss_total_periods_required(placement)
+        period_math_asof = dm.get_iss_period_math_for_date(placement, placement_id, date_str)
+        iss_periods_served = period_math_asof['served']
+        iss_periods_remaining = period_math_asof['remaining']
+
+        # Current/overall served periods (used for completion/make-up logic)
+        iss_periods_served_total = dm.get_iss_periods_served(placement)
+        periods_waived = placement.get('periodsWaived') or 0
+        iss_periods_remaining_total = max(0, iss_total_required_periods - iss_periods_served_total - periods_waived)
+
         days_completed = placement.get('daysCompleted', 0) or 0
         
         # Get days served info for Day X of Y display (completion-based, not calendar-based)
@@ -819,8 +829,8 @@ if page == "Dashboard":
         current_day = days_served_info.get('current_day_number', 1)
         is_today_absent = days_served_info.get('is_today_absent', False)
         
-        # Check if ISS Session is complete
-        is_session_complete = iss_periods_served >= iss_total_required_periods
+        # Check if ISS Session is complete (overall/current status)
+        is_session_complete = (placement.get('status') == 'completed') or (iss_periods_served_total >= iss_total_required_periods)
         
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         # This prevents creating logs on initial Dashboard load
@@ -859,10 +869,15 @@ if page == "Dashboard":
             st.markdown(f"**{iss_days_assigned}-day ISS Session for {student_name}**")
             
             # Progress line: "Periods served: X of Y"
-            st.info(f"📊 Periods served: **{iss_periods_served}** of **{iss_total_required_periods}**")
+            # Grey summary snapshot (date-aware)
+            st.info(
+                f"📊 **ISS:** Required **{iss_total_required_periods}** periods | "
+                f"Served **{iss_periods_served}** | "
+                f"Remaining **{iss_periods_remaining}**"
+            )
             
             # Calculate remaining periods needed
-            remaining_periods = iss_total_required_periods - iss_periods_served
+            remaining_periods = iss_periods_remaining
             
             # Check if placement needs make-up
             placement_status = placement.get('status', 'active')
@@ -890,7 +905,7 @@ if page == "Dashboard":
                 
                 # Show appropriate session label
                 if needs_makeup:
-                    periods_remaining = iss_total_required_periods - iss_periods_served
+                    periods_remaining = iss_periods_remaining_total
                     st.markdown("**Make-Up Session**")
                     st.info(f"🔄 **Make-Up Session Needed:** {periods_remaining} periods remaining to complete ISS")
                 else:

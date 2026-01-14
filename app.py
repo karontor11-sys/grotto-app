@@ -3424,6 +3424,15 @@ if page == "Dashboard":
             progress_status = placement.get('progressStatus', 'NOT_STARTED')
             referral_subtype = placement.get('referralSubtype', '')
             date_str = selected_date.isoformat()
+
+            placement_type = (placement.get('placementType') or placement.get('type') or '').upper()
+            referral_subtype_norm = (referral_subtype or '').strip().lower()
+
+            # Robust "is pre-planned" detection (some records use placementType=PRE_PLANNED_REFERRAL instead of referralSubtype)
+            is_preplanned = (
+                placement_type == 'PRE_PLANNED_REFERRAL'
+                or referral_subtype_norm in {'pre_planned', 'pre-planned', 'preplanned', 'pre planned'}
+            )
             
             # Get subtype display name
             subtype_labels = {
@@ -3444,14 +3453,14 @@ if page == "Dashboard":
             status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
             
             # COMPLETED placements OR (Pre-Planned day completed): Show as non-interactive collapsed card (no expander)
-            if progress_status == "COMPLETED" or (referral_subtype == "pre_planned" and is_day_completed):
+            if progress_status == "COMPLETED" or (is_preplanned and is_day_completed):
                 is_absent = is_absent_day
                 
                 end_date = _parse_iso_date_safe(placement.get('endDate'))
                 days_assigned = placement.get('daysAssigned', 1) or 1
                 
                 # Friendly placement type label for the collapsed record
-                if referral_subtype == 'pre_planned':
+                if is_preplanned:
                     placement_type_label = "Pre-Planned Referral"
                 elif referral_subtype == 'cool_down':
                     placement_type_label = "Cool-Down Referral"
@@ -3460,7 +3469,7 @@ if page == "Dashboard":
                 
                 # Day numbering only matters for multi-day Pre-Planned
                 day_num = None
-                if referral_subtype == 'pre_planned' and days_assigned > 1:
+                if is_preplanned and days_assigned > 1:
                     day_info = dm.get_preplanned_days_served_info(placement_id, date_str)
                     day_num = day_info.get('current_day_number', None)
                 
@@ -3485,7 +3494,7 @@ if page == "Dashboard":
                 # Pre-Planned Referral · 3-Day · Day Completed
                 # For final-day completion, keep: Pre-Planned Referral · 3-Day Session Completed
                 # For single-day completion, keep: Pre-Planned Referral · 1-Day Session Completed
-                if referral_subtype == "pre_planned" and (days_assigned or 1) > 1 and suffix == "Day Completed":
+                if is_preplanned and (days_assigned or 1) > 1 and suffix == "Day Completed":
                     subtitle = f"{placement_type_label} · {days_assigned}-Day · {suffix_html}"
                 else:
                     subtitle = f"{placement_type_label} · {suffix_html}"

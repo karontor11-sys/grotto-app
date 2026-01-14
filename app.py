@@ -3358,8 +3358,14 @@ if page == "Dashboard":
             # Use centralized helper for colored circle
             status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
             
-            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
-            if progress_status == "COMPLETED":
+            # Collapse rules for Lunch Detention:
+            # - If the overall placement is COMPLETED (final-day / whole-session complete), always collapse
+            # - If this DATE is completed AND it's a multi-day Lunch Detention, collapse (middle-day "Day Completed")
+            collapse_for_completed_day = bool(is_day_completed) and (days_assigned or 1) > 1
+            collapse_for_completed_session = (progress_status == "COMPLETED")
+
+            # Show as non-interactive collapsed card (no expander)
+            if collapse_for_completed_session or collapse_for_completed_day:
                 is_absent = is_absent_day
                 
                 end_date = _parse_iso_date_safe(placement.get('endDate'))
@@ -3383,7 +3389,13 @@ if page == "Dashboard":
                 else:
                     suffix_html = suffix
                 
-                subtitle = f"Lunch Detention · {suffix_html}"
+                # For multi-day "middle day" completion, include the 3-Day label:
+                # Lunch Detention · 3-Day · Day Completed
+                # For final-day completion, keep: Lunch Detention · 3-Day Session Completed
+                if (days_assigned or 1) > 1 and suffix_html == "Day Completed":
+                    subtitle = f"Lunch Detention · {days_assigned}-Day · {suffix_html}"
+                else:
+                    subtitle = f"Lunch Detention · {suffix_html}"
                 
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 

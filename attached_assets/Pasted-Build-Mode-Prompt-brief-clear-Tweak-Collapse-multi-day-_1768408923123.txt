@@ -1,0 +1,98 @@
+Build Mode Prompt (brief + clear)
+
+Tweak: Collapse multi-day Lunch Detention records after a day is completed (middle days), the same way multi-day ISS collapses completed middle days.
+
+Requirements
+
+If a Lunch Detention placement is multi-day (daysAssigned > 1) and the selected date’s daily log is completed, the Dashboard record should render as a collapsed, non-expandable “truth row” for that date, even if the overall placement is still IN_PROGRESS.
+
+The collapsed row text should match the established pattern:
+
+Middle day example: Lunch Detention · 3-Day · Day Completed
+
+Final day example: Lunch Detention · 3-Day Session Completed (this may already happen via progressStatus == "COMPLETED"; verify and keep intact)
+
+Must also work when completing days retroactively (past dates).
+
+Must not change existing logic that keeps a record expandable retroactively when it was not completed/overridden and needs fixing.
+
+Implementation (where + how)
+
+Front-end only (app.py): Update the Lunch Detention Dashboard loop to treat “day completed on that date” as a collapse condition for multi-day placements.
+
+Keep backend unchanged: completion is already stored per-day in DailyLog and overall status becomes COMPLETED only when the entire session finishes. We’re simply aligning the UI rendering to recognize “completed day” for multi-day Lunch Detention.
+
+Why this is happening (what I verified in the ZIP)
+
+In your Dashboard Lunch Detention section (app.py), you currently collapse the row only when:
+
+if progress_status == "COMPLETED":
+
+
+That works for the final day (when the whole placement completes), but not for middle days because the backend correctly sets the placement to IN_PROGRESS while the daily log for that date is completed.
+
+You already compute:
+
+daily_log = dm.get_daily_log(placement_id, date_str)
+
+is_day_completed = _is_day_completed_for_date(daily_log)
+
+So the fix is straightforward: change the collapse condition to also include:
+
+is_day_completed and days_assigned > 1
+
+Then format the subtitle so middle days show:
+
+Lunch Detention · {days_assigned}-Day · Day Completed
+
+…and final day stays:
+
+Lunch Detention · {days_assigned}-Day Session Completed
+
+PASTE-IN PATCH (app.py)
+Patch: Lunch Detention Dashboard collapse condition + subtitle formatting
+1) Find this block in app.py (Lunch Detention section)
+
+You’ll see:
+
+            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
+            if progress_status == "COMPLETED":
+
+2) Replace that if line and add the collapse logic
+
+Replace the two lines:
+
+            # COMPLETED placements: Show as non-interactive collapsed card (no expander)
+            if progress_status == "COMPLETED":
+
+
+with:
+
+            # Collapse rules for Lunch Detention:
+            # - If the overall placement is COMPLETED (final-day / whole-session complete), always collapse
+            # - If this DATE is completed AND it's a multi-day Lunch Detention, collapse (middle-day "Day Completed")
+            collapse_for_completed_day = bool(is_day_completed) and (days_assigned or 1) > 1
+            collapse_for_completed_session = (progress_status == "COMPLETED")
+
+            # Show as non-interactive collapsed card (no expander)
+            if collapse_for_completed_session or collapse_for_completed_day:
+
+3) Update the subtitle line inside the collapsed card block
+
+Inside that same collapsed block, you currently build:
+
+                subtitle = f"Lunch Detention · {suffix_html}"
+
+
+Replace it with:
+
+                # For multi-day "middle day" completion, include the 3-Day label:
+                # Lunch Detention · 3-Day · Day Completed
+                # For final-day completion, keep: Lunch Detention · 3-Day Session Completed
+                if (days_assigned or 1) > 1 and suffix_html == "Day Completed":
+                    subtitle = f"Lunch Detention · {days_assigned}-Day · {suffix_html}"
+                else:
+                    subtitle = f"Lunch Detention · {suffix_html}"
+
+
+That’s it.

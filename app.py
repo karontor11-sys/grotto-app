@@ -34,6 +34,9 @@ notifications = st.session_state.notification_manager
 
 # Authorized staff list for placement creation/editing
 AUTHORIZED_STAFF = ["Aaron Toronto", "Matthew Christie", "Todd Foster", "Chad Adamson"]
+
+# =========== DEBUG FLAG (remove after investigation) ===========
+DEBUG_PREPLANNED_DIAG = True
 STAFF_OPTIONS = AUTHORIZED_STAFF + ["Add Staff"]  # "Add Staff" is a non-functional placeholder
 
 def build_points_hover_tooltip_html(total_points, required_points, point_events, positive_menu):
@@ -3448,6 +3451,80 @@ if page == "Dashboard":
             # Use centralized helpers for day-level absent and completion status (pass pre-fetched daily_log)
             is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
             is_day_completed = _is_day_completed_for_date(daily_log)
+
+            # =========== DEBUG: Pre-Planned diagnostic (remove after investigation) ===========
+            if DEBUG_PREPLANNED_DIAG and is_preplanned:
+                with st.expander(f"🔍 DEBUG: Pre-Planned Diag for {student_name} (ID: {placement_id})", expanded=False):
+                    st.markdown("**Placement Fields:**")
+                    st.write({
+                        "id": placement_id,
+                        "placementType": placement.get('placementType'),
+                        "type": placement.get('type'),
+                        "referralSubtype": placement.get('referralSubtype'),
+                        "status": placement.get('status'),
+                        "progressStatus": progress_status,
+                        "daysAssigned": placement.get('daysAssigned'),
+                        "daysCompleted": placement.get('daysCompleted'),
+                        "startDate": placement.get('startDate'),
+                        "endDate": placement.get('endDate'),
+                    })
+                    st.markdown("**Derived Booleans (Dashboard Logic):**")
+                    st.write({
+                        "referral_subtype_norm": referral_subtype_norm,
+                        "placement_type (upper)": placement_type,
+                        "is_preplanned": is_preplanned,
+                        "is_day_completed": is_day_completed,
+                        "is_absent_day": is_absent_day,
+                        "would_collapse": progress_status == "COMPLETED" or (is_preplanned and is_day_completed),
+                    })
+                    st.markdown(f"**DailyLog for {date_str}:**")
+                    if daily_log:
+                        st.write({
+                            "date": daily_log.get('date'),
+                            "day_type": daily_log.get('day_type'),
+                            "daily_fulfillment": daily_log.get('daily_fulfillment'),
+                            "periods_covered": daily_log.get('periods_covered'),
+                            "periods_added": daily_log.get('periods_added'),
+                        })
+                    else:
+                        st.write("No DailyLog found for this date")
+
+                    # Multi-day: show all DailyLogs between startDate and endDate
+                    start_d = _parse_iso_date_safe(placement.get('startDate'))
+                    end_d = _parse_iso_date_safe(placement.get('endDate'))
+                    if start_d and end_d and start_d != end_d:
+                        st.markdown("**All DailyLogs (startDate → endDate):**")
+                        cursor_d = start_d
+                        all_logs = []
+                        while cursor_d <= end_d:
+                            log = dm.get_daily_log(placement_id, cursor_d.isoformat())
+                            if log:
+                                all_logs.append({
+                                    "date": log.get('date'),
+                                    "day_type": log.get('day_type'),
+                                    "daily_fulfillment": log.get('daily_fulfillment'),
+                                    "periods_covered": log.get('periods_covered'),
+                                })
+                            cursor_d += timedelta(days=1)
+                        if all_logs:
+                            st.write(all_logs)
+                        else:
+                            st.write("No DailyLogs found in date range")
+
+                    # Show partial day sessions if any
+                    st.markdown("**PartialDaySessions for this placement:**")
+                    sessions = dm.get_partial_day_sessions(placement_id)
+                    if sessions:
+                        st.write([{
+                            "date": s.get('date'),
+                            "status": s.get('status'),
+                            "session_type": s.get('session_type'),
+                            "periods_assigned": s.get('periods_assigned'),
+                            "periods_served": s.get('periods_served'),
+                        } for s in sessions])
+                    else:
+                        st.write("No PartialDaySessions found")
+            # =========== END DEBUG ===========
             
             # Use centralized helper for colored circle
             status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)

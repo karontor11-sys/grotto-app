@@ -1,0 +1,97 @@
+Plan Mode Prompt: Investigate legacy CPR Pre-Planned record collapse mismatch (NO CHANGES)
+
+Context:
+New CPR Pre-Planned placements created today collapse and render correctly when completed. An older CPR Pre-Planned placement that is completed does not collapse or show the correct one-line closed record. We suspect legacy data differences.
+
+Goal (Investigation only):
+Compare a “working” new Pre-Planned placement and the “broken” older Pre-Planned placement to identify what differs in stored data and what the Dashboard collapse logic is actually seeing.
+
+Instructions
+
+Add temporary debug logging (print to console / Streamlit st.write in a guarded debug section) to inspect both placements:
+
+Placement fields:
+
+id
+
+placementType / type
+
+referralSubtype
+
+status
+
+progressStatus
+
+daysAssigned, daysCompleted
+
+startDate, endDate
+
+Also log the derived booleans used by the Dashboard:
+
+referral_subtype_norm
+
+placement_type (upper)
+
+is_preplanned (the normalized logic)
+
+is_day_completed for the selected date
+
+For each placement, inspect the DailyLog for:
+
+today’s date (or the selected dashboard date where it should collapse)
+
+plus any dates between startDate and endDate if it’s multi-day
+
+For each DailyLog found, print:
+
+date
+
+day_type
+
+daily_fulfillment
+
+periods_covered
+
+periods_added
+
+any CPR/preplanned fields if present (session status, etc.)
+
+Inspect partial day sessions (if used for Pre-Planned) for the same date range:
+
+list sessions for that placement_id
+
+print date, status (fulfilled, no_show, etc.) and any relevant columns
+
+Summarize findings clearly in the output:
+
+Does the old record have:
+
+missing or different placementType?
+
+missing/different referralSubtype?
+
+missing DailyLogs?
+
+DailyLogs present but daily_fulfillment not set to yes?
+
+sessions fulfilled but daily log not fulfilled?
+
+Based on this, recommend which fix is needed:
+
+broaden type/subtype detection, or
+
+normalize legacy data by backfilling subtype and/or daily_fulfillment logs, or
+
+adjust completion function for legacy paths.
+
+Constraints
+
+Do not change behavior.
+
+Do not auto-migrate or backfill anything yet.
+
+Only add debug output behind a single DEBUG_PREPLANNED_DIAG = True flag so it can be removed cleanly later.
+
+Deliverable
+
+Console/UI output that clearly shows why the old record fails to collapse while the new one succeeds.

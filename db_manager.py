@@ -2116,6 +2116,17 @@ class DatabaseManager:
             return results
         finally:
             db_session.close()
+
+    def get_partial_day_sessions(self, placement_id: str) -> list:
+        """
+        Backward-compatible alias.
+
+        Some dashboard/debug code calls `get_partial_day_sessions(...)`.
+        The canonical method is `get_partial_day_sessions_for_placement(...)`.
+
+        This alias prevents AttributeError without changing any behavior.
+        """
+        return self.get_partial_day_sessions_for_placement(placement_id)
     
     def add_periods_to_referral(self, placement_id: str, target_date: date, new_periods: List[int]) -> bool:
         """Add additional periods to a Behavior/Cool-Down referral for a specific date.

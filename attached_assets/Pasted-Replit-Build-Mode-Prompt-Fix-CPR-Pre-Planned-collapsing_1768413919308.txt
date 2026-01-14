@@ -1,0 +1,78 @@
+Replit Build Mode Prompt
+
+Fix CPR Pre-Planned collapsing and collapsed-row formatting. In app.py (Dashboard → Class Period Referrals loop), repair the currently truncated subtype_display line (contains ...), normalize Pre-Planned detection using placementType and subtype variants, and update the collapse condition to collapse for Pre-Planned day-completed rows (middle days) as well as full session completion. Also format collapsed subtitle as “Pre-Planned Referral · 3-Day · Day Completed” for middle-day completions.
+
+PATCH — app.py
+Patch A — Repair subtype_display line and add robust is_preplanned
+
+Find this block (it appears exactly in the CPR Dashboard loop):
+
+            subtype_labels = {
+                'behavior': 'Behavior',
+                'cool_down': 'Cool-Down',
+                'pre_planned': 'Pre-Planned'
+            }
+            subtype_display = subtype_labels.get(referral_subtyp...r() if referral_subtype else '', referral_subtype or 'Referral')
+
+
+Replace it with this corrected + expanded block:
+
+            subtype_labels = {
+                'behavior': 'Behavior',
+                'cool_down': 'Cool-Down',
+                'pre_planned': 'Pre-Planned'
+            }
+
+            # Normalize subtype + placement type (Pre-Planned sometimes comes through as placementType=PRE_PLANNED_REFERRAL)
+            referral_subtype_norm = (referral_subtype or '').strip().lower()
+            placement_type = (placement.get('placementType') or placement.get('type') or '').strip().upper()
+
+            subtype_display = subtype_labels.get(referral_subtype_norm, referral_subtype or 'Referral')
+
+            is_preplanned = (
+                placement_type == "PRE_PLANNED_REFERRAL"
+                or referral_subtype_norm in {"pre_planned", "pre-planned", "preplanned", "pre planned"}
+            )
+
+Patch B — Fix collapse condition to use is_preplanned
+
+Find:
+
+            if progress_status == "COMPLETED" or (referral_subtype == "pre_planned" and is_day_completed):
+
+
+Replace with:
+
+            if progress_status == "COMPLETED" or (is_preplanned and is_day_completed):
+
+Patch C — Make the collapsed label say “Pre-Planned Referral” using is_preplanned
+
+Inside that collapsed branch you currently have:
+
+                if referral_subtype == 'pre_planned':
+                    placement_type_label = "Pre-Planned Referral"
+
+
+Replace with:
+
+                if is_preplanned:
+                    placement_type_label = "Pre-Planned Referral"
+
+
+(Leave your other subtype labels alone.)
+
+Patch D — Add the “3-Day · Day Completed” formatting for middle days
+
+Inside the collapsed branch, find the line:
+
+                subtitle = f"{placement_type_label} · {suffix_html}"
+
+
+Replace it with:
+
+                # For multi-day Pre-Planned "middle day" completion, include the X-Day label:
+                # Pre-Planned Referral · 3-Day · Day Completed
+                if is_preplanned and (days_assigned or 1) > 1 and suffix == "Day Completed":
+                    subtitle = f"{placement_type_label} · {days_assigned}-Day · {suffix_html}"
+                else:
+                    subtitle = f"{placement_type_label} · {suffix_html}"

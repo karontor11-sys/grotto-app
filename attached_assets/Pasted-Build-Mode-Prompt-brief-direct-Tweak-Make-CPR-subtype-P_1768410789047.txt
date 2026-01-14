@@ -1,0 +1,101 @@
+Build Mode Prompt (brief + direct)
+
+Tweak: Make CPR subtype: Pre-Planned collapsed rows match the same “multi-day day-completed vs session-completed” display pattern we just implemented for Lunch Detention.
+
+What’s already happening (verified in ZIP)
+
+In app.py → Dashboard → “Class Period Referral” loop:
+
+The record already collapses when:
+
+the overall placement progressStatus == "COMPLETED" (final day / entire session complete), or
+
+referral_subtype == "pre_planned" and the daily log for that date is completed (is_day_completed)
+
+So:
+
+✅ single-day Pre-Planned collapses on completion
+
+✅ multi-day Pre-Planned collapses on middle-day completion
+
+✅ final day collapses as session completed
+
+✅ retroactive completion collapses on that date
+
+Only the collapsed subtitle text is missing the “3-Day ·” label on middle days.
+
+Required display
+
+Multi-day, middle day completed:
+
+🔴 Student — Pre-Planned Referral · 3-Day · Day Completed
+
+Multi-day, final day completed:
+
+🔴 Student — Pre-Planned Referral · 3-Day Session Completed
+
+Single day completed:
+
+🔴 Student — Pre-Planned Referral · 1-Day Session Completed
+
+Implementation (front-end only)
+
+In the collapsed CPR block, if:
+
+subtype is pre_planned
+
+days_assigned > 1
+
+and suffix is Day Completed
+
+then format subtitle as:
+
+Pre-Planned Referral · {days_assigned}-Day · {suffix_html}
+
+Otherwise keep the existing subtitle format.
+
+No backend changes needed.
+
+PASTE-IN PATCH — app.py
+Patch: Add “3-Day ·” into the collapsed subtitle for Pre-Planned middle days
+1) Locate this exact line in app.py (inside the CPR collapsed-card block)
+
+You’ll find it in the section that begins:
+
+# COMPLETED placements OR (Pre-Planned day completed): Show as non-interactive collapsed card (no expander)
+if progress_status == "COMPLETED" or (referral_subtype == "pre_planned" and is_day_completed):
+
+
+Then later, you’ll see:
+
+subtitle = f"{placement_type_label} · {suffix_html}"
+
+2) Replace that one subtitle line with this block
+                # For multi-day Pre-Planned "middle day" completion, include the X-Day label:
+                # Pre-Planned Referral · 3-Day · Day Completed
+                # For final-day completion, keep: Pre-Planned Referral · 3-Day Session Completed
+                # For single-day completion, keep: Pre-Planned Referral · 1-Day Session Completed
+                if referral_subtype == "pre_planned" and (days_assigned or 1) > 1 and suffix == "Day Completed":
+                    subtitle = f"{placement_type_label} · {days_assigned}-Day · {suffix_html}"
+                else:
+                    subtitle = f"{placement_type_label} · {suffix_html}"
+
+
+That’s it.
+
+What you should see after this patch
+Multi-day Pre-Planned
+
+On a middle completed day:
+
+🔴 Student — Pre-Planned Referral · 3-Day · Day Completed
+
+On the final completion day:
+
+🔴 Student — Pre-Planned Referral · 3-Day Session Completed
+
+Single-day Pre-Planned
+
+After completion:
+
+🔴 Student — Pre-Planned Referral · 1-Day Session Completed (or equivalent)

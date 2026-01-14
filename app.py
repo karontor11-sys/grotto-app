@@ -3481,7 +3481,14 @@ if page == "Dashboard":
                 else:
                     suffix_html = suffix
                 
-                subtitle = f"{placement_type_label} · {suffix_html}"
+                # For multi-day Pre-Planned "middle day" completion, include the X-Day label:
+                # Pre-Planned Referral · 3-Day · Day Completed
+                # For final-day completion, keep: Pre-Planned Referral · 3-Day Session Completed
+                # For single-day completion, keep: Pre-Planned Referral · 1-Day Session Completed
+                if referral_subtype == "pre_planned" and (days_assigned or 1) > 1 and suffix == "Day Completed":
+                    subtitle = f"{placement_type_label} · {days_assigned}-Day · {suffix_html}"
+                else:
+                    subtitle = f"{placement_type_label} · {suffix_html}"
                 
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 

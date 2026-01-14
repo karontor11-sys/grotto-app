@@ -2736,8 +2736,9 @@ if page == "Dashboard":
                         # Show locked partial day info
                         st.caption(f"Partial Day: Periods {stored_start_period}-{stored_end_period}")
                 
-                # Show message when no day type is selected
-                if not is_day_type_locked:
+                # Show message only until the user chooses Partial Day (scheduler visible) OR the day type is locked.
+                # This is a UI-only tweak; it does not affect save/lock/validation logic.
+                if (not is_day_type_locked) and (day_type != "Partial Day"):
                     st.info("📋 Please select Full Day or Partial Day to continue.")
                 
                 st.divider()

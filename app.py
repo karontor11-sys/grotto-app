@@ -643,7 +643,9 @@ if page == "Dashboard":
                 if not payload:
                     st.error("Missing payload for add_point")
                 else:
-                    dm.add_point_event(payload)
+                    event_id = dm.add_point_event(payload)
+                    if not event_id:
+                        st.warning("🔒 Points were not added. Confirm **Full Day** or confirm **Partial Day** periods for this date first.")
 
                 # Reset dropdowns by setting defaults (not deleting keys) so the next selection triggers cleanly
                 card_uid = pending.get("card_uid")
@@ -2740,7 +2742,14 @@ if page == "Dashboard":
             # NOTE: Two-phase completion is now handled by the GLOBAL handler at the top
             # of the Dashboard page. This ensures Phase 2 runs even when expanders are collapsed.
             
-            if is_checked_in and not is_completed:
+            # If checked in but not yet locked, explain why points are unavailable
+            if is_checked_in and not is_completed and not is_day_type_locked:
+                st.info("🔒 Points are locked until you confirm **Full Day** or confirm **Partial Day** periods for this date.")
+            
+            # Gate points behind day-type confirmation:
+            # - Full Day requires "Confirm Full Day"
+            # - Partial Day requires selecting start/end + "Confirm Partial Day"
+            if is_checked_in and not is_completed and is_day_type_locked:
                 points_col, behaviors_col = st.columns([1, 1])
                 
                 with behaviors_col:

@@ -1,0 +1,154 @@
+Build Mode Prompt (brief + direct)
+
+Tweak: Gate ISS point entry behind day-type confirmation.
+
+Required behavior
+
+On a live ISS Dashboard card, disable/withhold the “Add Behaviors” (points) UI until the day is “locked”:
+
+Full Day: user must click Confirm Full Day
+
+Partial Day: user must choose Start Period + End Period and click Confirm Partial Day
+
+Works per-day and persists correctly for single-day + multi-day placements.
+
+Add a backend guardrail: even if the UI regresses, ISS points cannot be saved unless the daily log for that date has a valid day_type (full/partial). Block if missing or “absent”.
+
+Implementation
+
+Front-end gating in app.py
+Render “Add Behaviors” only when is_checked_in and not is_completed and is_day_type_locked. Otherwise show an info message explaining why points are locked.
+
+Backend guard in db_manager.py
+In add_point_event, if placement category is ISS, reject the add unless the daily log exists and day_type is set (and not “absent”).
+
+Also update the ISS dispatcher so if backend returns “rejected,” show a warning instead of silently doing nothing.
+
+PATCH 1 — app.py (Front-end gating + warning)
+1A) Gate the “Add Behaviors” section behind is_day_type_locked
+
+Find this line (exactly as written):
+
+            if is_checked_in and not is_completed:
+
+
+Replace it with this block:
+
+            # Gate points behind day-type confirmation:
+            # - Full Day requires "Confirm Full Day"
+            # - Partial Day requires selecting start/end + "Confirm Partial Day"
+            if is_checked_in and not is_completed and is_day_type_locked:
+                points_col, behaviors_col = st.columns([1, 1])
+                
+                with behaviors_col:
+                    st.markdown("**Add Behaviors**")
+                    pos_col, neg_col = st.columns(2)
+                    
+                    with pos_col:
+                        positive_menu = ps.get_positive_point_menu()
+                        positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
+
+
+✅ This is a direct replacement of the existing if line + it keeps your existing content under it.
+
+Now immediately above that block (or directly after your existing st.divider()), add this message for the locked state:
+
+Insert this right before the gated if ... is_day_type_locked: block (same indentation level):
+
+            # If checked in but not yet locked, explain why points are unavailable
+            if is_checked_in and not is_completed and not is_day_type_locked:
+                st.info("🔒 Points are locked until you confirm **Full Day** or confirm **Partial Day** periods for this date.")
+
+
+That gives the user a clean, obvious reason why points aren’t available yet.
+
+1B) Make the ISS dispatcher show a warning if backend rejects the add
+
+Find this block:
+
+                else:
+                    dm.add_point_event(payload)
+
+
+Replace it with:
+
+                else:
+                    event_id = dm.add_point_event(payload)
+                    if not event_id:
+                        st.warning("🔒 Points were not added. Confirm **Full Day** or confirm **Partial Day** periods for this date first.")
+
+PATCH 2 — db_manager.py (Backend guardrail)
+2A) Add ISS day-type lock validation inside add_point_event
+
+Find:
+
+    def add_point_event(self, event_data: Dict[str, Any]) -> str:
+        """Add a point event."""
+        session = self.get_session()
+        try:
+            event_id = self.generate_id()
+            event = PointEvent(
+
+
+Replace the start of the try block with this (keep the rest of the function as-is after it):
+
+    def add_point_event(self, event_data: Dict[str, Any]) -> str:
+        """Add a point event.
+
+        Guardrail: For ISS placements, points may only be added after the day's ISS configuration
+        is locked (day_type set to 'full' or 'partial' in the DailyLog for that date).
+        """
+        session = self.get_session()
+        try:
+            placement_id = event_data['placementId']
+            event_date = datetime.fromisoformat(event_data['date']).date()
+
+            # --- ISS guardrail: require confirmed day_type before allowing points ---
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if placement and placement.placement_type == PlacementCategory.ISS:
+                log = session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == event_date
+                ).first()
+
+                # Block if the log doesn't exist yet or day_type hasn't been confirmed
+                if not log or not getattr(log, "day_type", None):
+                    return ""
+
+                # Block absent days (future-proofing; your schema/comment allows 'absent')
+                if str(log.day_type).lower() == "absent":
+                    return ""
+
+            # ---------------------------------------------------------------
+
+            event_id = self.generate_id()
+            event = PointEvent(
+                id=event_id,
+                student_id=event_data['studentId'],
+                placement_id=placement_id,
+                session_id=event_data.get('sessionId'),  # Optional session_id for partial-day sessions
+                date=event_date,
+                type=PointEventType[event_data['type']],
+                code=event_data['code'],
+                value=event_data['value'],
+                notes=event_data.get('notes'),
+                created_by=event_data.get('createdBy'),
+                created_at=datetime.fromisoformat(event_data.get('createdAt', central_now_naive().isoformat()))
+            )
+
+
+Everything below that (session.add / commit / update_daily_log_totals / return) stays the same.
+
+What this accomplishes (behavior you’ll see)
+
+A staff member can Check-In, but they cannot add points until:
+
+they click Confirm Full Day, OR
+
+they select partial periods and click Confirm Partial Day
+
+It persists correctly:
+
+each date in a multi-day placement must be confirmed before points unlock
+
+Backend won’t accept ISS points if the day type wasn’t confirmed (prevents regressions and weird edge cases).

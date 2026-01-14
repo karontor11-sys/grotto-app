@@ -5062,16 +5062,41 @@ class DatabaseManager:
     
     # Point Event operations
     def add_point_event(self, event_data: Dict[str, Any]) -> str:
-        """Add a point event."""
+        """Add a point event.
+
+        Guardrail: For ISS placements, points may only be added after the day's ISS configuration
+        is locked (day_type set to 'full' or 'partial' in the DailyLog for that date).
+        """
         session = self.get_session()
         try:
+            placement_id = event_data['placementId']
+            event_date = datetime.fromisoformat(event_data['date']).date()
+
+            # --- ISS guardrail: require confirmed day_type before allowing points ---
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if placement and placement.placement_type == PlacementCategory.ISS:
+                log = session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == event_date
+                ).first()
+
+                # Block if the log doesn't exist yet or day_type hasn't been confirmed
+                if not log or not getattr(log, "day_type", None):
+                    return ""
+
+                # Block absent days (future-proofing; your schema/comment allows 'absent')
+                if str(log.day_type).lower() == "absent":
+                    return ""
+
+            # ---------------------------------------------------------------
+
             event_id = self.generate_id()
             event = PointEvent(
                 id=event_id,
                 student_id=event_data['studentId'],
-                placement_id=event_data['placementId'],
+                placement_id=placement_id,
                 session_id=event_data.get('sessionId'),  # Optional session_id for partial-day sessions
-                date=datetime.fromisoformat(event_data['date']).date(),
+                date=event_date,
                 type=PointEventType[event_data['type']],
                 code=event_data['code'],
                 value=event_data['value'],

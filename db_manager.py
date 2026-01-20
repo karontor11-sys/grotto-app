@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import enum
-from utils import add_business_days, get_school_days, central_today, central_now_naive
+from utils import add_business_days, get_school_days, central_today, central_now_naive, central_now
 
 Base = declarative_base()
 
@@ -1480,22 +1480,20 @@ class DatabaseManager:
             session.close()
 
     def complete_and_clone_lunch_detention_absent(self, placement_id: str, absent_date: str, actor: str = "Admin") -> Optional[str]:
-        """For **1-day Lunch Detention only**: mark the day absent, close the original placement as completed,
-        then create a new 1-day Lunch Detention on the next school day.
+        """For 1-day Lunch Detention only:
+        - ensure the day is marked absent
+        - atomically (transactional) close original as COMPLETED
+        - clone a new 1-day Lunch Detention on the next school day
 
-        UI intent (Option A): the original record will collapse with a red circle and the subtitle "Absent".
-
-        Returns:
-            The new placement_id if created, otherwise None.
+        Option A UI intent preserved: red circle + 'Absent' subtitle on the original.
         """
-        # 1) Close out the original placement in a single DB session
         session = self.get_session()
         try:
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
             if not placement:
                 return None
 
-            # Guardrails: only for Lunch Detention, 1-day
+            # Guardrails
             if placement.placement_type != PlacementCategory.LUNCH_DETENTION:
                 return None
             if (placement.days_assigned or 1) != 1:
@@ -1503,16 +1501,15 @@ class DatabaseManager:
 
             date_obj = datetime.fromisoformat(absent_date).date()
 
-            # Ensure a DailyLog exists and is marked absent
+            # Ensure DailyLog exists and is absent
             log = session.query(DailyLog).filter(
                 DailyLog.placement_id == placement_id,
                 DailyLog.date == date_obj
             ).first()
 
             if not log:
-                log_id = self.generate_id()
                 log = DailyLog(
-                    id=log_id,
+                    id=self.generate_id(),
                     placement_id=placement_id,
                     date=date_obj,
                     day_type='absent',
@@ -1534,56 +1531,60 @@ class DatabaseManager:
                 log.start_period = None
                 log.end_period = None
                 log.periods_covered = []
-                # keep notes, but clear fulfillment to avoid counting as served
                 log.daily_fulfillment = None
                 log.positive_total = 0
                 log.negative_total = 0
                 log.daily_total = 0
 
-            # Close the original placement as completed (so it collapses on the Dashboard)
+            # --- Compute next school day BEFORE closing original (transaction safety) ---
+            next_start = date_obj + timedelta(days=1)
+            next_dates = self.calculate_scheduled_lunch_dates(next_start, 1)
+            if not next_dates:
+                raise RuntimeError("No next school day available for Lunch Detention reschedule.")
+            next_day = next_dates[0]
+
+            # Read original placement data once
+            original = self.get_placement(placement_id)
+            if not original:
+                raise RuntimeError("Original placement not found during clone.")
+
+            # Prepare clone payload
+            placement_data = {
+                "studentId": original.get('studentId'),
+                "homeroomTeacherId": original.get('homeroomTeacherId'),
+                "reason": original.get('reason', ''),
+                "type": "iss_full_day",
+                "placementType": "LUNCH_DETENTION",
+                "completionRule": "all_sessions_fulfilled",
+                "minSessionsRequired": None,
+                "daysAssigned": 1,
+                "startDate": next_day.isoformat(),
+                "endDate": next_day.isoformat(),
+                "scheduledLunchDates": [next_day.isoformat()],
+                "servedDates": [],
+                "status": "active",
+                "createdBy": original.get('createdBy') or actor,
+                "createdAt": central_now().isoformat()
+            }
+
+            # Create clone first
+            new_placement_id = self.add_placement(placement_data)
+            self.generate_lunch_detention_sessions_from_scheduled(new_placement_id, [next_day])
+
+            # Now safely close original
             placement.status = PlacementStatus.completed
             placement.progress_status = PlacementProgressStatus.COMPLETED
             placement.end_date = date_obj
 
             session.commit()
+            return new_placement_id
+
+        except Exception:
+            session.rollback()
+            # Re-raise so UI can surface the error if needed
+            raise
         finally:
             session.close()
-
-        # 2) Create the replacement 1-day Lunch Detention on the next school day
-        next_start = datetime.fromisoformat(absent_date).date() + timedelta(days=1)
-        next_dates = self.calculate_scheduled_lunch_dates(next_start, 1)
-        if not next_dates:
-            return None
-        next_day = next_dates[0]
-
-        # Pull original placement details (safe read)
-        original = self.get_placement(placement_id)
-        if not original:
-            return None
-
-        placement_data = {
-            "studentId": original.get('studentId'),
-            "homeroomTeacherId": original.get('homeroomTeacherId'),
-            "reason": original.get('reason', ''),
-            "type": "iss_full_day",
-            "placementType": "LUNCH_DETENTION",
-            "completionRule": "all_sessions_fulfilled",
-            "minSessionsRequired": None,
-            "daysAssigned": 1,
-            "startDate": next_day.isoformat(),
-            "endDate": next_day.isoformat(),
-            "scheduledLunchDates": [next_day.isoformat()],
-            "servedDates": [],
-            "status": "active",
-            "createdBy": original.get('createdBy') or actor,
-            "createdAt": central_now().isoformat()
-        }
-
-        new_placement_id = self.add_placement(placement_data)
-        # Create the scheduled lunch session
-        self.generate_lunch_detention_sessions_from_scheduled(new_placement_id, [next_day])
-
-        return new_placement_id
     
     def unmark_absent(self, placement_id: str, date_str: str) -> bool:
         """Remove the absent marking for a specific date.

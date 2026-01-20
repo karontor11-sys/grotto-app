@@ -1,0 +1,119 @@
+Fix the NameError: central_now in db_manager.complete_and_clone_lunch_detention_absent and add a small transactional guard so a failure cannot close the original 1-day Lunch Detention without also cloning it. Import central_now (preferred) and wrap the close-and-clone logic in a single try/except with rollback semantics. Do not change UI behavior, business rules, or circle/text styling (keep Option A: red circle + “Absent”).
+
+PASTE-IN CODE
+db_manager.py — tiny, surgical patch
+
+A) Import central_now (top of file, with other imports):
+
+from utils import central_now
+
+
+B) Replace the body of complete_and_clone_lunch_detention_absent with this guarded version
+(Only this function; nothing else.)
+
+def complete_and_clone_lunch_detention_absent(self, placement_id: str, absent_date: str, actor: str = "Admin") -> Optional[str]:
+    """For 1-day Lunch Detention only:
+    - ensure the day is marked absent
+    - atomically (transactional) close original as COMPLETED
+    - clone a new 1-day Lunch Detention on the next school day
+
+    Option A UI intent preserved: red circle + 'Absent' subtitle on the original.
+    """
+    session = self.get_session()
+    try:
+        placement = session.query(Placement).filter(Placement.id == placement_id).first()
+        if not placement:
+            return None
+
+        # Guardrails
+        if placement.placement_type != PlacementCategory.LUNCH_DETENTION:
+            return None
+        if (placement.days_assigned or 1) != 1:
+            return None
+
+        date_obj = datetime.fromisoformat(absent_date).date()
+
+        # Ensure DailyLog exists and is absent
+        log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.date == date_obj
+        ).first()
+
+        if not log:
+            log = DailyLog(
+                id=self.generate_id(),
+                placement_id=placement_id,
+                date=date_obj,
+                day_type='absent',
+                checked_in=False,
+                start_period=None,
+                end_period=None,
+                periods_covered=[],
+                daily_fulfillment=None,
+                positive_total=0,
+                negative_total=0,
+                daily_total=0,
+                readiness='continue'
+            )
+            session.add(log)
+        else:
+            log.day_type = 'absent'
+            log.checked_in = False
+            log.checked_in_at = None
+            log.start_period = None
+            log.end_period = None
+            log.periods_covered = []
+            log.daily_fulfillment = None
+            log.positive_total = 0
+            log.negative_total = 0
+            log.daily_total = 0
+
+        # --- Compute next school day BEFORE closing original (transaction safety) ---
+        next_start = date_obj + timedelta(days=1)
+        next_dates = self.calculate_scheduled_lunch_dates(next_start, 1)
+        if not next_dates:
+            raise RuntimeError("No next school day available for Lunch Detention reschedule.")
+        next_day = next_dates[0]
+
+        # Read original placement data once
+        original = self.get_placement(placement_id)
+        if not original:
+            raise RuntimeError("Original placement not found during clone.")
+
+        # Prepare clone payload
+        placement_data = {
+            "studentId": original.get('studentId'),
+            "homeroomTeacherId": original.get('homeroomTeacherId'),
+            "reason": original.get('reason', ''),
+            "type": "iss_full_day",
+            "placementType": "LUNCH_DETENTION",
+            "completionRule": "all_sessions_fulfilled",
+            "minSessionsRequired": None,
+            "daysAssigned": 1,
+            "startDate": next_day.isoformat(),
+            "endDate": next_day.isoformat(),
+            "scheduledLunchDates": [next_day.isoformat()],
+            "servedDates": [],
+            "status": "active",
+            "createdBy": original.get('createdBy') or actor,
+            "createdAt": central_now().isoformat()
+        }
+
+        # Create clone first
+        new_placement_id = self.add_placement(placement_data)
+        self.generate_lunch_detention_sessions_from_scheduled(new_placement_id, [next_day])
+
+        # Now safely close original
+        placement.status = PlacementStatus.completed
+        placement.progress_status = PlacementProgressStatus.COMPLETED
+        placement.end_date = date_obj
+
+        session.commit()
+        return new_placement_id
+
+    except Exception:
+        session.rollback()
+        # Re-raise so UI can surface the error if needed
+        raise
+    finally:
+        session.close()

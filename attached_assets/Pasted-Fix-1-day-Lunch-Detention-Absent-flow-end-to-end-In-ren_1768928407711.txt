@@ -1,0 +1,313 @@
+Fix 1-day Lunch Detention Absent flow end-to-end. In render_lunch_detention_card, when Absent is checked for a 1-day Lunch Detention, immediately enter a “decision pending” state that (1) shows the Yes/No reschedule prompt and (2) disables/hides the Complete button while the prompt is pending. If the user clicks Yes, call a DB helper that atomically: marks the day absent, creates the next-school-day 1-day Lunch Detention, and closes the original placement as COMPLETED with a stored marker for UI (“ABSENT_RESCHEDULED”). If the user clicks No, call a DB helper that marks the day absent and closes the original placement as COMPLETED with marker (“ABSENT_CLOSED”). Update the Lunch Detention collapsed subtitle on the Dashboard so completed absent records show “Absent · Rescheduled” or “Absent · Closed Complete” (still red circle), based on the stored marker. Ensure the original record collapses immediately after Yes/No (no expand), and do not change behavior for other placement types.
+
+PASTE-IN CODE
+1) db_manager.py — expose makeup_note to the UI (one tiny dict add)
+
+In _placement_to_dict(...), add these fields near the bottom of the returned dict (right before the closing } is fine):
+
+            # Make-up / misc note (useful for non-ISS metadata too)
+            'makeupDaysUsed': placement.makeup_days_used or 0,
+            'makeupPeriodsServed': placement.makeup_periods_served or 0,
+            'makeupNote': placement.makeup_note,
+
+2) db_manager.py — add two helpers (Yes path + No path)
+
+Paste these inside DatabaseManager, right after unmark_absent(...) (or anywhere in the class near absent logic):
+
+def complete_and_clone_lunch_detention_absent(self, placement_id: str, absent_date: str, actor: str = "Admin") -> Optional[str]:
+    """
+    1-day Lunch Detention only:
+      - mark the day absent
+      - create next-school-day 1-day Lunch Detention
+      - close original placement as COMPLETED
+      - store marker: makeup_note contains 'ABSENT_RESCHEDULED'
+    Returns new placement id (or None).
+    """
+    session = self.get_session()
+    try:
+        placement = session.query(Placement).filter(Placement.id == placement_id).first()
+        if not placement:
+            return None
+
+        # Guardrails
+        if placement.placement_type != PlacementCategory.LUNCH_DETENTION:
+            return None
+        if (placement.days_assigned or 1) != 1:
+            return None
+
+        date_obj = datetime.fromisoformat(absent_date).date()
+
+        # Ensure DailyLog absent
+        log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.date == date_obj
+        ).first()
+
+        if not log:
+            log = DailyLog(
+                id=self.generate_id(),
+                placement_id=placement_id,
+                date=date_obj,
+                day_type='absent',
+                checked_in=False,
+                start_period=None,
+                end_period=None,
+                periods_covered=[],
+                daily_fulfillment=None,
+                positive_total=0,
+                negative_total=0,
+                daily_total=0
+            )
+            session.add(log)
+        else:
+            log.day_type = 'absent'
+            log.checked_in = False
+            log.checked_in_at = None
+            log.start_period = None
+            log.end_period = None
+            log.periods_covered = []
+            log.daily_fulfillment = None
+            log.positive_total = 0
+            log.negative_total = 0
+            log.daily_total = 0
+
+        # Compute next school day BEFORE closing original (transaction safety)
+        next_start = date_obj + timedelta(days=1)
+        next_dates = self.calculate_scheduled_lunch_dates(next_start, 1)
+        if not next_dates:
+            raise RuntimeError("No next school day available for Lunch Detention reschedule.")
+        next_day = next_dates[0]
+
+        # Read original placement payload for cloning
+        original = self.get_placement(placement_id)
+        if not original:
+            raise RuntimeError("Original placement not found during clone.")
+
+        # Create clone first
+        placement_data = {
+            "studentId": original.get('studentId'),
+            "homeroomTeacherId": original.get('homeroomTeacherId'),
+            "reason": original.get('reason', ''),
+            "type": original.get('type', 'iss_full_day'),
+            "placementType": "LUNCH_DETENTION",
+            "completionRule": original.get('completionRule', 'iss_days'),
+            "minSessionsRequired": None,
+            "daysAssigned": 1,
+            "startDate": next_day.isoformat(),
+            "endDate": next_day.isoformat(),
+            "scheduledLunchDates": [next_day.isoformat()],
+            "servedDates": [],
+            "status": "active",
+            "createdBy": original.get('createdBy') or actor
+        }
+
+        new_placement_id = self.add_placement(placement_data)
+        self.generate_lunch_detention_sessions_from_scheduled(new_placement_id, [next_day])
+
+        # Now close original (forces Dashboard collapse: progressStatus == COMPLETED)
+        placement.status = PlacementStatus.completed
+        placement.progress_status = PlacementProgressStatus.COMPLETED
+        placement.end_date = date_obj
+
+        # Store marker for UI subtitle
+        existing = placement.makeup_note or ""
+        marker = "ABSENT_RESCHEDULED"
+        placement.makeup_note = f"{existing} | {marker}".strip(" |") if existing else marker
+
+        session.commit()
+        return new_placement_id
+
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def close_lunch_detention_absent_no_clone(self, placement_id: str, absent_date: str):
+    """
+    1-day Lunch Detention only:
+      - mark day absent
+      - close original placement as COMPLETED
+      - store marker: makeup_note contains 'ABSENT_CLOSED'
+    """
+    session = self.get_session()
+    try:
+        placement = session.query(Placement).filter(Placement.id == placement_id).first()
+        if not placement:
+            return
+
+        # Guardrails
+        if placement.placement_type != PlacementCategory.LUNCH_DETENTION:
+            return
+        if (placement.days_assigned or 1) != 1:
+            return
+
+        date_obj = datetime.fromisoformat(absent_date).date()
+
+        # Ensure DailyLog absent
+        log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.date == date_obj
+        ).first()
+
+        if not log:
+            log = DailyLog(
+                id=self.generate_id(),
+                placement_id=placement_id,
+                date=date_obj,
+                day_type='absent',
+                checked_in=False,
+                start_period=None,
+                end_period=None,
+                periods_covered=[],
+                daily_fulfillment=None,
+                positive_total=0,
+                negative_total=0,
+                daily_total=0
+            )
+            session.add(log)
+        else:
+            log.day_type = 'absent'
+            log.checked_in = False
+            log.checked_in_at = None
+            log.start_period = None
+            log.end_period = None
+            log.periods_covered = []
+            log.daily_fulfillment = None
+            log.positive_total = 0
+            log.negative_total = 0
+            log.daily_total = 0
+
+        # Close original
+        placement.status = PlacementStatus.completed
+        placement.progress_status = PlacementProgressStatus.COMPLETED
+        placement.end_date = date_obj
+
+        # Store marker for UI subtitle
+        existing = placement.makeup_note or ""
+        marker = "ABSENT_CLOSED"
+        placement.makeup_note = f"{existing} | {marker}".strip(" |") if existing else marker
+
+        session.commit()
+    finally:
+        session.close()
+
+3) app.py — add “decision pending” state + disable Complete while pending
+
+In render_lunch_detention_card, find the block:
+
+absent_key = f"ld_absent_{placement_id}_{date_str}"
+db_absent = dm.is_marked_absent(placement_id, date_str)
+...
+def handle_absent_change(...)
+
+
+Replace that section with this updated version (keeps existing behavior but adds pending state + prompt trigger):
+
+# Absent checkbox key
+absent_key = f"ld_absent_{placement_id}_{date_str}"
+absent_decision_key = f"ld_absent_decision_{placement_id}_{date_str}"  # None / 'pending'
+db_absent = dm.is_marked_absent(placement_id, date_str)
+
+# Initialize session state from DB if not set
+if absent_key not in st.session_state:
+    st.session_state[absent_key] = db_absent
+
+# Track whether the user still needs to answer Yes/No (1-day LD only)
+if absent_decision_key not in st.session_state:
+    st.session_state[absent_decision_key] = None
+
+def handle_absent_change(pid=placement_id, ds=date_str, key=absent_key):
+    new_val = st.session_state.get(key, False)
+    if new_val:
+        dm.mark_absent(pid, ds)
+        # For 1-day Lunch Detention: immediately require Yes/No decision
+        if int(total_days or 1) == 1:
+            st.session_state[absent_decision_key] = "pending"
+    else:
+        dm.unmark_absent(pid, ds)
+        st.session_state[absent_decision_key] = None
+
+
+Now, still inside the same function, locate the existing Complete button section:
+
+# Complete button ...
+if not is_completed:
+    complete_disabled = not is_checked_in
+    ...
+
+
+Replace ONLY the complete_disabled logic with this (so Absent/pending blocks completion immediately):
+
+# Complete button (safe access - daily_log may be None)
+is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+
+# If 1-day LD is absent AND we're awaiting Yes/No, do not allow completion
+decision_pending = (int(total_days or 1) == 1) and (is_absent) and (st.session_state.get(absent_decision_key) == "pending")
+
+if not is_completed:
+    # Base rule: check-in required
+    complete_disabled = (not is_checked_in) or decision_pending
+    if decision_pending:
+        complete_help = "Choose Yes/No for Absent before completing"
+    else:
+        complete_help = "Check in required before completing" if (not is_checked_in) else None
+
+    if not decision_pending:
+        if st.button(
+            "✓ Complete",
+            key=f"complete_{placement_id}_{date_str}",
+            type="primary",
+            disabled=complete_disabled,
+            help=complete_help
+        ):
+            dm.complete_placement_day(placement_id, date_str, "Admin")
+            clear_dashboard_caches()
+            st.rerun()
+    else:
+        st.info("Absent is marked for a 1-day Lunch Detention. Please choose Yes/No below to close this record.")
+else:
+    st.success("Completed")
+
+
+Finally, add the Yes/No prompt UI right after the Check In button block (after if is_future_placement: st.caption(...) is fine). Paste this:
+
+# 1-day Lunch Detention: Absent → Yes/No reschedule prompt
+if (int(total_days or 1) == 1) and is_absent and (st.session_state.get(absent_decision_key) == "pending"):
+    st.warning("Create the same placement for the next school day?")
+    y1, y2 = st.columns(2)
+    with y1:
+        if st.button("Yes", key=f"{absent_decision_key}_yes", type="primary"):
+            dm.complete_and_clone_lunch_detention_absent(placement_id, date_str, actor="Admin")
+            st.session_state[absent_decision_key] = None
+            clear_dashboard_caches()
+            st.rerun()
+    with y2:
+        if st.button("No", key=f"{absent_decision_key}_no"):
+            dm.close_lunch_detention_absent_no_clone(placement_id, date_str)
+            st.session_state[absent_decision_key] = None
+            clear_dashboard_caches()
+            st.rerun()
+
+4) app.py — Dashboard: show “Absent · Rescheduled” / “Absent · Closed Complete”
+
+In the Dashboard Lunch Detention loop, you already compute:
+
+suffix = _completed_suffix_for_day(...)
+...
+subtitle = f"Lunch Detention · {suffix_html}"
+
+
+Immediately after suffix = _completed_suffix_for_day(...), add this override:
+
+# 1-day Lunch Detention: absent outcome labels (stored in makeupNote marker)
+if (days_assigned or 1) == 1 and suffix == "Absent":
+    note = (placement.get("makeupNote") or "")
+    if "ABSENT_RESCHEDULED" in note:
+        suffix = "Absent · Rescheduled"
+    elif "ABSENT_CLOSED" in note:
+        suffix = "Absent · Closed Complete"
+
+
+(Leave everything else as-is.)

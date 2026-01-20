@@ -1576,8 +1576,10 @@ class DatabaseManager:
             placement.progress_status = PlacementProgressStatus.COMPLETED
             placement.end_date = date_obj
 
-            # Mark original as absent + rescheduled for UI subtitle
-            placement.notes = (placement.notes or "") + " | ABSENT_RESCHEDULED"
+            # Store marker for UI subtitle
+            existing = placement.makeup_note or ""
+            marker = "ABSENT_RESCHEDULED"
+            placement.makeup_note = f"{existing} | {marker}".strip(" |") if existing else marker
 
             session.commit()
             return new_placement_id
@@ -1594,14 +1596,76 @@ class DatabaseManager:
         
         Sets the placement to COMPLETED and appends ABSENT_CLOSED marker for UI subtitle.
         """
+        self.close_lunch_detention_absent_no_clone(placement_id)
+
+    def close_lunch_detention_absent_no_clone(self, placement_id: str, absent_date: str = None):
+        """
+        1-day Lunch Detention only:
+          - mark day absent (if absent_date provided)
+          - close original placement as COMPLETED
+          - store marker: makeup_note contains 'ABSENT_CLOSED'
+        """
         session = self.get_session()
         try:
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
             if not placement:
                 return
-            placement.notes = (placement.notes or "") + " | ABSENT_CLOSED"
+
+            # Guardrails
+            if placement.placement_type != PlacementCategory.LUNCH_DETENTION:
+                return
+            if (placement.days_assigned or 1) != 1:
+                return
+
+            # Mark absent if date provided
+            if absent_date:
+                date_obj = datetime.fromisoformat(absent_date).date()
+
+                # Ensure DailyLog absent
+                log = session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == date_obj
+                ).first()
+
+                if not log:
+                    log = DailyLog(
+                        id=self.generate_id(),
+                        placement_id=placement_id,
+                        date=date_obj,
+                        day_type='absent',
+                        checked_in=False,
+                        start_period=None,
+                        end_period=None,
+                        periods_covered=[],
+                        daily_fulfillment=None,
+                        positive_total=0,
+                        negative_total=0,
+                        daily_total=0
+                    )
+                    session.add(log)
+                else:
+                    log.day_type = 'absent'
+                    log.checked_in = False
+                    log.checked_in_at = None
+                    log.start_period = None
+                    log.end_period = None
+                    log.periods_covered = []
+                    log.daily_fulfillment = None
+                    log.positive_total = 0
+                    log.negative_total = 0
+                    log.daily_total = 0
+
+                placement.end_date = date_obj
+
+            # Close original
             placement.status = PlacementStatus.completed
             placement.progress_status = PlacementProgressStatus.COMPLETED
+
+            # Store marker for UI subtitle
+            existing = placement.makeup_note or ""
+            marker = "ABSENT_CLOSED"
+            placement.makeup_note = f"{existing} | {marker}".strip(" |") if existing else marker
+
             session.commit()
         finally:
             session.close()
@@ -5511,7 +5575,11 @@ class DatabaseManager:
             'earlyClosureNote': placement.early_closure_note,
             'periodsWaived': placement.periods_waived or 0,
             # Make-up day tracking
-            'originalDayCount': placement.original_day_count  # Original "Day of Days" count - NEVER changes
+            'originalDayCount': placement.original_day_count,  # Original "Day of Days" count - NEVER changes
+            # Make-up / misc note (useful for non-ISS metadata too)
+            'makeupDaysUsed': placement.makeup_days_used or 0,
+            'makeupPeriodsServed': placement.makeup_periods_served or 0,
+            'makeupNote': placement.makeup_note
         }
     
     def _daily_log_to_dict(self, log: DailyLog) -> Dict[str, Any]:

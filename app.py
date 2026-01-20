@@ -1903,7 +1903,7 @@ if page == "Dashboard":
                         st.rerun()
                 with yn_col2:
                     if st.button("No", key=f"{absent_resched_key}_no"):
-                        dm.mark_lunch_detention_absent_closed(placement_id)
+                        dm.close_lunch_detention_absent_no_clone(placement_id, date_str)
                         st.session_state[absent_resched_key] = None
                         clear_dashboard_caches()
                         st.rerun()
@@ -1921,20 +1921,31 @@ if page == "Dashboard":
 
             # Complete button (safe access - daily_log may be None)
             is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
-            if not is_completed:
-                complete_disabled = not is_checked_in
-                complete_help = "Check in required before completing" if complete_disabled else None
 
-                if st.button(
-                    "✓ Complete",
-                    key=f"complete_{placement_id}_{date_str}",
-                    type="primary",
-                    disabled=complete_disabled,
-                    help=complete_help
-                ):
-                    dm.complete_placement_day(placement_id, date_str, "Admin")
-                    clear_dashboard_caches()
-                    st.rerun()
+            # If 1-day LD is absent AND we're awaiting Yes/No, do not allow completion
+            decision_pending = (int(total_days or 1) == 1) and (is_absent) and (st.session_state.get(absent_resched_key) == "pending")
+
+            if not is_completed:
+                # Base rule: check-in required
+                complete_disabled = (not is_checked_in) or decision_pending
+                if decision_pending:
+                    complete_help = "Choose Yes/No for Absent before completing"
+                else:
+                    complete_help = "Check in required before completing" if (not is_checked_in) else None
+
+                if not decision_pending:
+                    if st.button(
+                        "✓ Complete",
+                        key=f"complete_{placement_id}_{date_str}",
+                        type="primary",
+                        disabled=complete_disabled,
+                        help=complete_help
+                    ):
+                        dm.complete_placement_day(placement_id, date_str, "Admin")
+                        clear_dashboard_caches()
+                        st.rerun()
+                else:
+                    st.info("Absent is marked for a 1-day Lunch Detention. Please choose Yes/No above to close this record.")
             else:
                 st.success("Completed")
             
@@ -3429,12 +3440,13 @@ if page == "Dashboard":
                     day_number=day_num
                 )
 
-                # Lunch Detention absent outcome labels (1-day reschedule choices)
-                notes = (placement.get("notes") or "")
-                if is_absent and "ABSENT_RESCHEDULED" in notes:
-                    suffix = "Absent · Rescheduled"
-                elif is_absent and "ABSENT_CLOSED" in notes:
-                    suffix = "Absent · Closed Complete"
+                # 1-day Lunch Detention: absent outcome labels (stored in makeupNote marker)
+                if (days_assigned or 1) == 1 and suffix == "Absent":
+                    note = (placement.get("makeupNote") or "")
+                    if "ABSENT_RESCHEDULED" in note:
+                        suffix = "Absent · Rescheduled"
+                    elif "ABSENT_CLOSED" in note:
+                        suffix = "Absent · Closed Complete"
                 
                 # For RED-circle completed records, add hover tooltip to suffix
                 is_red_circle = status_circle == "🔴"

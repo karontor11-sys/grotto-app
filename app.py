@@ -1908,15 +1908,14 @@ if page == "Dashboard":
                         clear_dashboard_caches()
                         st.rerun()
             
-            # Notes (disabled until session started and checked in)
-            notes_disabled = is_future_placement or (not is_checked_in)
+            # Notes (always available + auto-saving)
             st.caption("Notes")
             render_auto_save_notes(
                 f"lunch_{placement_id}_{date_str}",
                 (daily_log.get('notes', '') if daily_log else '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes),
-                disabled=notes_disabled,
-                help_text=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
+                disabled=False,
+                help_text=None
             )
 
             # Complete button (safe access - daily_log may be None)
@@ -2423,15 +2422,14 @@ if page == "Dashboard":
                 else:
                     st.success("Completed")
             
-            # Notes (disabled until session started and checked in)
-            notes_disabled = is_future_placement or (not is_checked_in)
+            # Notes (always available + auto-saving)
             st.caption("Notes")
             render_auto_save_notes(
                 f"classref_{placement_id}_{date_str}",
                 (daily_log.get('notes', '') if daily_log else '') or '',
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes),
-                disabled=notes_disabled,
-                help_text=("Notes will be available after the session starts and the student is checked in." if notes_disabled else None)
+                disabled=False,
+                help_text=None
             )
             
             st.divider()

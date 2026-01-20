@@ -1817,10 +1817,10 @@ if page == "Dashboard":
         day_number = days_served_info.get('current_day_number', 1)
         is_today_absent = days_served_info.get('is_today_absent', False)
         
-        # OPTION B: Check-in status for Lunch Detention is represented by DailyLog existence
-        # (servedDates should only reflect completed days).
-        is_checked_in = daily_log is not None
-        is_present = is_checked_in
+        # Lunch Detention check-in must reflect the DailyLog's checkedIn flag,
+        # not merely the existence of a DailyLog (Absent creates a log too).
+        is_checked_in = bool(daily_log and daily_log.get("checkedIn"))
+        is_present = is_checked_in and (not is_absent_day)
         
         with st.container():
             # Check In + Absent controls
@@ -1926,10 +1926,14 @@ if page == "Dashboard":
             decision_pending = (int(total_days or 1) == 1) and (is_absent) and (st.session_state.get(absent_resched_key) == "pending")
 
             if not is_completed:
-                # Base rule: check-in required
-                complete_disabled = (not is_checked_in) or decision_pending
+                # Safety guard: Absent 1-day LD should not be completable (closed via Yes/No flow)
+                absent_one_day_ld = (int(total_days or 1) == 1) and is_absent_day
+                complete_disabled = (not is_checked_in) or decision_pending or absent_one_day_ld
+
                 if decision_pending:
                     complete_help = "Choose Yes/No for Absent before completing"
+                elif absent_one_day_ld:
+                    complete_help = "This day is marked Absent. Use the Yes/No prompt to close it."
                 else:
                     complete_help = "Check in required before completing" if (not is_checked_in) else None
 

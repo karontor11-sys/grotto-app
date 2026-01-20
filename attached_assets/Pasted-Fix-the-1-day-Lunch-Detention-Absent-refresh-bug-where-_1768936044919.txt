@@ -1,0 +1,53 @@
+Fix the 1-day Lunch Detention Absent refresh bug where the Complete button reappears after a page refresh. In render_lunch_detention_card, stop treating “DailyLog exists” as “checked in.” Instead, compute is_checked_in from the DailyLog’s actual checkedIn boolean, and set is_present accordingly. Then make a minimal safety guard so that if the day is marked Absent for a 1-day Lunch Detention, the Complete button is disabled (so the day can only be closed via the Absent Yes/No flow). Change no other UI or business logic.
+
+PASTE-IN CODE
+app.py — two tiny edits inside render_lunch_detention_card
+1) Fix the “checked in” truth source
+
+Find this block:
+
+daily_log = dm.get_daily_log(placement_id, date_str)
+is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+is_day_completed = _is_day_completed_for_date(daily_log)
+
+# Lunch Detention is represented by DailyLog existence
+# (servedDates should only reflect completed days).
+is_checked_in = daily_log is not None
+is_present = is_checked_in
+
+
+Replace it with:
+
+daily_log = dm.get_daily_log(placement_id, date_str)
+is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+is_day_completed = _is_day_completed_for_date(daily_log)
+
+# Lunch Detention check-in must reflect the DailyLog's checkedIn flag,
+# not merely the existence of a DailyLog (Absent creates a log too).
+is_checked_in = bool(daily_log and daily_log.get("checkedIn"))
+is_present = is_checked_in and (not is_absent_day)
+
+2) Prevent “Complete” from reappearing on Absent 1-day LD after refresh
+
+Find this section:
+
+# Complete button (safe access - daily_log may be None)
+is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+if not is_completed:
+    complete_disabled = not is_checked_in
+    complete_help = "Check in required before completing" if complete_disabled else None
+
+
+Replace it with:
+
+# Complete button (safe access - daily_log may be None)
+is_completed = daily_log.get('dailyFulfillment') == 'yes' if daily_log else False
+if not is_completed:
+    # Safety guard: Absent 1-day LD should not be completable (closed via Yes/No flow)
+    absent_one_day_ld = (int(total_days or 1) == 1) and is_absent_day
+    complete_disabled = (not is_checked_in) or absent_one_day_ld
+
+    if absent_one_day_ld:
+        complete_help = "This day is marked Absent. Use the Yes/No prompt to close it."
+    else:
+        complete_help = "Check in required before completing" if (not is_checked_in) else None

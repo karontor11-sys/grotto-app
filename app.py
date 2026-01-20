@@ -3337,8 +3337,27 @@ if page == "Dashboard":
                     is_absent=bool(is_absent),
                     day_number=day_num
                 )
-                
-                subtitle = f"ISS · {suffix}"
+
+                # Add hover tooltip ONLY for whole-session completion labels (do not affect other flags)
+                suffix_html = suffix
+                if (not bool(is_absent)) and ("Session Completed" in (suffix or "")):
+                    # Tooltip should show FINAL DAY points breakdown (persist when looking back)
+                    final_date = end_date or selected_date
+                    final_date_str = final_date.isoformat()
+
+                    # Build the same daily breakdown tooltip, but with a "Final Day Points" header
+                    try:
+                        positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+                    except Exception:
+                        positive_menu_for_breakdown = ps.get_positive_point_menu()
+
+                    point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
+                    breakdown = build_iss_points_breakdown_tooltip(point_events_for_final_day, positive_menu_for_breakdown)
+                    tooltip_text = "Final Day Points\n" + (breakdown or "")
+
+                    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+
+                subtitle = f"ISS · {suffix_html}"
                 
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;

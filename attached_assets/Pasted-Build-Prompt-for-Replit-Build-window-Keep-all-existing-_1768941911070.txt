@@ -1,0 +1,48 @@
+Build Prompt (for Replit Build window)
+Keep all existing hover-flag behavior unchanged for multi-day “Day Completed” records (including the underline indicator and the tooltip showing that day’s point breakdown). Add one small enhancement only: when an entire ISS session is completed (single-day or multi-day final day) and the Dashboard shows the collapsed record with text like “ISS · 1-Day Session Completed”, add the same dotted-underline hover indicator to the Session Completed phrase and show a tooltip that displays the final day’s point breakdown only. The tooltip must begin with the header text “Final Day Points”. Do not alter any other tooltips/flags, completion logic, point totals, or display logic.
+
+PASTE-IN CODE
+app.py — add hover tooltip for ISS Session Completed in the “Post-completion Dashboard truth card” block
+
+In app.py, find the Dashboard ISS loop section that begins with:
+
+# Post-completion Dashboard truth card (collapsed + inactive)
+if progress_status == "COMPLETED":
+
+
+Inside that block, you will see this sequence:
+
+suffix = _completed_suffix_for_day(
+    placement_type_label="ISS",
+    total_days=total_days,
+    target_date=selected_date,
+    end_date=end_date,
+    is_absent=bool(is_absent),
+    day_number=day_num
+)
+
+subtitle = f"ISS · {suffix}"
+
+
+Replace just the subtitle = ... line with the following block (leave everything else the same):
+
+# Add hover tooltip ONLY for whole-session completion labels (do not affect other flags)
+suffix_html = suffix
+if (not bool(is_absent)) and ("Session Completed" in (suffix or "")):
+    # Tooltip should show FINAL DAY points breakdown (persist when looking back)
+    final_date = end_date or selected_date
+    final_date_str = final_date.isoformat()
+
+    # Build the same daily breakdown tooltip, but with a "Final Day Points" header
+    try:
+        positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+    except Exception:
+        positive_menu_for_breakdown = ps.get_positive_point_menu()
+
+    point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
+    breakdown = build_iss_points_breakdown_tooltip(point_events_for_final_day, positive_menu_for_breakdown)
+    tooltip_text = "Final Day Points\n" + (breakdown or "")
+
+    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+
+subtitle = f"ISS · {suffix_html}"

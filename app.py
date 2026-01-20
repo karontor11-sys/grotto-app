@@ -3469,14 +3469,8 @@ if page == "Dashboard":
                     elif "ABSENT_CLOSED" in note:
                         suffix = "Absent · Closed Complete"
                 
-                # For RED-circle completed records, add hover tooltip to suffix
-                # EXCEPT: do NOT show tooltip for Absent-closed/rescheduled LD records (redundant).
-                is_red_circle = status_circle == "🔴"
-                if is_red_circle and not is_absent:
-                    tooltip_text = f"This Lunch Detention day was marked complete for {selected_date.strftime('%b')}. {selected_date.day}, {selected_date.year}"
-                    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
-                else:
-                    suffix_html = suffix
+                # No hover flags for non-ISS placements (redundant)
+                suffix_html = suffix
                 
                 # For multi-day "middle day" completion, include the 3-Day label:
                 # Lunch Detention · 3-Day · Day Completed
@@ -3645,13 +3639,8 @@ if page == "Dashboard":
                     day_number=day_num
                 )
                 
-                # For RED-circle completed records, add hover tooltip to suffix
-                is_red_circle = status_circle == "🔴"
-                if is_red_circle:
-                    tooltip_text = f"This {placement_type_label} day was marked complete for {selected_date.strftime('%b')}. {selected_date.day}, {selected_date.year}"
-                    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
-                else:
-                    suffix_html = suffix
+                # No hover flags for non-ISS placements (redundant)
+                suffix_html = suffix
                 
                 # For multi-day Pre-Planned "middle day" completion, include the X-Day label:
                 # Pre-Planned Referral · 3-Day · Day Completed

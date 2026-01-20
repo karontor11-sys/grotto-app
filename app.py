@@ -3449,8 +3449,9 @@ if page == "Dashboard":
                         suffix = "Absent · Closed Complete"
                 
                 # For RED-circle completed records, add hover tooltip to suffix
+                # EXCEPT: do NOT show tooltip for Absent-closed/rescheduled LD records (redundant).
                 is_red_circle = status_circle == "🔴"
-                if is_red_circle:
+                if is_red_circle and not is_absent:
                     tooltip_text = f"This Lunch Detention day was marked complete for {selected_date.strftime('%b')}. {selected_date.day}, {selected_date.year}"
                     suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
                 else:

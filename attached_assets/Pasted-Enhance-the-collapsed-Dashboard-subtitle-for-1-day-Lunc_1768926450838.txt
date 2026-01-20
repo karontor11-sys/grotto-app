@@ -1,0 +1,79 @@
+Enhance the collapsed Dashboard subtitle for 1-day Lunch Detention marked Absent to reflect the user’s reschedule choice. When the user selects Yes to “Create the same placement for the next school day,” persist a reschedule marker on the original placement and render the collapsed subtitle as:
+“Lunch Detention · Absent · Rescheduled”.
+When the user selects No, persist a closed marker and render the collapsed subtitle as:
+“Lunch Detention · Absent · Closed Complete”.
+Implement this by storing a small status flag on the original placement (no new schema), and extend the existing subtitle logic used by collapsed completed records. Do not change circle color (keep red), collapse rules, or behavior for any other placement type.
+
+PASTE-IN CODE
+1️⃣ db_manager.py — persist the absent outcome on the original placement
+
+Inside complete_and_clone_lunch_detention_absent, add one line just before committing (in the “Yes” path):
+
+# Mark original as absent + rescheduled for UI subtitle
+placement.notes = (placement.notes or "") + " | ABSENT_RESCHEDULED"
+
+
+And also add this helper (small, near other placement helpers):
+
+def mark_lunch_detention_absent_closed(self, placement_id: str):
+    session = self.get_session()
+    try:
+        placement = session.query(Placement).filter(Placement.id == placement_id).first()
+        if not placement:
+            return
+        placement.notes = (placement.notes or "") + " | ABSENT_CLOSED"
+        placement.status = PlacementStatus.completed
+        placement.progress_status = PlacementProgressStatus.COMPLETED
+        session.commit()
+    finally:
+        session.close()
+
+2️⃣ app.py — hook the No button to mark “Closed Complete”
+
+In the No button handler you already added, replace it with this:
+
+if st.button("No", key=f"{absent_resched_key}_no"):
+    dm.mark_lunch_detention_absent_closed(placement_id)
+    st.session_state[absent_resched_key] = None
+    clear_dashboard_caches()
+    st.rerun()
+
+3️⃣ app.py — extend the collapsed subtitle logic (single place)
+
+Find the helper that builds the collapsed subtitle
+(you’ve been using _completed_suffix_for_day(...) or the LD-specific equivalent).
+
+Add this at the top of the Lunch Detention / Absent branch:
+
+# Lunch Detention absent outcome labels
+if placement_type == "LUNCH_DETENTION" and is_absent:
+    notes = (placement.get("notes") or "")
+    if "ABSENT_RESCHEDULED" in notes:
+        return "Absent · Rescheduled"
+    if "ABSENT_CLOSED" in notes:
+        return "Absent · Closed Complete"
+
+
+Leave the existing fallback:
+
+return "Absent"
+
+
+unchanged.
+
+What you’ll see after this patch
+If Yes
+🔴 Roo Paul Lunch Detention · Absent · Rescheduled
+
+
+Original record collapsed
+
+New Lunch Detention appears on next school day
+
+If No
+🔴 Duff Beer Lunch Detention · Absent · Closed Complete
+
+
+Original record collapsed
+
+No new placement created

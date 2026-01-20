@@ -1576,6 +1576,9 @@ class DatabaseManager:
             placement.progress_status = PlacementProgressStatus.COMPLETED
             placement.end_date = date_obj
 
+            # Mark original as absent + rescheduled for UI subtitle
+            placement.notes = (placement.notes or "") + " | ABSENT_RESCHEDULED"
+
             session.commit()
             return new_placement_id
 
@@ -1583,6 +1586,23 @@ class DatabaseManager:
             session.rollback()
             # Re-raise so UI can surface the error if needed
             raise
+        finally:
+            session.close()
+
+    def mark_lunch_detention_absent_closed(self, placement_id: str):
+        """Mark a 1-day Lunch Detention as absent + closed (no reschedule).
+        
+        Sets the placement to COMPLETED and appends ABSENT_CLOSED marker for UI subtitle.
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return
+            placement.notes = (placement.notes or "") + " | ABSENT_CLOSED"
+            placement.status = PlacementStatus.completed
+            placement.progress_status = PlacementProgressStatus.COMPLETED
+            session.commit()
         finally:
             session.close()
     

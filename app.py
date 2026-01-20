@@ -1903,8 +1903,10 @@ if page == "Dashboard":
                         st.rerun()
                 with yn_col2:
                     if st.button("No", key=f"{absent_resched_key}_no"):
-                        st.session_state[absent_resched_key] = 'no'
-                        st.info("Absent recorded. No new Lunch Detention placement was created.")
+                        dm.mark_lunch_detention_absent_closed(placement_id)
+                        st.session_state[absent_resched_key] = None
+                        clear_dashboard_caches()
+                        st.rerun()
             
             # Notes (disabled until session started and checked in)
             notes_disabled = is_future_placement or (not is_checked_in)
@@ -3426,6 +3428,13 @@ if page == "Dashboard":
                     is_absent=is_absent,
                     day_number=day_num
                 )
+
+                # Lunch Detention absent outcome labels (1-day reschedule choices)
+                notes = (placement.get("notes") or "")
+                if is_absent and "ABSENT_RESCHEDULED" in notes:
+                    suffix = "Absent · Rescheduled"
+                elif is_absent and "ABSENT_CLOSED" in notes:
+                    suffix = "Absent · Closed Complete"
                 
                 # For RED-circle completed records, add hover tooltip to suffix
                 is_red_circle = status_circle == "🔴"
@@ -3438,7 +3447,7 @@ if page == "Dashboard":
                 # For multi-day "middle day" completion, include the 3-Day label:
                 # Lunch Detention · 3-Day · Day Completed
                 # For final-day completion, keep: Lunch Detention · 3-Day Session Completed
-                if (days_assigned or 1) > 1 and suffix_html == "Day Completed":
+                if (days_assigned or 1) > 1 and suffix == "Day Completed":
                     subtitle = f"Lunch Detention · {days_assigned}-Day · {suffix_html}"
                 else:
                     subtitle = f"Lunch Detention · {suffix_html}"

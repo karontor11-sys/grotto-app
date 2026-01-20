@@ -1829,19 +1829,30 @@ if page == "Dashboard":
             
             # Absent checkbox key
             absent_key = f"ld_absent_{placement_id}_{date_str}"
+            absent_resched_key = f"ld_absent_resched_{placement_id}_{date_str}"
             db_absent = dm.is_marked_absent(placement_id, date_str)
             
             # Initialize session state from DB if not set
             if absent_key not in st.session_state:
                 st.session_state[absent_key] = db_absent
+
+            # Track whether the 1-day reschedule confirmation is pending/answered for this day
+            # Values: None (no prompt), 'pending', 'no'
+            if absent_resched_key not in st.session_state:
+                st.session_state[absent_resched_key] = None
             
             # Absent checkbox - render FIRST so state is processed
             def handle_absent_change(pid=placement_id, ds=date_str, key=absent_key):
                 new_val = st.session_state.get(key, False)
                 if new_val:
                     dm.mark_absent(pid, ds)
+                    # For 1-day Lunch Detention, trigger a one-time reschedule confirmation UI
+                    if int(total_days or 1) == 1:
+                        st.session_state[absent_resched_key] = 'pending'
                 else:
                     dm.unmark_absent(pid, ds)
+                    # Reset reschedule prompt state if absence is cleared
+                    st.session_state[absent_resched_key] = None
             
             # Day X of Y (show for all placements, including single-day)
             display_total = max(total_days, 1)
@@ -1876,6 +1887,24 @@ if page == "Dashboard":
                 # Show future placement message (generic)
                 if is_future_placement:
                     st.caption(future_checkin_msg)
+
+            # ------------------------------------------------------------
+            # 1-Day Lunch Detention: Absent → confirm reschedule to next school day
+            # Option A: Original record closes with red circle + "Absent" subtitle.
+            # ------------------------------------------------------------
+            if is_absent and int(total_days or 1) == 1 and st.session_state.get(absent_resched_key) == 'pending':
+                st.warning("Student marked absent for this 1-day Lunch Detention. Create the same placement for the next school day?")
+                yn_col1, yn_col2 = st.columns(2)
+                with yn_col1:
+                    if st.button("Yes", key=f"{absent_resched_key}_yes", type="primary"):
+                        dm.complete_and_clone_lunch_detention_absent(placement_id, date_str, actor="Admin")
+                        st.session_state[absent_resched_key] = None
+                        clear_dashboard_caches()
+                        st.rerun()
+                with yn_col2:
+                    if st.button("No", key=f"{absent_resched_key}_no"):
+                        st.session_state[absent_resched_key] = 'no'
+                        st.info("Absent recorded. No new Lunch Detention placement was created.")
             
             # Notes (disabled until session started and checked in)
             notes_disabled = is_future_placement or (not is_checked_in)

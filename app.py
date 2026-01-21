@@ -779,6 +779,13 @@ if page == "Dashboard":
     
     # Show success message if placement was just created
     if st.session_state.get('placement_created'):
+        today = central_today()
+
+        # Force both the internal Dashboard date state
+        # AND the date_input widget value back to Today
+        st.session_state.dashboard_selected_date = today
+        st.session_state.dashboard_date_selector = today
+
         st.success("Placement created successfully!")
         del st.session_state.placement_created
     

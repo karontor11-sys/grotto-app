@@ -1,0 +1,139 @@
+We want a Dashboard UX fix: after user actions that trigger a rerun (Check In, Partial Day selection, editing dates/periods, Absent toggles, point adds, etc.), the relevant Dashboard card should stay expanded so the user can keep working. Implement a single, reusable “keep open uid + TTL” pattern and apply it cleanly to ISS + Lunch Detention + Class Period Referral only. No DB changes. No changes to Completed/collapsed truth cards. No side effects on other expanders (Reports/Export, Completed Placements drilldowns, etc.).
+
+✅ PASTE INTO REPLIT BUILD WINDOW (app.py)
+# ============================================================
+# PATCH: Keep Dashboard cards expanded after edits (UID + TTL)
+# File: app.py
+# Scope: Dashboard expanders for ISS + LD + CPR only
+# ============================================================
+
+# -----------------------------
+# 1) ADD THESE HELPERS (place near other small helper funcs in app.py,
+#    e.g., around other dashboard helpers like _circle_for_day, etc.)
+# -----------------------------
+
+def _dashboard_request_keep_open(card_uid: str, ttl: int = 2) -> None:
+    """
+    Request that the Dashboard expander for `card_uid` remain open across reruns.
+    TTL counts full Dashboard renders. ttl=2 survives a common 2-rerun cycle.
+    """
+    if not card_uid:
+        return
+    st.session_state["_dash_keep_open_uid"] = str(card_uid)
+    st.session_state["_dash_keep_open_ttl"] = int(ttl)
+
+def _dashboard_should_expand(card_uid: str) -> bool:
+    uid = st.session_state.get("_dash_keep_open_uid")
+    ttl = int(st.session_state.get("_dash_keep_open_ttl") or 0)
+    return bool(uid) and (uid == str(card_uid)) and ttl > 0
+
+def _dashboard_keep_open_tick() -> None:
+    """
+    Decrement TTL once per completed Dashboard render.
+    When TTL hits 0, clear the keep-open request.
+    """
+    ttl = int(st.session_state.get("_dash_keep_open_ttl") or 0)
+    if ttl <= 0:
+        st.session_state.pop("_dash_keep_open_uid", None)
+        st.session_state.pop("_dash_keep_open_ttl", None)
+        return
+    ttl -= 1
+    if ttl <= 0:
+        st.session_state.pop("_dash_keep_open_uid", None)
+        st.session_state.pop("_dash_keep_open_ttl", None)
+    else:
+        st.session_state["_dash_keep_open_ttl"] = ttl
+
+
+# -----------------------------
+# 2) DASHBOARD: When ISS pending actions are processed, keep that card open
+#    (This covers dropdown point adds + other deferred ISS actions.)
+#    In the Dashboard page block:
+#      if page == "Dashboard":
+#        ... ISS_PENDING_ACTION dispatcher ...
+#    Add the marked lines immediately AFTER `pending = ...` and BEFORE processing.
+# -----------------------------
+
+# >>> ADD THIS inside `if page == "Dashboard":` right after:
+# pending = st.session_state.pop(ISS_PENDING_KEY, None)
+
+if pending:
+    # Keep the originating ISS card expanded through this rerun cycle
+    _dashboard_request_keep_open(pending.get("card_uid"), ttl=2)
+
+
+# -----------------------------
+# 3) DASHBOARD: Make ISS/LD/CPR expanders use the keep-open UID
+#    Replace ONLY the `expanded=False` for these three dashboard expanders.
+#    Do NOT touch other expanders (Reports/Export, Debug, Completed Placements).
+# -----------------------------
+
+# (A) ISS expander:
+# Find:
+#   with st.expander(f"{status_circle} {student_name}", expanded=False):
+# and change to:
+
+# Build a stable ISS card_uid that matches render_iss_session_card()
+session_key = session_id if session_id is not None else "full"
+iss_card_uid = f"{placement_id}_{session_key}_{date_str}"
+
+with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(iss_card_uid)):
+    render_iss_session_card(iss_session, selected_date)
+
+
+# (B) Lunch Detention expander:
+# Find:
+#   with st.expander(f"{status_circle} {student_name}", expanded=False):
+# and change to:
+
+ld_card_uid = f"ld_{placement_id}_{date_str}"
+
+with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(ld_card_uid)):
+    render_lunch_detention_card(placement, selected_date)
+
+
+# (C) Class Period Referral expander:
+# Find:
+#   with st.expander(f"{status_circle} {student_name}", expanded=False):
+# and change to:
+
+cpr_card_uid = f"cpr_{placement_id}_{date_str}"
+
+with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(cpr_card_uid)):
+    render_unified_class_referral_card(placement, selected_date)
+
+
+# -----------------------------
+# 4) RERUN CALLS: Before reruns inside the three card renderers,
+#    request keep-open for that card_uid.
+#
+#    Apply these minimal inserts (no logic changes, no DB changes):
+#
+#    - render_iss_session_card(): it already computes `card_uid` (perfect).
+#      Before EVERY `st.rerun()` inside that function, add:
+#         _dashboard_request_keep_open(card_uid, ttl=2)
+#
+#    - render_lunch_detention_card(): add at top:
+#         card_uid = f"ld_{placement_id}_{date_str}"
+#      Before EVERY `st.rerun()` inside, add:
+#         _dashboard_request_keep_open(card_uid, ttl=2)
+#
+#    - render_unified_class_referral_card(): add at top:
+#         card_uid = f"cpr_{placement_id}_{date_str}"
+#      Before EVERY `st.rerun()` inside, add:
+#         _dashboard_request_keep_open(card_uid, ttl=2)
+#
+# IMPORTANT: Don’t change any existing rerun conditions; just add the keep-open line above them.
+# -----------------------------
+
+
+# -----------------------------
+# 5) TICK DOWN TTL once per Dashboard render
+#    Add this near the very end of the Dashboard page block,
+#    right before the code transitions to the next page (before: `elif page == "Placements":`)
+# -----------------------------
+_dashboard_keep_open_tick()
+
+# ============================================================
+# END PATCH
+# ============================================================

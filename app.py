@@ -352,6 +352,39 @@ def _circle_for_day(
     return "🟢"
 
 
+def _dashboard_request_keep_open(card_uid: str, ttl: int = 2) -> None:
+    """
+    Request that the Dashboard expander for `card_uid` remain open across reruns.
+    TTL counts full Dashboard renders. ttl=2 survives a common 2-rerun cycle.
+    """
+    if not card_uid:
+        return
+    st.session_state["_dash_keep_open_uid"] = str(card_uid)
+    st.session_state["_dash_keep_open_ttl"] = int(ttl)
+
+def _dashboard_should_expand(card_uid: str) -> bool:
+    uid = st.session_state.get("_dash_keep_open_uid")
+    ttl = int(st.session_state.get("_dash_keep_open_ttl") or 0)
+    return bool(uid) and (uid == str(card_uid)) and ttl > 0
+
+def _dashboard_keep_open_tick() -> None:
+    """
+    Decrement TTL once per completed Dashboard render.
+    When TTL hits 0, clear the keep-open request.
+    """
+    ttl = int(st.session_state.get("_dash_keep_open_ttl") or 0)
+    if ttl <= 0:
+        st.session_state.pop("_dash_keep_open_uid", None)
+        st.session_state.pop("_dash_keep_open_ttl", None)
+        return
+    ttl -= 1
+    if ttl <= 0:
+        st.session_state.pop("_dash_keep_open_uid", None)
+        st.session_state.pop("_dash_keep_open_ttl", None)
+    else:
+        st.session_state["_dash_keep_open_ttl"] = ttl
+
+
 def _status_text_for_day(
     progress_status: str,
     *,
@@ -662,6 +695,9 @@ if page == "Dashboard":
 
     pending = st.session_state.pop(ISS_PENDING_KEY, None)
     if pending:
+        # Keep the originating ISS card expanded through this rerun cycle
+        _dashboard_request_keep_open(pending.get("card_uid"), ttl=2)
+
         action = pending.get("action")  # "complete", "override", or "add_point"
         print(f"[ISS_DISPATCH] Processing action={action} payload={pending}")
 
@@ -1734,6 +1770,9 @@ if page == "Dashboard":
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
+
+        # Card UID for keep-open pattern
+        card_uid = f"ld_{placement_id}_{date_str}"
         
         # FUTURE PLACEMENT LOCK: disable Check In until the start date
         placement_status = placement.get('status', 'active')
@@ -1902,6 +1941,7 @@ if page == "Dashboard":
                     # Unmark absent in DB if was marked (mutual exclusivity)
                     dm.unmark_absent(placement_id, date_str)
                     clear_dashboard_caches()
+                    _dashboard_request_keep_open(card_uid, ttl=2)
                     st.rerun()
                 
                 # Show future placement message (generic)
@@ -1920,12 +1960,14 @@ if page == "Dashboard":
                         dm.complete_and_clone_lunch_detention_absent(placement_id, date_str, actor="Admin")
                         st.session_state[absent_resched_key] = None
                         clear_dashboard_caches()
+                        _dashboard_request_keep_open(card_uid, ttl=2)
                         st.rerun()
                 with yn_col2:
                     if st.button("No", key=f"{absent_resched_key}_no"):
                         dm.close_lunch_detention_absent_no_clone(placement_id, date_str)
                         st.session_state[absent_resched_key] = None
                         clear_dashboard_caches()
+                        _dashboard_request_keep_open(card_uid, ttl=2)
                         st.rerun()
             
             # Notes (always available + auto-saving)
@@ -1966,6 +2008,7 @@ if page == "Dashboard":
                     ):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         clear_dashboard_caches()
+                        _dashboard_request_keep_open(card_uid, ttl=2)
                         st.rerun()
                 else:
                     st.info("Absent is marked for a 1-day Lunch Detention. Please choose Yes/No above to close this record.")
@@ -1986,6 +2029,9 @@ if page == "Dashboard":
         placement_id = placement['_id']
         student_name = f"{student['firstName']} {student['lastName']}"
         date_str = target_date.isoformat()
+
+        # Card UID for keep-open pattern
+        card_uid = f"cpr_{placement_id}_{date_str}"
         
         # ------------------------------------------------------------
         # UI STANDARDIZATION FIX: Pre-Planned + future dashboard date
@@ -2306,6 +2352,7 @@ if page == "Dashboard":
                     ):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         clear_dashboard_caches()
+                        _dashboard_request_keep_open(card_uid, ttl=2)
                         st.rerun()
                 
                 elif subtype_key == 'cool_down':
@@ -2343,6 +2390,7 @@ if page == "Dashboard":
                     ):
                         dm.complete_placement_day(placement_id, date_str, "Admin")
                         clear_dashboard_caches()
+                        _dashboard_request_keep_open(card_uid, ttl=2)
                         st.rerun()
                 
                 elif subtype_key == 'pre_planned':
@@ -3442,7 +3490,11 @@ if page == "Dashboard":
                 )
             else:
                 # Active/In Progress: expandable card with full functionality
-                with st.expander(f"{status_circle} {student_name}", expanded=False):
+                # Build a stable ISS card_uid that matches render_iss_session_card()
+                session_key = session_id if session_id is not None else "full"
+                iss_card_uid = f"{placement_id}_{session_key}_{date_str}"
+
+                with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(iss_card_uid)):
                     render_iss_session_card(iss_session, selected_date)
     
     st.divider()
@@ -3522,7 +3574,9 @@ if page == "Dashboard":
                 )
             else:
                 # Active/In Progress: Use expandable card with full functionality
-                with st.expander(f"{status_circle} {student_name}", expanded=False):
+                ld_card_uid = f"ld_{placement_id}_{date_str}"
+
+                with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(ld_card_uid)):
                     render_lunch_detention_card(placement, selected_date)
     
     st.divider()
@@ -3693,8 +3747,13 @@ if page == "Dashboard":
                 )
             else:
                 # Active/In Progress: Use expandable card with full functionality
-                with st.expander(f"{status_circle} {student_name}", expanded=False):
+                cpr_card_uid = f"cpr_{placement_id}_{date_str}"
+
+                with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(cpr_card_uid)):
                     render_unified_class_referral_card(placement, selected_date)
+
+    # Tick down the keep-open TTL once per Dashboard render
+    _dashboard_keep_open_tick()
 
 # Placements Page
 elif page == "Placements":

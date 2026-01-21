@@ -1085,6 +1085,71 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def auto_complete_preplanned_multi_day_after_last_date(self) -> int:
+        """
+        If the last scheduled date for a Pre-Planned multi-day placement
+        has passed, mark the placement completed regardless of
+        absent vs attended mix.
+        """
+        from sqlalchemy import func
+        session = self.get_session()
+        try:
+            today = central_today()
+            completed_count = 0
+
+            placements = session.query(Placement).filter(
+                Placement.status != PlacementStatus.completed,
+                Placement.days_assigned.isnot(None),
+                Placement.days_assigned > 1,
+                (
+                    (Placement.placement_type == PlacementCategory.PRE_PLANNED_REFERRAL) |
+                    (
+                        (Placement.placement_type == PlacementCategory.CLASS_REFERRAL) &
+                        (Placement.referral_subtype == "pre_planned")
+                    )
+                )
+            ).all()
+
+            for placement in placements:
+                # Authoritative schedule source: PartialDaySession dates
+                last_scheduled_date = session.query(
+                    func.max(PartialDaySession.date)
+                ).filter(
+                    PartialDaySession.placement_id == placement.id
+                ).scalar()
+
+                # Fallback: placement.end_date
+                if not last_scheduled_date:
+                    last_scheduled_date = placement.end_date
+
+                if not last_scheduled_date:
+                    continue
+
+                if last_scheduled_date < today:
+                    placement.status = PlacementStatus.completed
+                    placement.progress_status = PlacementProgressStatus.COMPLETED
+                    placement.end_date = last_scheduled_date
+
+                    if placement.days_assigned:
+                        placement.days_completed = max(
+                            int(placement.days_completed or 0),
+                            int(placement.days_assigned)
+                        )
+
+                    completed_count += 1
+
+            if completed_count:
+                session.commit()
+
+            return completed_count
+
+        except Exception as e:
+            session.rollback()
+            print(f"[auto_complete_preplanned_multi_day_after_last_date] error: {e}")
+            return 0
+        finally:
+            session.close()
+
     def activate_scheduled_placements(self) -> int:
         """Auto-transition scheduled placements to active when their start date has arrived.
         
@@ -1106,11 +1171,18 @@ class DatabaseManager:
             activated_count = 0
             for placement in scheduled_placements:
                 placement.status = PlacementStatus.active
+                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
                 activated_count += 1
             
             if activated_count > 0:
                 session.commit()
             
+            # Auto-complete Pre-Planned multi-day placements whose last date has passed
+            try:
+                self.auto_complete_preplanned_multi_day_after_last_date()
+            except Exception as e:
+                print(f"Pre-Planned auto-complete sweep failed: {e}")
+
             return activated_count
         finally:
             session.close()

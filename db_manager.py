@@ -1345,67 +1345,59 @@ class DatabaseManager:
         session = self.get_session()
         try:
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
-            if not placement:
+            if not placement or placement.placement_type != PlacementCategory.LUNCH_DETENTION:
                 return False
-            
-            # Only apply to Lunch Detention placements
-            if placement.placement_type != PlacementCategory.LUNCH_DETENTION or placement.type != PlacementType.iss_full_day:
-                return False
-            
+
             date_obj = datetime.fromisoformat(attendance_date).date()
             date_str = date_obj.isoformat()
-            
-            # Get current arrays (handle None)
-            served_dates = list(placement.served_dates) if placement.served_dates else []
-            scheduled_lunch_dates = list(placement.scheduled_lunch_dates) if placement.scheduled_lunch_dates else []
-            
-            if is_present:
-                # OPTION B: Check In should NOT count as "served".
-                # Instead, ensure a DailyLog exists for this date to represent "checked in / present today".
-                log = session.query(DailyLog).filter(
-                    DailyLog.placement_id == placement_id,
-                    DailyLog.date == date_obj
-                ).first()
 
+            served_dates = list(placement.served_dates) if placement.served_dates else []
+
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == date_obj
+            ).first()
+
+            if is_present:
                 if not log:
                     log = DailyLog(
                         id=str(uuid.uuid4()),
                         placement_id=placement_id,
-                        session_id=None,
                         date=date_obj,
+                        checked_in=True,
+                        checked_in_at=central_now_naive(),
+                        day_type=None,
+                        daily_fulfillment='no',
                         positive_total=0,
                         negative_total=0,
-                        daily_total=0,
-                        readiness='continue',
-                        daily_fulfillment='no'
+                        daily_total=0
                     )
                     session.add(log)
+                else:
+                    log.checked_in = True
+                    log.checked_in_at = central_now_naive()
+                    log.day_type = None
+                    log.daily_fulfillment = log.daily_fulfillment or 'no'
 
-                # Transition from scheduled to active on first check-in
+                if date_str not in served_dates:
+                    served_dates.append(date_str)
+                    placement.served_dates = served_dates
+
                 if placement.status == PlacementStatus.scheduled:
                     placement.status = PlacementStatus.active
 
-                # Update progress_status to IN_PROGRESS when checked in
-                if placement.progress_status != PlacementProgressStatus.COMPLETED:
-                    placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+
+                self._sync_lunch_detention_schedule_for_absences(
+                    session, placement, trim_extras=True
+                )
+
             else:
-                # Student was absent - extend schedule by one school day with lunch
-                if not scheduled_lunch_dates:
-                    return False
-                
-                last_date_str = scheduled_lunch_dates[-1]
-                last_date = datetime.fromisoformat(last_date_str).date()
-                
-                # Find next school day with lunch (skip weekends)
-                next_date = last_date + timedelta(days=1)
-                while next_date.weekday() >= 5:  # Skip weekends
-                    next_date += timedelta(days=1)
-                
-                # Append to scheduled lunch dates and update end date
-                scheduled_lunch_dates.append(next_date.isoformat())
-                placement.scheduled_lunch_dates = scheduled_lunch_dates
-                placement.end_date = next_date
-            
+                self.mark_absent(placement_id, attendance_date)
+                self._sync_lunch_detention_schedule_for_absences(
+                    session, placement, trim_extras=False
+                )
+
             session.commit()
             return True
         finally:
@@ -1473,6 +1465,11 @@ class DatabaseManager:
                 log.daily_total = 0
             
             # Do NOT update progress_status - absent days don't affect status
+
+            if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+                self._sync_lunch_detention_schedule_for_absences(
+                    session, placement, trim_extras=False
+                )
             
             session.commit()
             return True
@@ -1691,6 +1688,13 @@ class DatabaseManager:
             
             if log and log.day_type == 'absent':
                 log.day_type = None
+                
+                placement = session.query(Placement).filter(Placement.id == placement_id).first()
+                if placement and placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+                    self._sync_lunch_detention_schedule_for_absences(
+                        session, placement, trim_extras=True
+                    )
+                
                 session.commit()
             
             return True
@@ -2111,6 +2115,72 @@ class DatabaseManager:
             current_date += timedelta(days=1)
         
         return scheduled_dates
+
+    def _sync_lunch_detention_schedule_for_absences(self, session, placement, *, trim_extras: bool) -> None:
+        """
+        Ensure multi-day Lunch Detention has enough scheduled dates to still deliver
+        `days_assigned` SERVED days when absences occur (ISS-style).
+        """
+        try:
+            if placement.placement_type != PlacementCategory.LUNCH_DETENTION:
+                return
+
+            days_assigned = int(placement.days_assigned or 1)
+            if days_assigned <= 1:
+                return
+
+            scheduled = list(placement.scheduled_lunch_dates) if placement.scheduled_lunch_dates else []
+            served = set(list(placement.served_dates) if placement.served_dates else [])
+
+            absent_count = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement.id,
+                DailyLog.day_type == 'absent'
+            ).count()
+
+            required_slots = days_assigned + absent_count
+
+            if not scheduled:
+                start = placement.start_date
+                if not start:
+                    return
+                scheduled = [
+                    d.isoformat()
+                    for d in self.calculate_scheduled_lunch_dates(start, required_slots)
+                ]
+                placement.scheduled_lunch_dates = scheduled
+                placement.end_date = datetime.fromisoformat(scheduled[-1]).date()
+                return
+
+            if len(scheduled) < required_slots:
+                last_date = datetime.fromisoformat(scheduled[-1]).date()
+                need = required_slots - len(scheduled)
+                extra = self.calculate_scheduled_lunch_dates(last_date + timedelta(days=1), need)
+                scheduled.extend([d.isoformat() for d in extra])
+                placement.scheduled_lunch_dates = scheduled
+                placement.end_date = datetime.fromisoformat(scheduled[-1]).date()
+
+            if trim_extras and len(scheduled) > required_slots:
+                while len(scheduled) > required_slots:
+                    last_str = scheduled[-1]
+                    last_date = datetime.fromisoformat(last_str).date()
+
+                    if last_str in served:
+                        break
+
+                    log_exists = session.query(DailyLog).filter(
+                        DailyLog.placement_id == placement.id,
+                        DailyLog.date == last_date
+                    ).first()
+                    if log_exists:
+                        break
+
+                    scheduled.pop()
+
+                placement.scheduled_lunch_dates = scheduled
+                placement.end_date = datetime.fromisoformat(scheduled[-1]).date()
+
+        except Exception:
+            return
     
     def generate_lunch_detention_sessions_from_scheduled(self, placement_id: str, scheduled_dates: List[date]) -> List[str]:
         """Generate lunch detention sessions from a pre-calculated list of scheduled dates.

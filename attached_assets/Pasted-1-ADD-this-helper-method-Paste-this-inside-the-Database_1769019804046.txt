@@ -1,0 +1,152 @@
+1️⃣ ADD this helper method
+
+Paste this inside the DatabaseManager class, near other Lunch Detention helpers
+(do not put it at top-level):
+
+def _sync_lunch_detention_schedule_for_absences(self, session, placement, *, trim_extras: bool) -> None:
+    """
+    Ensure multi-day Lunch Detention has enough scheduled dates to still deliver
+    `days_assigned` SERVED days when absences occur (ISS-style).
+    """
+    try:
+        if placement.placement_type != PlacementCategory.LUNCH_DETENTION:
+            return
+
+        days_assigned = int(placement.days_assigned or 1)
+        if days_assigned <= 1:
+            return
+
+        scheduled = list(placement.scheduled_lunch_dates) if placement.scheduled_lunch_dates else []
+        served = set(list(placement.served_dates) if placement.served_dates else [])
+
+        absent_count = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement.id,
+            DailyLog.day_type == 'absent'
+        ).count()
+
+        required_slots = days_assigned + absent_count
+
+        if not scheduled:
+            start = placement.start_date
+            if not start:
+                return
+            scheduled = [
+                d.isoformat()
+                for d in self.calculate_scheduled_lunch_dates(start, required_slots)
+            ]
+            placement.scheduled_lunch_dates = scheduled
+            placement.end_date = datetime.fromisoformat(scheduled[-1]).date()
+            return
+
+        if len(scheduled) < required_slots:
+            last_date = datetime.fromisoformat(scheduled[-1]).date()
+            need = required_slots - len(scheduled)
+            extra = self.calculate_scheduled_lunch_dates(last_date + timedelta(days=1), need)
+            scheduled.extend([d.isoformat() for d in extra])
+            placement.scheduled_lunch_dates = scheduled
+            placement.end_date = datetime.fromisoformat(scheduled[-1]).date()
+
+        if trim_extras and len(scheduled) > required_slots:
+            while len(scheduled) > required_slots:
+                last_str = scheduled[-1]
+                last_date = datetime.fromisoformat(last_str).date()
+
+                if last_str in served:
+                    break
+
+                log_exists = session.query(DailyLog).filter(
+                    DailyLog.placement_id == placement.id,
+                    DailyLog.date == last_date
+                ).first()
+                if log_exists:
+                    break
+
+                scheduled.pop()
+
+            placement.scheduled_lunch_dates = scheduled
+            placement.end_date = datetime.fromisoformat(scheduled[-1]).date()
+
+    except Exception:
+        return
+
+2️⃣ REPLACE the entire method
+
+Find update_lunch_detention_attendance(...) and replace the whole method with:
+
+def update_lunch_detention_attendance(self, placement_id: str, attendance_date: str, is_present: bool) -> bool:
+    session = self.get_session()
+    try:
+        placement = session.query(Placement).filter(Placement.id == placement_id).first()
+        if not placement or placement.placement_type != PlacementCategory.LUNCH_DETENTION:
+            return False
+
+        date_obj = datetime.fromisoformat(attendance_date).date()
+        date_str = date_obj.isoformat()
+
+        served_dates = list(placement.served_dates) if placement.served_dates else []
+
+        log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.date == date_obj
+        ).first()
+
+        if is_present:
+            if not log:
+                log = DailyLog(
+                    id=str(uuid.uuid4()),
+                    placement_id=placement_id,
+                    date=date_obj,
+                    checked_in=True,
+                    checked_in_at=central_now_naive(),
+                    day_type=None,
+                    daily_fulfillment='no',
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0
+                )
+                session.add(log)
+            else:
+                log.checked_in = True
+                log.checked_in_at = central_now_naive()
+                log.day_type = None
+                log.daily_fulfillment = log.daily_fulfillment or 'no'
+
+            if date_str not in served_dates:
+                served_dates.append(date_str)
+                placement.served_dates = served_dates
+
+            if placement.status == PlacementStatus.scheduled:
+                placement.status = PlacementStatus.active
+
+            placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+
+            self._sync_lunch_detention_schedule_for_absences(
+                session, placement, trim_extras=True
+            )
+
+        else:
+            self.mark_absent(placement_id, attendance_date)
+            self._sync_lunch_detention_schedule_for_absences(
+                session, placement, trim_extras=False
+            )
+
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+3️⃣ PATCH two existing methods
+
+Add ONLY the marked lines below.
+
+🔧 In mark_absent(...), add near the end (before commit):
+if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+    self._sync_lunch_detention_schedule_for_absences(
+        session, placement, trim_extras=False
+    )
+
+🔧 In unmark_absent(...), add before returning True:
+if placement and placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+    self._sync_lunch_detention_schedule_for_absences(
+        session, placement, trim_extras=True
+    )

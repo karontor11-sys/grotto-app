@@ -1797,61 +1797,61 @@ class DatabaseManager:
             session.close()
     
     def complete_placement_as_absent(self, placement_id: str, absent_date: str) -> bool:
-        """Complete a one-day Pre-Planned placement as absent.
-        
-        For one-day Pre-Planned referrals where the student is marked absent:
-        - Marks the daily log as absent with no check-in
-        - Sets progress_status to COMPLETED
-        - Sets placement status to 'completed'
-        
-        The card will appear grayed out and move to Completed section.
-        
-        Args:
-            placement_id: ID of the placement
-            absent_date: ISO format date string
-            
-        Returns:
-            True if successful, False otherwise
+        """
+        Marks a placement as completed due to absence (used for single-day CPR).
         """
         session = self.get_session()
         try:
             placement = session.query(Placement).filter(Placement.id == placement_id).first()
             if not placement:
                 return False
-            
+
             date_obj = datetime.fromisoformat(absent_date).date()
-            
-            # Get or create daily log
+
+            # Ensure DailyLog exists and is marked absent
             log = session.query(DailyLog).filter(
                 DailyLog.placement_id == placement_id,
                 DailyLog.date == date_obj
             ).first()
-            
+
             if not log:
-                log_id = self.generate_id()
                 log = DailyLog(
-                    id=log_id,
+                    id=self.generate_id(),
                     placement_id=placement_id,
                     date=date_obj,
                     day_type='absent',
                     checked_in=False,
-                    daily_fulfillment='yes',  # Mark as completed
-                    no_show=True  # Mark as no-show/absent
+                    daily_fulfillment='yes',
+                    positive_total=0,
+                    negative_total=0,
+                    daily_total=0
                 )
                 session.add(log)
             else:
                 log.day_type = 'absent'
                 log.checked_in = False
                 log.checked_in_at = None
-                log.daily_fulfillment = 'yes'  # Mark as completed
-                log.no_show = True  # Mark as no-show/absent
-            
-            # Complete the placement
-            placement.status = PlacementStatus.COMPLETED
+                log.daily_fulfillment = 'yes'
+                log.positive_total = 0
+                log.negative_total = 0
+                log.daily_total = 0
+
+            # FIXED ENUM VALUE: use lowercase 'completed'
+            placement.status = PlacementStatus.completed
             placement.progress_status = PlacementProgressStatus.COMPLETED
-            
+            placement.end_date = date_obj
+            placement.days_completed = max(
+                int(placement.days_completed or 0),
+                int(placement.days_assigned or 1)
+            )
+
             session.commit()
             return True
+
+        except Exception as e:
+            session.rollback()
+            print(f"[complete_placement_as_absent] error: {e}")
+            return False
         finally:
             session.close()
     

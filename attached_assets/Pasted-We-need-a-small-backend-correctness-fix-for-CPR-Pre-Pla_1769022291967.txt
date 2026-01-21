@@ -1,0 +1,71 @@
+We need a small backend correctness fix for CPR Pre-Planned placements.
+When a single-day CPR placement is marked Absent, the system correctly intends to close and complete the placement. However, the helper method complete_placement_as_absent() currently uses an invalid enum value for PlacementStatus, which can prevent completion from being saved. This patch corrects the enum reference only, with no behavior changes.
+
+📌 PASTE-IN CODE (db_manager.py)
+# ============================================================
+# PATCH: Fix enum reference in complete_placement_as_absent
+# File: db_manager.py
+# ============================================================
+
+def complete_placement_as_absent(self, placement_id: str, absent_date: str) -> bool:
+    """
+    Marks a placement as completed due to absence (used for single-day CPR).
+    """
+    session = self.get_session()
+    try:
+        placement = session.query(Placement).filter(Placement.id == placement_id).first()
+        if not placement:
+            return False
+
+        date_obj = datetime.fromisoformat(absent_date).date()
+
+        # Ensure DailyLog exists and is marked absent
+        log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.date == date_obj
+        ).first()
+
+        if not log:
+            log = DailyLog(
+                id=self.generate_id(),
+                placement_id=placement_id,
+                date=date_obj,
+                day_type='absent',
+                checked_in=False,
+                daily_fulfillment='yes',
+                positive_total=0,
+                negative_total=0,
+                daily_total=0
+            )
+            session.add(log)
+        else:
+            log.day_type = 'absent'
+            log.checked_in = False
+            log.checked_in_at = None
+            log.daily_fulfillment = 'yes'
+            log.positive_total = 0
+            log.negative_total = 0
+            log.daily_total = 0
+
+        # ---- FIXED ENUM VALUE HERE ----
+        placement.status = PlacementStatus.completed
+        placement.progress_status = PlacementProgressStatus.COMPLETED
+        placement.end_date = date_obj
+        placement.days_completed = max(
+            int(placement.days_completed or 0),
+            int(placement.days_assigned or 1)
+        )
+
+        session.commit()
+        return True
+
+    except Exception as e:
+        session.rollback()
+        print(f"[complete_placement_as_absent] error: {e}")
+        return False
+    finally:
+        session.close()
+
+# ============================================================
+# END PATCH
+# ============================================================

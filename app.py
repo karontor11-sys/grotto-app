@@ -297,19 +297,32 @@ def _is_absent_for_date(dm, placement_id: str, date_str: str, *, daily_log: dict
     return day_type == "absent" or day_type == "no_show"
 
 
-def _is_day_completed_for_date(daily_log: dict = None, *, session_status: str = None) -> bool:
+def _is_day_completed_for_date(
+    daily_log: dict = None,
+    *,
+    session_status: str = None,
+    is_absent_day: bool = False
+) -> bool:
     """
     Returns True if the given day is completed.
-    Checks dailyFulfillment, overrideUsed, and optionally session_status (for ISS).
-    
+
+    IMPORTANT FIX:
+      - For ISS, session_status == 'fulfilled' previously forced completion.
+      - For 1-day ISS Absent days, we must NOT treat 'fulfilled' as completion,
+        because Absent never serves/completes the placement.
+
     Args:
         daily_log: Daily log dictionary (may be None)
-        session_status: Optional session status for ISS ('fulfilled' means completed)
+        session_status: Optional session status for ISS ('fulfilled' means completed in general)
+        is_absent_day: If True, DO NOT treat fulfilled as completed
     """
-    if session_status == 'fulfilled':
+    # Only treat ISS "fulfilled" as completed when the day is NOT absent
+    if session_status == 'fulfilled' and not is_absent_day:
         return True
+
     if daily_log is None:
         return False
+
     fulfillment = daily_log.get('dailyFulfillment')
     override_used = daily_log.get('overrideUsed', False)
     return fulfillment == 'yes' or override_used
@@ -3310,42 +3323,52 @@ if page == "Dashboard":
             session_id = iss_session['session_id']
             student_name = iss_session['student_name']
             progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
-            
-            # Post-completion Dashboard truth card (collapsed + inactive)
-            if progress_status == "COMPLETED":
-                placement_id = iss_session.get('placement_id')
-                date_str = selected_date.isoformat()
-                
-                # Fetch daily log once and use centralized helpers
-                daily_log = dm.get_daily_log(placement_id, date_str)
-                is_absent = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
-                
+
+            # Placement_id/date for this row
+            placement_id = iss_session.get('placement_id')
+            date_str = selected_date.isoformat()
+
+            # Determine total ISS days (used for the 1-day exception)
+            iss_days_assigned = (
+                iss_session.get('iss_days_assigned')
+                or iss_session.get('iss_total_days')
+                or iss_session.get('issDaysAssigned')
+                or iss_session.get('iss_days')
+                or 1
+            )
+
+            # Fetch daily log once for both absent and completion checks
+            daily_log = dm.get_daily_log(placement_id, date_str)
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+
+            # 1-day ISS exception: Absent should NEVER cause the row to be treated as Completed/fulfilled for UI collapse
+            is_one_day_iss_absent = (int(iss_days_assigned or 1) == 1) and bool(is_absent_day)
+
+            # If DB says COMPLETED but this is 1-day ISS Absent, DO NOT show the collapsed "truth card".
+            # Keep it interactive so it can be served later.
+            if progress_status == "COMPLETED" and not is_one_day_iss_absent:
                 # Pull placement to get endDate reliably
                 placement_obj = dm.get_placement(placement_id) or {}
                 end_date = _parse_iso_date_safe(placement_obj.get('endDate'))
-                
-                total_days = iss_session.get('iss_days_assigned') or iss_session.get('iss_total_days') or 1
-                
+
                 day_info = dm.get_iss_days_served_info(placement_id, date_str)
                 day_num = day_info.get('current_day_number', None)
-                
+
                 suffix = _completed_suffix_for_day(
                     placement_type_label="ISS",
-                    total_days=total_days,
+                    total_days=int(iss_days_assigned or 1),
                     target_date=selected_date,
                     end_date=end_date,
-                    is_absent=bool(is_absent),
+                    is_absent=bool(is_absent_day),
                     day_number=day_num
                 )
 
-                # Add hover tooltip ONLY for whole-session completion labels (do not affect other flags)
+                # Add hover tooltip ONLY for whole-session completion labels
                 suffix_html = suffix
-                if (not bool(is_absent)) and ("Session Completed" in (suffix or "")):
-                    # Tooltip should show FINAL DAY points breakdown (persist when looking back)
+                if (not bool(is_absent_day)) and ("Session Completed" in (suffix or "")):
                     final_date = end_date or selected_date
                     final_date_str = final_date.isoformat()
 
-                    # Build the same daily breakdown tooltip, but with a "Final Day Points" header
                     try:
                         positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
                     except Exception:
@@ -3354,11 +3377,10 @@ if page == "Dashboard":
                     point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
                     breakdown = build_iss_points_breakdown_tooltip(point_events_for_final_day, positive_menu_for_breakdown)
                     tooltip_text = "Final Day Points\n" + (breakdown or "")
-
                     suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
 
                 subtitle = f"ISS · {suffix_html}"
-                
+
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
                     background-color: #fafafa; margin-bottom: 8px;">
@@ -3368,48 +3390,51 @@ if page == "Dashboard":
                     unsafe_allow_html=True
                 )
                 continue
-            
-            # Get placement_id for non-COMPLETED sessions
-            placement_id = iss_session.get('placement_id')
-            date_str = selected_date.isoformat()
-            
-            # Fetch daily log once for both absent and completion checks
-            daily_log = dm.get_daily_log(placement_id, date_str)
-            
-            # Check if this day is completed (session status = 'fulfilled' or dailyFulfillment = 'yes')
+
+            # For normal (non-collapsed) handling, compute completion with the absent-aware helper
             session_status = iss_session.get('status', 'scheduled')
-            is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
-            is_day_completed = _is_day_completed_for_date(daily_log, session_status=session_status)
-            
-            # Use centralized helper for colored circle
-            status_circle = _circle_for_day(progress_status, is_absent_day=is_absent_day, is_day_completed=is_day_completed)
-            
-            # COMPLETED placements or COMPLETED days: Show as non-interactive collapsed card (no expander)
-            if progress_status == "COMPLETED" or is_day_completed:
-                iss_days = iss_session.get('iss_days_assigned') or iss_session.get('issDaysAssigned', 1)
-                # Show completed day info
+            is_day_completed = _is_day_completed_for_date(
+                daily_log,
+                session_status=session_status,
+                is_absent_day=bool(is_absent_day)  # key fix: 1-day absent not treated as completed
+            )
+
+            # If this is 1-day ISS Absent, force the row to remain expandable (never collapse as completed)
+            should_collapse = (progress_status == "COMPLETED" or is_day_completed) and (not is_one_day_iss_absent)
+
+            # Use a display progress status so 1-day Absent doesn't look "finalized"
+            display_progress_status = "IN_PROGRESS" if (progress_status == "COMPLETED" and is_one_day_iss_absent) else progress_status
+
+            status_circle = _circle_for_day(
+                display_progress_status,
+                is_absent_day=bool(is_absent_day),
+                is_day_completed=bool(is_day_completed) and (not is_one_day_iss_absent)
+            )
+
+            # COMPLETED placements or COMPLETED days: show non-interactive collapsed card
+            if should_collapse:
                 completion_label = "Completed" if progress_status == "COMPLETED" else "Day Completed"
-                
-                # For ISS collapsed completed cards, hover tooltip shows the daily points breakdown
+
+                # Hover tooltip for ISS points breakdown
                 try:
                     positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
                 except Exception:
                     positive_menu_for_breakdown = ps.get_positive_point_menu()
-                
+
                 point_events_for_day = dm.get_point_events_for_date(placement_id, date_str)
                 tooltip_text = build_iss_points_breakdown_tooltip(point_events_for_day, positive_menu_for_breakdown)
                 completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
-                
+
                 st.markdown(
-                    f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; 
+                    f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
                     background-color: #fafafa; margin-bottom: 8px;">
                     <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
-                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {iss_days}-Day · {completion_label_html}</span>
+                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {int(iss_days_assigned or 1)}-Day · {completion_label_html}</span>
                     </div>""",
                     unsafe_allow_html=True
                 )
             else:
-                # Active/In Progress: Use expandable card with full functionality
+                # Active/In Progress: expandable card with full functionality
                 with st.expander(f"{status_circle} {student_name}", expanded=False):
                     render_iss_session_card(iss_session, selected_date)
     

@@ -1,0 +1,103 @@
+Implement forward-only date availability for the CPR → Pre-Planned Scheduler in app.py, with no side effects outside this form.
+
+Requirements:
+
+In the Pre-Planned CPR scheduler, once Day 1 has a selected date, then when the user clicks + Add Day, the newly added day must default to the next day after the last scheduled day (not central_today()).
+
+Each subsequent day’s date picker must enforce min_value = previous day’s date + 1 day, so previously chosen dates (and any earlier dates) are unavailable when adding days.
+
+Add a tiny “guardrail” that auto-corrects any invalid schedule dates in st.session_state.preplanned_schedule (and matching pp_date_{idx} widget state) so Streamlit never crashes if a user edits Day 1 later and the later days become invalid.
+
+Only touch the Pre-Planned CPR Scheduler section (the block that uses st.session_state.preplanned_schedule, keys like pp_date_0, and the “+ Add Day” button). Do not alter DB logic or other placement types.
+
+2) Tiny, safe paste-in patch (tailored to your ZIP)
+A) Paste this guardrail block right after you initialize preplanned_schedule
+
+Find this existing code in app.py (it’s already in your ZIP):
+
+if 'preplanned_schedule' not in st.session_state:
+    st.session_state.preplanned_schedule = [{"date": central_today(), "periods": [1]}]
+
+
+Immediately BELOW it, paste this:
+
+# --- Pre-Planned CPR: forward-only date guardrail (prevents duplicates/overlaps) ---
+# Ensures each day is >= the prior day + 1, starting from today.
+min_allowed = central_today()
+for i, slot in enumerate(st.session_state.preplanned_schedule):
+    slot_date = slot.get("date") or central_today()
+
+    if slot_date < min_allowed:
+        # Correct the stored schedule date
+        st.session_state.preplanned_schedule[i]["date"] = min_allowed
+
+        # Also correct the widget state if it already exists (Streamlit keys override `value=` params)
+        widget_key = f"pp_date_{i}"
+        if widget_key in st.session_state:
+            st.session_state[widget_key] = min_allowed
+
+        slot_date = min_allowed
+
+    min_allowed = slot_date + timedelta(days=1)
+
+B) Update Day 1 date picker to enforce min_value=central_today()
+
+Find this Day 1 date_input:
+
+row_date = st.date_input(
+    f"Date",
+    value=row_data.get("date", central_today()),
+    key=f"pp_date_0",
+    label_visibility="collapsed"
+)
+
+
+Replace it with this:
+
+row_date = st.date_input(
+    f"Date",
+    value=row_data.get("date", central_today()),
+    min_value=central_today(),
+    key=f"pp_date_0",
+    label_visibility="collapsed"
+)
+
+C) Update Day 2+ date pickers to enforce forward-only min_value
+
+Find this date_input inside your loop:
+
+row_date = st.date_input(
+    f"Date",
+    value=row_data.get("date", central_today()),
+    key=f"pp_date_{idx}",
+    label_visibility="collapsed"
+)
+
+
+Replace it with this:
+
+prev_date = st.session_state.preplanned_schedule[idx - 1].get("date") or central_today()
+row_date = st.date_input(
+    f"Date",
+    value=row_data.get("date", prev_date + timedelta(days=1)),
+    min_value=prev_date + timedelta(days=1),
+    key=f"pp_date_{idx}",
+    label_visibility="collapsed"
+)
+
+D) Change “+ Add Day” to append the next valid date (not today)
+
+Find this existing block:
+
+if add_row_button:
+    st.session_state.preplanned_schedule.append({"date": central_today(), "periods": [1]})
+    st.rerun()
+
+
+Replace it with this:
+
+if add_row_button:
+    last_date = st.session_state.preplanned_schedule[-1].get("date") or central_today()
+    next_date = last_date + timedelta(days=1)
+    st.session_state.preplanned_schedule.append({"date": next_date, "periods": [1]})
+    st.rerun()

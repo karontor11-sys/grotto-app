@@ -4122,6 +4122,25 @@ elif page == "Placements":
             
             if 'preplanned_schedule' not in st.session_state:
                 st.session_state.preplanned_schedule = [{"date": central_today(), "periods": [1]}]
+
+            # --- Pre-Planned CPR: forward-only date guardrail (prevents duplicates/overlaps) ---
+            # Ensures each day is >= the prior day + 1, starting from today.
+            min_allowed = central_today()
+            for i, slot in enumerate(st.session_state.preplanned_schedule):
+                slot_date = slot.get("date") or central_today()
+
+                if slot_date < min_allowed:
+                    # Correct the stored schedule date
+                    st.session_state.preplanned_schedule[i]["date"] = min_allowed
+
+                    # Also correct the widget state if it already exists (Streamlit keys override `value=` params)
+                    widget_key = f"pp_date_{i}"
+                    if widget_key in st.session_state:
+                        st.session_state[widget_key] = min_allowed
+
+                    slot_date = min_allowed
+
+                min_allowed = slot_date + timedelta(days=1)
             
             with st.form("preplanned_referral_form"):
                 st.markdown("### Student Information")
@@ -4151,6 +4170,7 @@ elif page == "Placements":
                     row_date = st.date_input(
                         f"Date",
                         value=row_data.get("date", central_today()),
+                        min_value=central_today(),
                         key=f"pp_date_0",
                         label_visibility="collapsed"
                     )
@@ -4175,9 +4195,11 @@ elif page == "Placements":
                     col_date, col_periods = st.columns([2, 3])
                     
                     with col_date:
+                        prev_date = st.session_state.preplanned_schedule[idx - 1].get("date") or central_today()
                         row_date = st.date_input(
                             f"Date",
-                            value=row_data.get("date", central_today()),
+                            value=row_data.get("date", prev_date + timedelta(days=1)),
+                            min_value=prev_date + timedelta(days=1),
                             key=f"pp_date_{idx}",
                             label_visibility="collapsed"
                         )
@@ -4204,7 +4226,9 @@ elif page == "Placements":
                 submit_button = st.form_submit_button("Create Pre-Planned Referral", type="primary", use_container_width=True)
                 
                 if add_row_button:
-                    st.session_state.preplanned_schedule.append({"date": central_today(), "periods": [1]})
+                    last_date = st.session_state.preplanned_schedule[-1].get("date") or central_today()
+                    next_date = last_date + timedelta(days=1)
+                    st.session_state.preplanned_schedule.append({"date": next_date, "periods": [1]})
                     st.rerun()
                 
                 if submit_button:

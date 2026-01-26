@@ -708,9 +708,26 @@ if page == "Dashboard":
                 if not payload:
                     st.error("Missing payload for add_point")
                 else:
-                    event_id = dm.add_point_event(payload)
-                    if not event_id:
-                        st.warning("🔒 Points were not added. Confirm **Full Day** or confirm **Partial Day** periods for this date first.")
+                    # Enforce placement-level limits (e.g., Repair the harm single-use + mutex)
+                    ps = st.session_state.point_system
+                    placement_id_for_gate = payload.get("placementId")
+                    student_id_for_gate = payload.get("studentId")
+                    code_for_gate = payload.get("code")
+                    date_for_gate = payload.get("date", "")
+
+                    can_add, reason = ps.can_add_point_event(
+                        placement_id_for_gate,
+                        student_id_for_gate,
+                        code_for_gate,
+                        date_for_gate,
+                    )
+
+                    if not can_add:
+                        st.warning(f"🔒 {reason}")
+                    else:
+                        event_id = dm.add_point_event(payload)
+                        if not event_id:
+                            st.warning("🔒 Points were not added. Confirm **Full Day** or confirm **Partial Day** periods for this date first.")
 
                 # Reset dropdowns by setting defaults (not deleting keys) so the next selection triggers cleanly
                 card_uid = pending.get("card_uid")
@@ -2887,7 +2904,29 @@ if page == "Dashboard":
                     
                     with pos_col:
                         positive_menu = ps.get_positive_point_menu()
-                        positive_options = ["+ Positive"] + [item['label'] for item in positive_menu]
+
+                        # If either repair option has been used anywhere in this placement,
+                        # lock BOTH repair options for the remainder of the placement/session.
+                        existing_events_for_lock = dm.get_all_point_events_for_placement(placement_id)
+                        repair_locked = any(
+                            (e.get("code") in ("REPAIR_WRITTEN", "REPAIR_VERBAL"))
+                            for e in (existing_events_for_lock or [])
+                        )
+
+                        if repair_locked:
+                            # Remove both repair options from the dropdown (acts like disabled/greyed out)
+                            positive_menu_filtered = [
+                                i for i in positive_menu
+                                if i.get("code") not in ("REPAIR_WRITTEN", "REPAIR_VERBAL")
+                            ]
+                            st.markdown(
+                                "<div style='color:#999;font-size:0.85em;'>Repair the harm (written/verbal) — used for this ISS session</div>",
+                                unsafe_allow_html=True
+                            )
+                        else:
+                            positive_menu_filtered = positive_menu
+
+                        positive_options = ["+ Positive"] + [item['label'] for item in positive_menu_filtered]
 
                         # Unique per-card widget key
                         pos_key = f"iss_pos_{card_uid}"
@@ -2897,7 +2936,7 @@ if page == "Dashboard":
                             if selected == "+ Positive":
                                 return
 
-                            item = next((i for i in positive_menu if i["label"] == selected), None)
+                            item = next((i for i in positive_menu_filtered if i["label"] == selected), None)
                             if not item:
                                 return
 
@@ -2917,6 +2956,7 @@ if page == "Dashboard":
                                 "card_uid": card_uid,
                                 "payload": payload,
                             }
+                            _dashboard_request_keep_open(card_uid, ttl=2)
                             st.rerun()
 
                         st.selectbox(

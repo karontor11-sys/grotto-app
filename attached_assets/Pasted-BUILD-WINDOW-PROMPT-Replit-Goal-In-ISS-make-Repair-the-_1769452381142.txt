@@ -1,0 +1,210 @@
+BUILD WINDOW PROMPT (Replit)
+
+Goal: In ISS, make “Repair the harm – written” and “Repair the harm – verbal” single-use per placement/session. Once either is selected, both are locked for the remainder of the placement (single-day + multi-day). Enforce at BOTH layers:
+1) UI: remove both repair options from the positive dropdown and show a grey “used/locked” note.
+2) Backend gate: before writing any point event, call PointSystem.can_add_point_event(...) and block with a warning if not allowed.
+
+This must be applied in app.py in:
+A) Dashboard ISS Pending Action Dispatcher (action == "add_point")  [hard enforcement]
+B) Dashboard ISS “Add Behaviors” positive dropdown (iss_pos_{card_uid}) [UI disable/grey]
+C) Full Day + Partial Day ISS panels where dm.add_point_event(...) is called directly (older panels)
+D) ISS Placement Manager behavior section where dm.add_point_event(...) is called directly (older panel)
+
+PASTE-IN PATCHES BELOW.
+
+# =========================
+# PATCH A) HARD GATE: Dashboard ISS Pending Action Dispatcher
+# Location: app.py -> inside Dashboard page -> inside:
+#   if pending:
+#     ...
+#     if action == "add_point":
+# Replace ONLY the inner add_point write with this guarded version.
+# =========================
+
+# Payload comes from the card dropdown, but execution happens here (single targeted action)
+payload = pending.get("payload")
+if not payload:
+    st.error("Missing payload for add_point")
+else:
+    # Enforce placement-level limits (e.g., Repair the harm single-use + mutex)
+    ps = st.session_state.point_system
+    placement_id_for_gate = payload.get("placementId")
+    student_id_for_gate = payload.get("studentId")
+    code_for_gate = payload.get("code")
+    date_for_gate = payload.get("date", "")
+
+    can_add, reason = ps.can_add_point_event(
+        placement_id_for_gate,
+        student_id_for_gate,
+        code_for_gate,
+        date_for_gate,
+    )
+
+    if not can_add:
+        st.warning(f"🔒 {reason}")
+    else:
+        event_id = dm.add_point_event(payload)
+        if not event_id:
+            st.warning("🔒 Points were not added. Confirm **Full Day** or confirm **Partial Day** periods for this date first.")
+
+# =========================
+# PATCH B) UI LOCK: Dashboard ISS Card -> Add Behaviors -> Positive dropdown
+# Location: app.py -> the ISS dashboard card section that contains:
+#   with pos_col:
+#       positive_menu = ps.get_positive_point_menu()
+#       positive_options = ["+ Positive"] + ...
+#
+# Replace that small block (positive_menu/positive_options and item lookup)
+# with the version below.
+# =========================
+
+with pos_col:
+    positive_menu = ps.get_positive_point_menu()
+
+    # If either repair option has been used anywhere in this placement,
+    # lock BOTH repair options for the remainder of the placement/session.
+    existing_events_for_lock = dm.get_all_point_events_for_placement(placement_id)
+    repair_locked = any(
+        (e.get("code") in ("REPAIR_WRITTEN", "REPAIR_VERBAL"))
+        for e in (existing_events_for_lock or [])
+    )
+
+    if repair_locked:
+        # Remove both repair options from the dropdown (acts like disabled/greyed out)
+        positive_menu_filtered = [
+            i for i in positive_menu
+            if i.get("code") not in ("REPAIR_WRITTEN", "REPAIR_VERBAL")
+        ]
+        st.markdown(
+            "<div style='color:#999;font-size:0.85em;'>Repair the harm (written/verbal) — used for this ISS session</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        positive_menu_filtered = positive_menu
+
+    positive_options = ["+ Positive"] + [item["label"] for item in positive_menu_filtered]
+
+    # Unique per-card widget key
+    pos_key = f"iss_pos_{card_uid}"
+
+    def on_positive_change():
+        selected = st.session_state.get(pos_key, "+ Positive")
+        if selected == "+ Positive":
+            return
+
+        item = next((i for i in positive_menu_filtered if i["label"] == selected), None)
+        if not item:
+            return
+
+        payload = {
+            "placementId": placement_id,
+            "studentId": student_id,
+            "sessionId": session_id,
+            "code": item["code"],
+            "type": "positive",
+            "value": item["value"],
+            "date": date_str,
+        }
+
+        # Dispatch ONE targeted action; Dashboard processes it
+        st.session_state["ISS_PENDING_ACTION"] = {
+            "action": "add_point",
+            "card_uid": card_uid,
+            "payload": payload,
+        }
+        st.rerun()
+
+    st.selectbox(
+        "Positive",
+        positive_options,
+        key=pos_key,
+        label_visibility="collapsed",
+        on_change=on_positive_change,
+    )
+
+# =========================
+# PATCH C) Older Full Day + Partial Day panels (direct dm.add_point_event calls)
+# Location: app.py -> Full Day ISS Session Panel:
+#   if selected_positive != "-- Add Positive --":
+#       ... dm.add_point_event({...})
+#
+# AND Partial Day ISS Session Panel:
+#   if selected_positive != "-- Add Positive --":
+#       ... dm.add_point_event({...})
+#
+# In BOTH places:
+# 1) Filter the positive_menu to hide repair options if locked
+# 2) Gate dm.add_point_event with ps.can_add_point_event
+# =========================
+
+# --- Drop this helper snippet right after: positive_menu = ps.get_positive_point_menu()
+existing_events_for_lock = dm.get_all_point_events_for_placement(placement_id)
+repair_locked = any(
+    (e.get("code") in ("REPAIR_WRITTEN", "REPAIR_VERBAL"))
+    for e in (existing_events_for_lock or [])
+)
+if repair_locked:
+    positive_menu = [
+        i for i in positive_menu
+        if i.get("code") not in ("REPAIR_WRITTEN", "REPAIR_VERBAL")
+    ]
+    st.markdown(
+        "<div style='color:#999;font-size:0.85em;'>Repair the harm (written/verbal) — used for this ISS session</div>",
+        unsafe_allow_html=True
+    )
+
+# --- Then replace the direct dm.add_point_event({...}) write with this gated version:
+can_add, reason = ps.can_add_point_event(placement_id, student["_id"], item["code"], date_str)
+if not can_add:
+    st.warning(f"🔒 {reason}")
+else:
+    dm.add_point_event({
+        'placementId': placement_id,
+        'studentId': student['_id'],
+        'code': item['code'],
+        'type': 'positive',
+        'value': item['value'],
+        'date': date_str
+    })
+
+# =========================
+# PATCH D) ISS Placement Manager panel (direct dm.add_point_event calls)
+# Location: app.py -> the section near:
+#   st.subheader("3. Behavior & Points")
+#   positive_menu = ps.get_positive_point_menu()
+#   ... dm.add_point_event({...})
+#
+# Apply the SAME two-step approach:
+# 1) Filter menu if repair_locked
+# 2) Gate the write with can_add_point_event
+# =========================
+
+# 1) Immediately after: positive_menu = ps.get_positive_point_menu()
+existing_events_for_lock = dm.get_all_point_events_for_placement(placement_id)
+repair_locked = any(
+    (e.get("code") in ("REPAIR_WRITTEN", "REPAIR_VERBAL"))
+    for e in (existing_events_for_lock or [])
+)
+if repair_locked:
+    positive_menu = [
+        i for i in positive_menu
+        if i.get("code") not in ("REPAIR_WRITTEN", "REPAIR_VERBAL")
+    ]
+    st.markdown(
+        "<div style='color:#999;font-size:0.85em;'>Repair the harm (written/verbal) — used for this ISS session</div>",
+        unsafe_allow_html=True
+    )
+
+# 2) Replace the direct dm.add_point_event({...}) for POSITIVE with:
+can_add, reason = ps.can_add_point_event(placement_id, student["_id"], item["code"], date_str)
+if not can_add:
+    st.warning(f"🔒 {reason}")
+else:
+    dm.add_point_event({
+        'placementId': placement_id,
+        'studentId': student['_id'],
+        'code': item['code'],
+        'type': 'positive',
+        'value': item['value'],
+        'date': date_str
+    })

@@ -3474,7 +3474,16 @@ if page == "Dashboard":
                     tooltip_text = "Final Day Points\n" + (breakdown or "")
                     suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
 
-                subtitle = f"ISS · {suffix_html}"
+                # Standardize ISS completed subtitle to match LD/CPR:
+                # - 1-Day Session Completed (single-day)
+                # - X-Day · Day Completed (multi-day, non-final day)
+                # - X-Day Session Completed (multi-day, final day)
+                total_days_assigned = int(iss_days_assigned or 1)
+
+                if (total_days_assigned > 1) and (suffix == "Day Completed"):
+                    subtitle = f"ISS · {total_days_assigned}-Day · {suffix_html}"
+                else:
+                    subtitle = f"ISS · {suffix_html}"
 
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;

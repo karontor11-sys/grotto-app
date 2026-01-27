@@ -8,7 +8,7 @@ from point_system import PointSystem
 from analytics import AnalyticsEngine
 from import_export import ImportExportManager
 from notifications import NotificationManager
-from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today, get_placement_type_display_name, add_business_days, central_now, central_today
+from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today, get_placement_type_display_name, add_business_days, central_now, central_today, get_school_year_for_date
 
 # Initialize session state
 if 'data_manager' not in st.session_state:
@@ -689,6 +689,82 @@ st.session_state.show_preplanned_debug_ui = st.sidebar.checkbox(
 
 # Dashboard Page
 if page == "Dashboard":
+    # =========================
+    # AUGUST PROMPT: SCHOOL CALENDAR (NO-SCHOOL DAYS)
+    # =========================
+    today = central_today()
+    current_sy = get_school_year_for_date(today)
+
+    # Show the prompt during August until the calendar is finalized for this school year
+    show_calendar_prompt = (today.month == 8) and (not dm.is_school_calendar_finalized(current_sy))
+
+    if show_calendar_prompt:
+        st.warning("📅 School Calendar Setup: Please enter this school year's holidays / no-school days so schedules can skip them like weekends.")
+
+    # Allow access any time, but especially during August prompt window
+    with st.expander("📅 School Calendar Setup (No-School Days / Breaks)", expanded=show_calendar_prompt):
+        # Ensure config exists so finalize works cleanly
+        dm._ensure_school_year_config(current_sy)
+
+        st.caption(f"School Year: {int(current_sy[0])}-{str(int(current_sy[1]))[-2:]}  (Aug → Jul)")
+
+        mode = st.radio("Add entry type", ["Single Day", "Date Range"], horizontal=True, key="cal_mode")
+
+        title = st.text_input("Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)", key="cal_title").strip()
+
+        if mode == "Single Day":
+            one_day = st.date_input("Date", value=today, key="cal_single_date")
+            start_date = one_day
+            end_date = one_day
+        else:
+            colA, colB = st.columns(2)
+            with colA:
+                start_date = st.date_input("Start date", value=today, key="cal_start_date")
+            with colB:
+                end_date = st.date_input("End date", value=today, key="cal_end_date")
+
+        add_col, finalize_col = st.columns([2, 1])
+
+        with add_col:
+            if st.button("➕ Add No-School Day(s)", use_container_width=True):
+                new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
+                if new_id:
+                    st.success("Saved.")
+                    st.rerun()
+                else:
+                    st.warning("Not saved (missing title, duplicate, or invalid dates).")
+
+        with finalize_col:
+            finalized = dm.is_school_calendar_finalized(current_sy)
+            if finalized:
+                st.success("✅ Calendar finalized")
+            else:
+                if st.button("✅ Finalize", use_container_width=True):
+                    dm.finalize_school_calendar(current_sy)
+                    st.success("Calendar finalized. August prompt will stop for this school year.")
+                    st.rerun()
+
+        st.divider()
+
+        closures = dm.list_school_closures(current_sy)
+        if not closures:
+            st.info("No no-school days entered yet.")
+        else:
+            st.markdown("**Saved no-school days:**")
+            for c in closures:
+                left, right = st.columns([6, 1])
+                label = c["title"]
+                if c["start_date"] == c["end_date"]:
+                    date_label = c["start_date"]
+                else:
+                    date_label = f'{c["start_date"]} → {c["end_date"]}'
+                with left:
+                    st.write(f"• **{label}** — {date_label}")
+                with right:
+                    if st.button("🗑️", key=f"del_closure_{c['id']}"):
+                        dm.delete_school_closure(c["id"])
+                        st.rerun()
+
     # ===== ISS PENDING ACTION DISPATCHER (best long-term fix) =====
     # Instead of scanning deferred_* keys (fragile), we process exactly ONE explicit action per rerun.
     ISS_PENDING_KEY = "ISS_PENDING_ACTION"

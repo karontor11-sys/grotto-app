@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import enum
-from utils import add_business_days, get_school_days, central_today, central_now_naive, central_now
+from utils import add_business_days, get_school_days, get_school_year_for_date, central_today, central_now_naive, central_now
 
 Base = declarative_base()
 
@@ -268,6 +268,37 @@ class DismissedNotification(Base):
     dismissed_at = Column(DateTime, default=datetime.now, nullable=False)  # When user dismissed it
     dismissed_by = Column(String, nullable=True)  # Who dismissed (optional for future use)
 
+
+class SchoolYearConfig(Base):
+    """Per-school-year configuration flags (e.g., calendar finalized)."""
+    __tablename__ = 'school_year_config'
+
+    id = Column(String, primary_key=True)
+    start_year = Column(Integer, nullable=False)
+    end_year = Column(Integer, nullable=False)
+    calendar_finalized = Column(Boolean, default=False)
+    finalized_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (UniqueConstraint('start_year', 'end_year', name='uix_school_year_config'),)
+
+
+class SchoolClosure(Base):
+    """No-school day blocks (single day or ranges) that should be skipped like weekends."""
+    __tablename__ = 'school_closures'
+
+    id = Column(String, primary_key=True)
+    start_year = Column(Integer, nullable=False)
+    end_year = Column(Integer, nullable=False)
+
+    title = Column(String, nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (UniqueConstraint('start_year', 'end_year', 'title', 'start_date', 'end_date', name='uix_school_closure'),)
+
+
 class DatabaseManager:
     def __init__(self):
         """Initialize the database manager."""
@@ -517,7 +548,200 @@ class DatabaseManager:
     def generate_id(self) -> str:
         """Generate a unique identifier."""
         return str(uuid.uuid4())
-    
+
+    # =========================
+    # SCHOOL CALENDAR (NO-SCHOOL DAYS) — Aug→Jul school year
+    # =========================
+
+    def _ensure_school_year_config(self, school_year: tuple) -> SchoolYearConfig:
+        """Create config row if missing; return the row."""
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+            if not cfg:
+                cfg = SchoolYearConfig(
+                    id=self.generate_id(),
+                    start_year=sy_start,
+                    end_year=sy_end,
+                    calendar_finalized=False,
+                    finalized_at=None
+                )
+                session.add(cfg)
+                session.commit()
+            return cfg
+        finally:
+            session.close()
+
+    def is_school_calendar_finalized(self, school_year: tuple) -> bool:
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+            return bool(cfg and cfg.calendar_finalized)
+        finally:
+            session.close()
+
+    def finalize_school_calendar(self, school_year: tuple) -> bool:
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+            if not cfg:
+                cfg = SchoolYearConfig(
+                    id=self.generate_id(),
+                    start_year=sy_start,
+                    end_year=sy_end,
+                    calendar_finalized=True,
+                    finalized_at=datetime.now()
+                )
+                session.add(cfg)
+            else:
+                cfg.calendar_finalized = True
+                cfg.finalized_at = datetime.now()
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def list_school_closures(self, school_year: tuple) -> List[Dict[str, Any]]:
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+            rows = session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).order_by(SchoolClosure.start_date.asc()).all()
+
+            out = []
+            for r in rows:
+                out.append({
+                    "id": r.id,
+                    "title": r.title,
+                    "start_date": r.start_date.isoformat(),
+                    "end_date": r.end_date.isoformat(),
+                })
+            return out
+        finally:
+            session.close()
+
+    def add_school_closure(self, school_year: tuple, title: str, start_date: date, end_date: date) -> Optional[str]:
+        """Add a single-day or range closure. Returns id or None."""
+        if not title:
+            return None
+
+        # Normalize
+        if isinstance(start_date, str):
+            start_date = datetime.fromisoformat(start_date).date()
+        if isinstance(end_date, str):
+            end_date = datetime.fromisoformat(end_date).date()
+        if end_date < start_date:
+            start_date, end_date = end_date, start_date
+
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+            # ensure config exists so August prompt can be satisfied later
+            self._ensure_school_year_config((sy_start, sy_end))
+
+            new_id = self.generate_id()
+            row = SchoolClosure(
+                id=new_id,
+                start_year=sy_start,
+                end_year=sy_end,
+                title=title.strip(),
+                start_date=start_date,
+                end_date=end_date
+            )
+            session.add(row)
+            session.commit()
+            return new_id
+        except IntegrityError:
+            session.rollback()
+            return None
+        finally:
+            session.close()
+
+    def delete_school_closure(self, closure_id: str) -> bool:
+        session = self.get_session()
+        try:
+            row = session.query(SchoolClosure).filter(SchoolClosure.id == closure_id).first()
+            if not row:
+                return False
+            session.delete(row)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def _closure_date_set_for_year(self, school_year: tuple) -> set:
+        """Expand closure ranges into a set of dates for quick membership checks."""
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+            rows = session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).all()
+
+            dates = set()
+            for r in rows:
+                d = r.start_date
+                while d <= r.end_date:
+                    dates.add(d)
+                    d += timedelta(days=1)
+            return dates
+        finally:
+            session.close()
+
+    def is_non_school_day(self, d: date) -> bool:
+        """True if weekend OR a saved no-school day for that date's school year."""
+        if isinstance(d, str):
+            try:
+                d = datetime.fromisoformat(d).date()
+            except Exception:
+                return True
+
+        # weekend
+        if d.weekday() >= 5:
+            return True
+
+        sy = get_school_year_for_date(d)
+        closure_set = self._closure_date_set_for_year(sy)
+        return d in closure_set
+
+    def next_school_day(self, d: date) -> date:
+        """Advance to the next valid school day (skips weekends + closures)."""
+        if isinstance(d, str):
+            d = datetime.fromisoformat(d).date()
+
+        nd = d + timedelta(days=1)
+        while self.is_non_school_day(nd):
+            nd += timedelta(days=1)
+        return nd
+
+    def get_school_days_with_closures(self, start_date: date, days_needed: int) -> List[str]:
+        """Generate weekday school days skipping weekends + configured closures."""
+        if isinstance(start_date, str):
+            start_date = datetime.fromisoformat(start_date).date()
+
+        out = []
+        cur = start_date
+        while len(out) < int(days_needed):
+            if not self.is_non_school_day(cur):
+                out.append(cur.isoformat())
+            cur += timedelta(days=1)
+        return out
+
     # Student operations
     def add_student(self, student_data: Dict[str, Any]) -> str:
         """Add a new student."""
@@ -620,7 +844,7 @@ class DatabaseManager:
             if placement_category == PlacementCategory.ISS and placement_type == PlacementType.iss_full_day:
                 start_date_obj = datetime.fromisoformat(placement_data['startDate']).date()
                 days_assigned = placement_data['daysAssigned']
-                scheduled_iss_dates = get_school_days(start_date_obj, days_assigned)
+                scheduled_iss_dates = self.get_school_days_with_closures(start_date_obj, days_assigned)
                 # For ISS (Full), auto-calculate end_date from scheduled dates
                 if scheduled_iss_dates:
                     end_date = datetime.fromisoformat(scheduled_iss_dates[-1]).date()
@@ -1236,9 +1460,8 @@ class DatabaseManager:
                 last_date = datetime.fromisoformat(last_date_str).date()
                 
                 # Find next school day
-                next_date = last_date + timedelta(days=1)
-                while next_date.weekday() >= 5:  # Skip weekends
-                    next_date += timedelta(days=1)
+                next_date = last_date
+                next_date = self.next_school_day(next_date)
                 
                 # Append to scheduled dates and update end date
                 scheduled_dates.append(next_date.isoformat())
@@ -2105,7 +2328,7 @@ class DatabaseManager:
             
             while days_created < days_assigned:
                 # Skip weekends if requested
-                if skip_weekends and current_date.weekday() >= 5:  # 5=Saturday, 6=Sunday
+                if skip_weekends and self.is_non_school_day(current_date):
                     current_date += timedelta(days=1)
                     continue
                 
@@ -2140,7 +2363,7 @@ class DatabaseManager:
             # Iterate through the entire date range
             while current_date <= end_date:
                 # Skip weekends if requested
-                if skip_weekends and current_date.weekday() >= 5:  # 5=Saturday, 6=Sunday
+                if skip_weekends and self.is_non_school_day(current_date):
                     current_date += timedelta(days=1)
                     continue
                 
@@ -2179,7 +2402,7 @@ class DatabaseManager:
         
         while len(scheduled_dates) < num_days:
             # Skip weekends
-            if current_date.weekday() < 5:  # Monday=0, Friday=4
+            if not self.is_non_school_day(current_date):
                 # TODO: Add logic to skip specific no-lunch days (early dismissal, etc.)
                 # For now, just add all weekdays with lunch
                 scheduled_dates.append(current_date)
@@ -6105,7 +6328,7 @@ class DatabaseManager:
             
             current_date = check_date
             while current_date < today:
-                if current_date.weekday() < 5:
+                if not self.is_non_school_day(current_date):
                     result = self.process_end_of_day(current_date)
                     total_incomplete = result.get('incomplete_logs', 0) + result.get('incomplete_sessions', 0)
                     if total_incomplete > 0:

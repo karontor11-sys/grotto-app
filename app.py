@@ -3543,7 +3543,10 @@ if page == "Dashboard":
                 session_key = session_id if session_id is not None else "full"
                 iss_card_uid = f"{placement_id}_{session_key}_{date_str}"
 
-                with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(iss_card_uid)):
+                with st.expander(
+                    f"{status_circle} {student_name}{' · In Progress' if status_circle == '🟡' else ''}",
+                    expanded=_dashboard_should_expand(iss_card_uid)
+                ):
                     render_iss_session_card(iss_session, selected_date)
     
     st.divider()
@@ -3625,7 +3628,10 @@ if page == "Dashboard":
                 # Active/In Progress: Use expandable card with full functionality
                 ld_card_uid = f"ld_{placement_id}_{date_str}"
 
-                with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(ld_card_uid)):
+                with st.expander(
+                    f"{status_circle} {student_name}{' · In Progress' if status_circle == '🟡' else ''}",
+                    expanded=_dashboard_should_expand(ld_card_uid)
+                ):
                     render_lunch_detention_card(placement, selected_date)
     
     st.divider()
@@ -3798,7 +3804,10 @@ if page == "Dashboard":
                 # Active/In Progress: Use expandable card with full functionality
                 cpr_card_uid = f"cpr_{placement_id}_{date_str}"
 
-                with st.expander(f"{status_circle} {student_name}", expanded=_dashboard_should_expand(cpr_card_uid)):
+                with st.expander(
+                    f"{status_circle} {student_name}{' · In Progress' if status_circle == '🟡' else ''}",
+                    expanded=_dashboard_should_expand(cpr_card_uid)
+                ):
                     render_unified_class_referral_card(placement, selected_date)
 
     # Tick down the keep-open TTL once per Dashboard render

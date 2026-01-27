@@ -4514,94 +4514,7 @@ elif page == "Completed Placements":
                     return f"{days} day(s)"
             return ""
         
-        with st.expander("Reports & Export", expanded=False):
-            report_scope = st.selectbox("Report range", ["Day", "Month", "Year"], index=0, key="cp_report_scope")
-            
-            today_central = central_today()
-            
-            if report_scope == "Day":
-                report_day = st.date_input("Select date", value=today_central, key="cp_report_day")
-                def _in_scope(p): 
-                    d = _completion_date_for(p, dm)
-                    return d == report_day
-            
-            elif report_scope == "Month":
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    report_year = st.number_input("Year", min_value=2020, max_value=2100, value=today_central.year, step=1, key="cp_report_year_m")
-                with col_b:
-                    report_month = st.number_input("Month", min_value=1, max_value=12, value=today_central.month, step=1, key="cp_report_month")
-                def _in_scope(p):
-                    d = _completion_date_for(p, dm)
-                    return bool(d) and d.year == int(report_year) and d.month == int(report_month)
-            
-            else:  # Year
-                report_year = st.number_input("Year", min_value=2020, max_value=2100, value=today_central.year, step=1, key="cp_report_year_y")
-                def _in_scope(p):
-                    d = _completion_date_for(p, dm)
-                    return bool(d) and d.year == int(report_year)
-            
-            report_rows = [p for p in filtered_placements if _in_scope(p)]
-            
-            table = []
-            for p in report_rows:
-                cd = _completion_date_for(p, dm)
-                student = p.get("student", {})
-                student_name = f"{student.get('firstName', '')} {student.get('lastName', '')}".strip()
-                table.append({
-                    "Student": student_name,
-                    "Placement": _placement_type_label(p),
-                    "Served time": _served_time_label(p),
-                    "Reason": (p.get("reason") or "").strip(),
-                    "Start date": p.get("startDate") or "",
-                    "End/Completed date": cd.isoformat() if cd else "",
-                    "Staff": (p.get("staffName") or p.get("createdBy") or "").strip(),
-                    "Placement ID": p.get("id") or p.get("placementId") or p.get("_id") or "",
-                })
-            
-            df = pd.DataFrame(table)
-            
-            st.caption(f"{len(df)} record(s) in report")
-            
-            if len(df) > 0:
-                st.dataframe(df, use_container_width=True, hide_index=True)
-                
-                dl_col1, dl_col2, dl_col3 = st.columns(3)
-                
-                with dl_col1:
-                    csv_bytes = df.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "Download CSV",
-                        data=csv_bytes,
-                        file_name="completed_placements_report.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
-                
-                with dl_col2:
-                    xlsx_buf = io.BytesIO()
-                    with pd.ExcelWriter(xlsx_buf, engine="openpyxl") as writer:
-                        df.to_excel(writer, index=False, sheet_name="Report")
-                    st.download_button(
-                        "Download XLSX",
-                        data=xlsx_buf.getvalue(),
-                        file_name="completed_placements_report.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                
-                with dl_col3:
-                    html = df.to_html(index=False)
-                    st.download_button(
-                        "Download Print-Friendly HTML",
-                        data=html.encode("utf-8"),
-                        file_name="completed_placements_report.html",
-                        mime="text/html",
-                        use_container_width=True
-                    )
-            else:
-                st.info("No completed placements found for the selected report range.")
-        # -----------------------------------------------------------------------
+        # Reports & Export expander moved below the archive view (see below).
         
         # Normal hierarchical view - Render School Year → Month → Day hierarchy
         for school_year, year_data in grouped.items():
@@ -4783,6 +4696,138 @@ elif page == "Completed Placements":
                                         st.rerun()
                         
                         st.markdown("---")
+
+        # ---------------- Reports + Export Section (moved below archive view) ----------------
+        with st.expander("Reports & Export", expanded=False):
+            # Only Month + School Year
+            report_scope = st.selectbox(
+                "Report range",
+                ["Month", "School Year"],
+                index=0,
+                key="cp_report_scope"
+            )
+
+            # Build School Year dropdown from what's actually in the archive grouping
+            available_school_years = list(grouped.keys())  # keys are tuples like (2025, 2026)
+
+            def _sy_short_label(sy: tuple) -> str:
+                # e.g. (2025, 2026) -> "2025-26"
+                try:
+                    return f"{int(sy[0])}-{str(int(sy[1]))[-2:]}"
+                except Exception:
+                    return str(sy)
+
+            sy_labels = [_sy_short_label(sy) for sy in available_school_years]
+
+            # Default selection: current school year if present, else first available
+            default_sy_index = 0
+            try:
+                if current_school_year in available_school_years:
+                    default_sy_index = available_school_years.index(current_school_year)
+            except Exception:
+                default_sy_index = 0
+
+            selected_sy = st.selectbox(
+                "School Year",
+                options=available_school_years,
+                format_func=_sy_short_label,
+                index=default_sy_index,
+                key="cp_report_school_year"
+            )
+
+            today_central = central_today()
+
+            if report_scope == "Month":
+                # Month dropdown: Aug -> Jul (full school-year cycle, includes July)
+                months_order = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7]
+                month_names = {
+                    1: "January", 2: "February", 3: "March", 4: "April",
+                    5: "May", 6: "June", 7: "July", 8: "August",
+                    9: "September", 10: "October", 11: "November", 12: "December"
+                }
+                month_options = months_order
+                month_default = today_central.month if today_central.month in month_options else 8
+                month_index = month_options.index(month_default) if month_default in month_options else 0
+
+                selected_month = st.selectbox(
+                    "Month",
+                    options=month_options,
+                    format_func=lambda m: month_names.get(m, str(m)),
+                    index=month_index,
+                    key="cp_report_month_sy"
+                )
+
+                def _in_scope(p):
+                    d = _completion_date_for(p, dm)
+                    return bool(d) and get_school_year_for_date(d) == selected_sy and d.month == int(selected_month)
+
+            else:  # School Year
+                def _in_scope(p):
+                    d = _completion_date_for(p, dm)
+                    return bool(d) and get_school_year_for_date(d) == selected_sy
+
+            report_rows = [p for p in filtered_placements if _in_scope(p)]
+
+            table = []
+            for p in report_rows:
+                cd = _completion_date_for(p, dm)
+                student = p.get("student", {})
+                student_name = f"{student.get('firstName', '')} {student.get('lastName', '')}".strip()
+                table.append({
+                    "Student": student_name,
+                    "Placement": _placement_type_label(p),
+                    "Served time": _served_time_label(p),
+                    "Reason": (p.get("reason") or "").strip(),
+                    "Start date": p.get("startDate") or "",
+                    "End/Completed date": cd.isoformat() if cd else "",
+                    "Staff": (p.get("staffName") or p.get("createdBy") or "").strip(),
+                    "Placement ID": p.get("id") or p.get("placementId") or p.get("_id") or "",
+                })
+
+            df = pd.DataFrame(table)
+
+            st.caption(f"{len(df)} record(s) in report")
+
+            if len(df) > 0:
+                st.dataframe(df, use_container_width=True, hide_index=True)
+
+                dl_col1, dl_col2, dl_col3 = st.columns(3)
+
+                with dl_col1:
+                    csv_bytes = df.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        "Download CSV",
+                        data=csv_bytes,
+                        file_name="completed_placements_report.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+
+                with dl_col2:
+                    xlsx_buffer = io.BytesIO()
+                    with pd.ExcelWriter(xlsx_buffer, engine="openpyxl") as writer:
+                        df.to_excel(writer, index=False, sheet_name="Completed Placements")
+                    st.download_button(
+                        "Download Excel",
+                        data=xlsx_buffer.getvalue(),
+                        file_name="completed_placements_report.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+
+                with dl_col3:
+                    html = df.to_html(index=False)
+                    st.download_button(
+                        "Download Print-Friendly HTML",
+                        data=html.encode("utf-8"),
+                        file_name="completed_placements_report.html",
+                        mime="text/html",
+                        use_container_width=True
+                    )
+            else:
+                st.info("No completed placements found for the selected report range.")
+        # -----------------------------------------------------------------------
+
     else:
         st.info("No completed placements found.")
 

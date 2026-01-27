@@ -791,13 +791,17 @@ if page == "Dashboard":
                     if not pending.get("is_present", False):
                         dm.update_iss_attendance(pending["placement_id"], pending["log_date"], True)
 
+                    # STRICT make-up trigger (ISS only):
+                    # Even if schedule-based math marks the session complete, enforce "full-day expectation"
+                    # (originalDayCount * 10) and show the existing Make-Up Days decision prompt when short.
+                    strict_makeup_check = dm.check_iss_session_needs_makeup_strict(pending["placement_id"])
+                    if strict_makeup_check.get("needsMakeup", False):
+                        st.session_state[f"show_makeup_prompt_{pending['placement_id']}"] = True
+                        st.session_state[f"makeup_info_{pending['placement_id']}"] = strict_makeup_check
+
                     if result.get("isCompleted"):
                         st.success("ISS Session complete! All required periods served.")
                     else:
-                        makeup_check = dm.check_iss_session_needs_makeup(pending["placement_id"])
-                        if makeup_check.get("needsMakeup", False):
-                            st.session_state[f"show_makeup_prompt_{pending['placement_id']}"] = True
-                            st.session_state[f"makeup_info_{pending['placement_id']}"] = makeup_check
                         st.success("ISS day completed successfully!")
                 else:
                     st.error(result.get("message", "Failed to complete ISS day"))

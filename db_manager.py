@@ -3497,7 +3497,141 @@ class DatabaseManager:
             
         finally:
             session.close()
-    
+
+    # =========================
+    # STRICT MAKE-UP TRUTH (ISS ONLY)
+    # =========================
+
+    def get_iss_total_periods_required_strict(self, placement: dict) -> int:
+        """
+        Strict required periods = original day count * 10 (full-day expectation).
+        This intentionally ignores partial-day schedules and overrides.
+        """
+        if not placement:
+            return 0
+
+        original_day_count = placement.get('originalDayCount') or placement.get('issDaysAssigned') or 0
+        try:
+            original_day_count = int(original_day_count)
+        except Exception:
+            original_day_count = 0
+
+        return max(0, original_day_count * 10)
+
+    def should_offer_makeup_days_strict(self, placement: dict) -> bool:
+        """
+        Strict trigger for offering make-up days (ISS only).
+
+        Same intent as should_offer_makeup_days(), except the required total is computed
+        as (original_day_count * 10) regardless of partial schedules/overrides.
+        """
+        if not placement:
+            return False
+
+        # Must be ISS placement
+        if placement.get('placementType', '') != 'ISS':
+            return False
+
+        # If already in make-up mode, don't prompt again
+        if placement.get('status', '') == 'needs_makeup':
+            return False
+
+        # Must have at least 1 assigned day
+        original_day_count = placement.get('originalDayCount') or placement.get('issDaysAssigned') or 0
+        if original_day_count < 1:
+            return False
+
+        # Strict served vs required
+        periods_served = self.get_iss_periods_served(placement)
+        periods_required_strict = self.get_iss_total_periods_required_strict(placement)
+
+        if periods_served >= periods_required_strict:
+            return False
+
+        # Must have original scheduled dates (non-make-up)
+        scheduled_iss_dates = placement.get('scheduledIssDates') or []
+        scheduled_sessions = placement.get('scheduledIssSessions') or []
+
+        original_dates = set()
+
+        for date_str in scheduled_iss_dates:
+            original_dates.add(date_str)
+
+        for sess in scheduled_sessions:
+            is_makeup = sess.get('isMakeup', False) or sess.get('is_makeup', False)
+            if not is_makeup:
+                d = sess.get('date', '')
+                if d:
+                    original_dates.add(d)
+
+        if not original_dates:
+            return False
+
+        placement_id = placement.get('_id')
+        if not placement_id:
+            return False
+
+        session = self.get_session()
+        try:
+            logs = session.query(DailyLog).filter(DailyLog.placement_id == placement_id).all()
+
+            completed_dates = set()
+            for log in logs:
+                # Completed + present
+                if log.daily_fulfillment == 'yes' and log.day_type != 'absent':
+                    # Only explicit True means make-up; False/NULL = original day (legacy-safe)
+                    is_makeup = (log.is_makeup_session is True)
+                    if not is_makeup:
+                        completed_dates.add(log.log_date)
+
+            # All original scheduled dates must be completed
+            for d in original_dates:
+                if d not in completed_dates:
+                    return False
+
+            return True
+        finally:
+            session.close()
+
+    def check_iss_session_needs_makeup_strict(self, placement_id: str) -> Dict[str, Any]:
+        """
+        Strict version of check_iss_session_needs_makeup().
+
+        Uses full-day expectation (originalDayCount * 10) to detect a shortfall
+        even when partial-day schedules/overrides reduce the schedule-based required total.
+        """
+        session = self.get_session()
+        try:
+            placement = session.query(Placement).filter(Placement.id == placement_id).first()
+            if not placement:
+                return {'needsMakeup': False, 'isFinalDay': False}
+
+            placement_dict = self._placement_to_dict(placement)
+
+            needs_makeup = self.should_offer_makeup_days_strict(placement_dict)
+
+            iss_days_assigned = placement_dict.get('originalDayCount') or placement_dict.get('issDaysAssigned') or 0
+            periods_served = self.get_iss_periods_served(placement_dict)
+
+            periods_required_strict = self.get_iss_total_periods_required_strict(placement_dict)
+            periods_remaining_strict = max(0, periods_required_strict - periods_served)
+
+            days_completed = placement_dict.get('daysCompleted') or 0
+            is_final_day = days_completed >= iss_days_assigned
+
+            return {
+                'needsMakeup': needs_makeup,
+                'isFinalDay': is_final_day,
+                'periodsServed': periods_served,
+                'periodsRequired': periods_required_strict,
+                'periodsRemaining': periods_remaining_strict,
+                'daysCompleted': days_completed,
+                'daysAssigned': iss_days_assigned,
+                'strictTruth': True
+            }
+        finally:
+            session.close()
+
     def get_iss_scheduled_periods_for_date(self, placement: dict, target_date) -> int:
         """Get scheduled periods for a specific ISS date.
         

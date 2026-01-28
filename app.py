@@ -695,6 +695,59 @@ if page == "Dashboard":
     today = central_today()
     current_sy = get_school_year_for_date(today)
 
+    # ==========================================================
+    # TESTING ONLY — SCHOOL CALENDAR RESET (REMOVE AFTER TEST)
+    # Purpose: Clear "No-School Days / Breaks" entries + un-finalize
+    #          the calendar for the CURRENT school year, so the
+    #          August prompt behaves like it's August again.
+    #
+    # How to use:
+    #   1) Set RESET_SCHOOL_CALENDAR_FOR_TESTING = True
+    #   2) Run once (it will clear data and stop)
+    #   3) Set back to False (or delete this whole block)
+    # ==========================================================
+    RESET_SCHOOL_CALENDAR_FOR_TESTING = False
+
+    if RESET_SCHOOL_CALENDAR_FOR_TESTING:
+        sy_start, sy_end = int(current_sy[0]), int(current_sy[1])
+
+        session = dm.get_session()
+        try:
+            # Import ORM models from db_manager (they live in that module)
+            from db_manager import SchoolClosure, SchoolYearConfig
+
+            # Delete closures for this school year
+            session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).delete(synchronize_session=False)
+
+            # Un-finalize the school year config (if it exists)
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+
+            if cfg:
+                cfg.calendar_finalized = False
+                cfg.finalized_at = None
+
+            session.commit()
+
+            st.sidebar.success(
+                f"TEST RESET complete: School Calendar cleared for SY {sy_start}-{str(sy_end)[-2:]}."
+            )
+
+        except Exception as e:
+            session.rollback()
+            st.sidebar.error(f"TEST RESET failed: {e}")
+
+        finally:
+            session.close()
+
+        # Stop here so you don't accidentally keep clearing every rerun
+        st.stop()
+
     # School Calendar editor toggle (lets a user reopen the August-style workflow any time)
     if "school_calendar_edit_mode" not in st.session_state:
         st.session_state.school_calendar_edit_mode = False

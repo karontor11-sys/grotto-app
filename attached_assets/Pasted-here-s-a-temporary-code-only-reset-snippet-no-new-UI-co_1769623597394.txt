@@ -1,0 +1,71 @@
+here’s a temporary, code-only reset snippet (no new UI controls) that will wipe the School Calendar Setup (No-School Days / Breaks) data for the current school year and make the August prompt behave like it’s brand new.
+
+Where to paste it
+
+In app.py, inside the if page == "Dashboard": block, right after these existing lines:
+
+today = central_today()
+current_sy = get_school_year_for_date(today)
+
+How to use it
+
+Paste the snippet.
+
+Flip the flag to True.
+
+Run once → it clears the data and stops the app run.
+
+Flip it back to False (or delete the snippet).
+
+    # ==========================================================
+    # TESTING ONLY — SCHOOL CALENDAR RESET (REMOVE AFTER TEST)
+    # Purpose: Clear "No-School Days / Breaks" entries + un-finalize
+    #          the calendar for the CURRENT school year, so the
+    #          August prompt behaves like it's August again.
+    #
+    # How to use:
+    #   1) Set RESET_SCHOOL_CALENDAR_FOR_TESTING = True
+    #   2) Run once (it will clear data and stop)
+    #   3) Set back to False (or delete this whole block)
+    # ==========================================================
+    RESET_SCHOOL_CALENDAR_FOR_TESTING = False
+
+    if RESET_SCHOOL_CALENDAR_FOR_TESTING:
+        sy_start, sy_end = int(current_sy[0]), int(current_sy[1])
+
+        session = dm.get_session()
+        try:
+            # Import ORM models from db_manager (they live in that module)
+            from db_manager import SchoolClosure, SchoolYearConfig
+
+            # Delete closures for this school year
+            session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).delete(synchronize_session=False)
+
+            # Un-finalize the school year config (if it exists)
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+
+            if cfg:
+                cfg.calendar_finalized = False
+                cfg.finalized_at = None
+
+            session.commit()
+
+            st.sidebar.success(
+                f"TEST RESET complete: School Calendar cleared for SY {sy_start}-{str(sy_end)[-2:]}."
+            )
+
+        except Exception as e:
+            session.rollback()
+            st.sidebar.error(f"TEST RESET failed: {e}")
+
+        finally:
+            session.close()
+
+        # Stop here so you don't accidentally keep clearing every rerun
+        st.stop()

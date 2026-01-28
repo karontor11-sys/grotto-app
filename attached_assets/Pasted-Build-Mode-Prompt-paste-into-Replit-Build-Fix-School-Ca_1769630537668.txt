@@ -1,0 +1,103 @@
+Build Mode Prompt (paste into Replit Build)
+
+Fix School Calendar “Save & Add No-School Day(s)” reset behavior using a Streamlit form (no session_state resets).
+
+Requirements
+
+In app.py → Dashboard → 📅 School Calendar Setup (No-School Days / Breaks) block:
+
+Wrap the calendar inputs (radio, title, date(s)) and the Save & Add No-School Day(s) button inside st.form(..., clear_on_submit=True).
+
+The form submit button label must be:
+
+➕ Save & Add No-School Day(s)
+
+Defaults must be:
+
+radio defaults to Single Day
+
+dates default to central_today()
+
+title defaults to blank
+
+On successful save:
+
+show “Saved.”
+
+st.rerun() (so the saved list updates immediately)
+
+Remove any code that attempts to directly set:
+
+st.session_state["cal_title"], cal_mode, cal_single_date, etc. after submit
+
+No DB changes.
+
+Acceptance
+
+After save, the form clears back to defaults with no errors.
+
+Dashboard renders normally.
+
+Tiny paste-in patch (app.py)
+
+Natural lead-in:
+Paste this by replacing only the input+save section inside your School Calendar expander. This does not touch your saved list rendering or Finalize button logic, except that the Save button becomes a form submit (which enables safe auto-clear).
+
+Replace this chunk (current pattern)
+
+Your block currently looks like this (roughly):
+
+mode = st.radio(..., key="cal_mode")
+title = st.text_input(..., key="cal_title").strip()
+
+if mode == "Single Day":
+    one_day = st.date_input(..., value=today, key="cal_single_date")
+    start_date = one_day
+    end_date = one_day
+else:
+    start_date = st.date_input(..., value=today, key="cal_start_date")
+    end_date = st.date_input(..., value=today, key="cal_end_date")
+
+with add_col:
+    if st.button("➕ Save & Add No-School Day(s)", ...):
+        ...
+
+Paste this instead
+        today = central_today()
+
+        # Use a form so Save & Add can safely clear fields back to defaults
+        with st.form("school_calendar_add_form", clear_on_submit=True):
+            mode = st.radio(
+                "Add entry type",
+                ["Single Day", "Date Range"],
+                horizontal=True,
+                index=0,              # default = Single Day
+                key="cal_mode"
+            )
+
+            title = st.text_input(
+                "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
+                value="",
+                key="cal_title"
+            ).strip()
+
+            if mode == "Single Day":
+                one_day = st.date_input("Date", value=today, key="cal_single_date")
+                start_date = one_day
+                end_date = one_day
+            else:
+                colA, colB = st.columns(2)
+                with colA:
+                    start_date = st.date_input("Start date", value=today, key="cal_start_date")
+                with colB:
+                    end_date = st.date_input("End date", value=today, key="cal_end_date")
+
+            submitted = st.form_submit_button("➕ Save & Add No-School Day(s)", use_container_width=True)
+
+        if submitted:
+            new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
+            if new_id:
+                st.success("Saved.")
+                st.rerun()
+            else:
+                st.warning("Not saved (missing title, duplicate, or invalid dates).")

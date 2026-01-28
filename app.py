@@ -758,10 +758,6 @@ if page == "Dashboard":
     # Editor mode is allowed any time via the bottom summary card's Edit button
     edit_mode = st.session_state.get("school_calendar_edit_mode", False)
 
-    # School Calendar form reset helper (forces widgets to re-mount after save)
-    if "cal_form_nonce" not in st.session_state:
-        st.session_state.cal_form_nonce = 0
-
     # Only render the full editor UI when:
     # - It's August prompt time (not finalized), OR
     # - User explicitly clicked Edit from the bottom summary
@@ -779,59 +775,46 @@ if page == "Dashboard":
             closures = dm.list_school_closures(current_sy)
             has_closures = len(closures) > 0
 
-            n = st.session_state.cal_form_nonce
-            today_default = central_today()
+            today_form = central_today()
 
-            mode = st.radio(
-                "Add entry type",
-                ["Single Day", "Date Range"],
-                horizontal=True,
-                key=f"cal_mode_{n}",
-                index=0,  # default to Single Day
-            )
-
-            title = st.text_input(
-                "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
-                key=f"cal_title_{n}",
-                value="",
-            ).strip()
-
-            if mode == "Single Day":
-                one_day = st.date_input(
-                    "Date",
-                    value=today_default,
-                    key=f"cal_single_date_{n}",
+            # Use a form so Save & Add can safely clear fields back to defaults
+            with st.form("school_calendar_add_form", clear_on_submit=True):
+                mode = st.radio(
+                    "Add entry type",
+                    ["Single Day", "Date Range"],
+                    horizontal=True,
+                    index=0,  # default = Single Day
+                    key="cal_mode"
                 )
-                start_date = one_day
-                end_date = one_day
-            else:
-                colA, colB = st.columns(2)
-                with colA:
-                    start_date = st.date_input(
-                        "Start date",
-                        value=today_default,
-                        key=f"cal_start_date_{n}",
-                    )
-                with colB:
-                    end_date = st.date_input(
-                        "End date",
-                        value=today_default,
-                        key=f"cal_end_date_{n}",
-                    )
 
-            add_col, finalize_col = st.columns([2, 1])
+                title = st.text_input(
+                    "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
+                    value="",
+                    key="cal_title"
+                ).strip()
 
-            with add_col:
-                if st.button("➕ Save & Add No-School Day(s)", use_container_width=True):
-                    new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
-                    if new_id:
-                        st.success("Saved.")
+                if mode == "Single Day":
+                    one_day = st.date_input("Date", value=today_form, key="cal_single_date")
+                    start_date = one_day
+                    end_date = one_day
+                else:
+                    colA, colB = st.columns(2)
+                    with colA:
+                        start_date = st.date_input("Start date", value=today_form, key="cal_start_date")
+                    with colB:
+                        end_date = st.date_input("End date", value=today_form, key="cal_end_date")
 
-                        # Reset the form by remounting widgets (Streamlit-safe)
-                        st.session_state.cal_form_nonce += 1
-                        st.rerun()
-                    else:
-                        st.warning("Not saved (missing title, duplicate, or invalid dates).")
+                submitted = st.form_submit_button("➕ Save & Add No-School Day(s)", use_container_width=True)
+
+            if submitted:
+                new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
+                if new_id:
+                    st.success("Saved.")
+                    st.rerun()
+                else:
+                    st.warning("Not saved (missing title, duplicate, or invalid dates).")
+
+            finalize_col = st.columns([1])[0]
 
             with finalize_col:
                 # If already finalized and the user is editing, show a small status indicator.

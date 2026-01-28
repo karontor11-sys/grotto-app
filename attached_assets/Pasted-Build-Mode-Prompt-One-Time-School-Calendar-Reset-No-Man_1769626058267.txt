@@ -1,0 +1,73 @@
+Build Mode Prompt — One-Time School Calendar Reset (No Manual Toggle)
+
+Instruction to Build:
+
+Add a one-time, self-disabling reset block to the Dashboard code that:
+
+Deletes all No-School Day / Break entries for the current school year
+
+Un-finalizes the School Calendar for that year
+
+Runs automatically once
+
+Disables itself immediately after running (no manual True/False switch)
+
+Does NOT change today’s date or any other data
+
+This is to simulate a real-world scenario where it is January 28, 2026, and a staff member never completed the School Calendar setup, so the Dashboard prompt must reappear at the top.
+
+Place this directly after:
+
+today = central_today()
+current_sy = get_school_year_for_date(today)
+
+
+Label the block clearly as TEMPORARY — REMOVE AFTER RESET.
+
+🔧 Paste-in Code (Build will add this automatically)
+    # ==========================================================
+    # TEMPORARY — ONE-TIME SCHOOL CALENDAR RESET
+    # Purpose:
+    #   • Remove all No-School Day / Break entries
+    #   • Un-finalize the School Calendar
+    #   • Run automatically ONCE, then disable itself
+    #
+    # This simulates a real scenario where staff never completed
+    # the calendar setup, even mid-year (e.g., Jan 28).
+    # ==========================================================
+    if not st.session_state.get("_school_calendar_reset_ran", False):
+        session = dm.get_session()
+        try:
+            from db_manager import SchoolClosure, SchoolYearConfig
+
+            sy_start, sy_end = int(current_sy[0]), int(current_sy[1])
+
+            session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).delete(synchronize_session=False)
+
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+
+            if cfg:
+                cfg.calendar_finalized = False
+                cfg.finalized_at = None
+
+            session.commit()
+
+            st.session_state["_school_calendar_reset_ran"] = True
+            st.sidebar.success(
+                f"School Calendar reset for SY {sy_start}-{str(sy_end)[-2:]} (one-time)."
+            )
+
+        except Exception as e:
+            session.rollback()
+            st.sidebar.error(f"School Calendar reset failed: {e}")
+
+        finally:
+            session.close()
+
+        st.stop()

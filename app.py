@@ -662,7 +662,6 @@ sidebar_page = st.sidebar.selectbox(
 if sidebar_page != st.session_state.current_page:
     st.session_state.current_page = sidebar_page
     print(f"[DEBUG NAV CHANGE] Page changed to: {sidebar_page}")
-    st.rerun()
 
 # Use current_page as the source of truth for rendering
 page = st.session_state.current_page

@@ -727,34 +727,52 @@ if page == "Dashboard":
             closures = dm.list_school_closures(current_sy)
             has_closures = len(closures) > 0
 
-            today_form = central_today()
+            # --- School Calendar: Add Entry UI (Option A: radio outside form, inputs inside form) ---
+            if "cal_form_nonce" not in st.session_state:
+                st.session_state.cal_form_nonce = 0
 
-            # Use a form so Save & Add can safely clear fields back to defaults
-            with st.form("school_calendar_add_form", clear_on_submit=True):
-                mode = st.radio(
-                    "Add entry type",
-                    ["Single Day", "Date Range"],
-                    horizontal=True,
-                    index=0,  # default = Single Day
-                    key="cal_mode"
-                )
+            n = st.session_state.cal_form_nonce
+            today_default = central_today()
 
+            # Radio OUTSIDE the form so it triggers rerun and shows correct date inputs immediately
+            mode = st.radio(
+                "Add entry type",
+                ["Single Day", "Date Range"],
+                horizontal=True,
+                index=0,  # default Single Day
+                key=f"cal_mode_{n}",
+            )
+
+            # Inputs INSIDE the form for submit-only behavior + clear_on_submit
+            with st.form(f"school_calendar_add_form_{n}", clear_on_submit=True):
                 title = st.text_input(
                     "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
                     value="",
-                    key="cal_title"
+                    key=f"cal_title_{n}",
                 ).strip()
 
                 if mode == "Single Day":
-                    one_day = st.date_input("Date", value=today_form, key="cal_single_date")
+                    one_day = st.date_input(
+                        "Date",
+                        value=today_default,
+                        key=f"cal_single_date_{n}",
+                    )
                     start_date = one_day
                     end_date = one_day
                 else:
                     colA, colB = st.columns(2)
                     with colA:
-                        start_date = st.date_input("Start date", value=today_form, key="cal_start_date")
+                        start_date = st.date_input(
+                            "Start date",
+                            value=today_default,
+                            key=f"cal_start_date_{n}",
+                        )
                     with colB:
-                        end_date = st.date_input("End date", value=today_form, key="cal_end_date")
+                        end_date = st.date_input(
+                            "End date",
+                            value=today_default,
+                            key=f"cal_end_date_{n}",
+                        )
 
                 submitted = st.form_submit_button("➕ Save & Add No-School Day(s)", use_container_width=True)
 
@@ -762,6 +780,8 @@ if page == "Dashboard":
                 new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
                 if new_id:
                     st.success("Saved.")
+                    # Remount widgets to reset back to defaults (blank title, Single Day, today)
+                    st.session_state.cal_form_nonce += 1
                     st.rerun()
                 else:
                     st.warning("Not saved (missing title, duplicate, or invalid dates).")

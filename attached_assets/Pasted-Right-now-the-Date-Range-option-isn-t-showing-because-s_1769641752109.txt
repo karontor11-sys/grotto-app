@@ -1,0 +1,88 @@
+Right now the Date Range option isn’t showing because st.form() doesn’t rerun live when widgets change. The clean Streamlit fix is to keep the Single Day / Date Range radio outside the form (so it triggers a rerun immediately), while keeping the Title + Date inputs + Save & Add inside the form (so we still get clear_on_submit=True and clean resets).
+To ensure the form resets back to Single Day + today + blank title after each successful save—without session_state errors—we’ll use a tiny “nonce” that remounts the widgets safely.
+
+✅ ACTUAL PASTE-IN CODE (Build Window)
+In app.py, inside the Dashboard page’s “📅 School Calendar Setup (No-School Days / Breaks)” editor block, implement Option A:
+
+1) Ensure a nonce exists (once) before rendering the calendar inputs:
+   - st.session_state.cal_form_nonce (default 0)
+
+2) Replace the current calendar “add entry” input section that uses st.form with a new structure:
+   - Put the mode radio (“Single Day” / “Date Range”) OUTSIDE the form so switching modes reruns immediately.
+   - Keep Title + date input(s) + submit button INSIDE the form with clear_on_submit=True.
+   - Use the nonce to generate unique keys for radio + inputs + form id, and increment nonce after successful save so the UI resets to defaults (Single Day + today + blank title).
+
+PASTE-IN CODE (drop-in replacement for the calendar add-entry UI section):
+
+# --- School Calendar: Add Entry UI (Option A: radio outside form, inputs inside form) ---
+if "cal_form_nonce" not in st.session_state:
+    st.session_state.cal_form_nonce = 0
+
+n = st.session_state.cal_form_nonce
+today_default = central_today()
+
+# Radio OUTSIDE the form so it triggers rerun and shows correct date inputs immediately
+mode = st.radio(
+    "Add entry type",
+    ["Single Day", "Date Range"],
+    horizontal=True,
+    index=0,  # default Single Day
+    key=f"cal_mode_{n}",
+)
+
+# Inputs INSIDE the form for submit-only behavior + clear_on_submit
+with st.form(f"school_calendar_add_form_{n}", clear_on_submit=True):
+    title = st.text_input(
+        "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
+        value="",
+        key=f"cal_title_{n}",
+    ).strip()
+
+    if mode == "Single Day":
+        one_day = st.date_input(
+            "Date",
+            value=today_default,
+            key=f"cal_single_date_{n}",
+        )
+        start_date = one_day
+        end_date = one_day
+    else:
+        colA, colB = st.columns(2)
+        with colA:
+            start_date = st.date_input(
+                "Start date",
+                value=today_default,
+                key=f"cal_start_date_{n}",
+            )
+        with colB:
+            end_date = st.date_input(
+                "End date",
+                value=today_default,
+                key=f"cal_end_date_{n}",
+            )
+
+    submitted = st.form_submit_button("➕ Save & Add No-School Day(s)", use_container_width=True)
+
+if submitted:
+    new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
+    if new_id:
+        st.success("Saved.")
+        # Remount widgets to reset back to defaults (blank title, Single Day, today)
+        st.session_state.cal_form_nonce += 1
+        st.rerun()
+    else:
+        st.warning("Not saved (missing title, duplicate, or invalid dates).")
+
+3) Keep the rest of the calendar block unchanged:
+   - saved list rendering
+   - delete buttons
+   - finalize year logic
+   - bottom summary card logic
+
+Acceptance check:
+- Switching to “Date Range” immediately shows start/end date inputs.
+- Clicking “Save & Add No-School Day(s)” saves the record and resets:
+  - Title clears
+  - Mode returns to “Single Day”
+  - Dates reset to today (actual current date)
+- Works for both Single Day and Date Range entries.

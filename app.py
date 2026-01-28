@@ -696,56 +696,53 @@ if page == "Dashboard":
     current_sy = get_school_year_for_date(today)
 
     # ==========================================================
-    # TESTING ONLY — SCHOOL CALENDAR RESET (REMOVE AFTER TEST)
-    # Purpose: Clear "No-School Days / Breaks" entries + un-finalize
-    #          the calendar for the CURRENT school year, so the
-    #          August prompt behaves like it's August again.
+    # TESTING ONLY — SCHOOL CALENDAR DATA CLEANSE (REMOVE AFTER)
+    # Wipes closures + un-finalizes for:
+    #   (1) current_sy (the SY containing today)
+    #   (2) next_sy    (common place forced-August test data ends up)
     #
-    # How to use:
+    # To use:
     #   1) Set RESET_SCHOOL_CALENDAR_FOR_TESTING = True
-    #   2) Run once (it will clear data and stop)
-    #   3) Set back to False (or delete this whole block)
+    #   2) Run once — it clears data and stops
+    #   3) Set it back to False (or delete this block)
     # ==========================================================
     RESET_SCHOOL_CALENDAR_FOR_TESTING = False
 
     if RESET_SCHOOL_CALENDAR_FOR_TESTING:
-        sy_start, sy_end = int(current_sy[0]), int(current_sy[1])
-
         session = dm.get_session()
         try:
-            # Import ORM models from db_manager (they live in that module)
             from db_manager import SchoolClosure, SchoolYearConfig
 
-            # Delete closures for this school year
-            session.query(SchoolClosure).filter(
-                SchoolClosure.start_year == sy_start,
-                SchoolClosure.end_year == sy_end
-            ).delete(synchronize_session=False)
+            sy_start, sy_end = int(current_sy[0]), int(current_sy[1])
+            targets = [(sy_start, sy_end), (sy_start + 1, sy_end + 1)]  # current + next
 
-            # Un-finalize the school year config (if it exists)
-            cfg = session.query(SchoolYearConfig).filter(
-                SchoolYearConfig.start_year == sy_start,
-                SchoolYearConfig.end_year == sy_end
-            ).first()
+            for s, e in targets:
+                session.query(SchoolClosure).filter(
+                    SchoolClosure.start_year == s,
+                    SchoolClosure.end_year == e
+                ).delete(synchronize_session=False)
 
-            if cfg:
-                cfg.calendar_finalized = False
-                cfg.finalized_at = None
+                cfg = session.query(SchoolYearConfig).filter(
+                    SchoolYearConfig.start_year == s,
+                    SchoolYearConfig.end_year == e
+                ).first()
+
+                if cfg:
+                    cfg.calendar_finalized = False
+                    cfg.finalized_at = None
 
             session.commit()
-
             st.sidebar.success(
-                f"TEST RESET complete: School Calendar cleared for SY {sy_start}-{str(sy_end)[-2:]}."
+                f"✅ TEST RESET: Cleared + un-finalized School Calendar for SY {sy_start}-{str(sy_end)[-2:]} and {sy_start+1}-{str(sy_end+1)[-2:]}."
             )
 
         except Exception as e:
             session.rollback()
-            st.sidebar.error(f"TEST RESET failed: {e}")
+            st.sidebar.error(f"❌ TEST RESET failed: {e}")
 
         finally:
             session.close()
 
-        # Stop here so you don't accidentally keep clearing every rerun
         st.stop()
 
     # School Calendar editor toggle (lets a user reopen the August-style workflow any time)

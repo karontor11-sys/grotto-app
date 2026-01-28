@@ -1,0 +1,81 @@
+Data cleanse (delete closures + un-finalize), keeps today real
+
+Natural lead-in:
+This is a one-time, testing-only data reset for the current school year that deletes all saved No-School Days / Breaks entries and sets the calendar back to not finalized. It does not change “today” (so it stays Jan 28, 2026). Flip the flag to True, run once, then flip back to False (or delete the block).
+
+Where to paste: app.py → inside if page == "Dashboard": immediately after:
+
+today = central_today()
+current_sy = get_school_year_for_date(today)
+
+
+Paste:
+
+    # ==========================================================
+    # TESTING ONLY — SCHOOL CALENDAR DATA CLEANSE (REMOVE AFTER)
+    # Deletes all No-School Days / Breaks entries for current_sy
+    # and un-finalizes the calendar for current_sy.
+    #
+    # To use:
+    #   1) Set RESET_SCHOOL_CALENDAR_FOR_TESTING = True
+    #   2) Run once — it clears data and stops
+    #   3) Set it back to False (or delete this block)
+    # ==========================================================
+    RESET_SCHOOL_CALENDAR_FOR_TESTING = False
+
+    if RESET_SCHOOL_CALENDAR_FOR_TESTING:
+        sy_start, sy_end = int(current_sy[0]), int(current_sy[1])
+
+        session = dm.get_session()
+        try:
+            # ORM models live in db_manager.py in this repo
+            from db_manager import SchoolClosure, SchoolYearConfig
+
+            # Delete all closures for this school year
+            session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).delete(synchronize_session=False)
+
+            # Un-finalize the year config (if present)
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+
+            if cfg:
+                cfg.calendar_finalized = False
+                cfg.finalized_at = None
+
+            session.commit()
+            st.sidebar.success(
+                f"✅ TEST RESET: School Calendar cleared + un-finalized for SY {sy_start}-{str(sy_end)[-2:]}."
+            )
+
+        except Exception as e:
+            session.rollback()
+            st.sidebar.error(f"❌ TEST RESET failed: {e}")
+
+        finally:
+            session.close()
+
+        # Prevent repeated wipes on Streamlit reruns
+        st.stop()
+
+Paste-in #2 — Tiny prompt-logic patch (prompt persists until finalized)
+
+Natural lead-in:
+This tiny patch removes the “August-only” gate and makes the top Dashboard prompt persist any time of year until the School Calendar is finalized for the current school year.
+
+Where to paste: app.py → in the School Calendar section where you currently define something like:
+
+finalized_calendar = dm.is_school_calendar_finalized(current_sy)
+show_calendar_prompt = (today.month == 8) and (not finalized_calendar)
+
+
+Replace that line with:
+
+    finalized_calendar = dm.is_school_calendar_finalized(current_sy)
+
+    # Prompt persists year-round until calendar is finalized for this school year
+    show_calendar_prompt = (not finalized_calendar)

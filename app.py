@@ -752,9 +752,11 @@ if page == "Dashboard":
     if "school_calendar_edit_mode" not in st.session_state:
         st.session_state.school_calendar_edit_mode = False
 
-    # Show the prompt during August until the calendar is finalized for this school year
+    # Show the prompt until the calendar is finalized for this school year
     finalized_calendar = dm.is_school_calendar_finalized(current_sy)
-    show_calendar_prompt = (today.month == 8) and (not finalized_calendar)
+
+    # Prompt persists year-round until calendar is finalized for this school year
+    show_calendar_prompt = (not finalized_calendar)
 
     if show_calendar_prompt:
         st.warning("📅 School Calendar Setup: Please enter this school year's holidays / no-school days so schedules can skip them like weekends.")

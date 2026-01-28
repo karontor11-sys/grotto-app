@@ -758,6 +758,10 @@ if page == "Dashboard":
     # Editor mode is allowed any time via the bottom summary card's Edit button
     edit_mode = st.session_state.get("school_calendar_edit_mode", False)
 
+    # School Calendar form reset helper (forces widgets to re-mount after save)
+    if "cal_form_nonce" not in st.session_state:
+        st.session_state.cal_form_nonce = 0
+
     # Only render the full editor UI when:
     # - It's August prompt time (not finalized), OR
     # - User explicitly clicked Edit from the bottom summary
@@ -775,22 +779,45 @@ if page == "Dashboard":
             closures = dm.list_school_closures(current_sy)
             has_closures = len(closures) > 0
 
-            mode = st.radio("Add entry type", ["Single Day", "Date Range"], horizontal=True, key="cal_mode")
+            n = st.session_state.cal_form_nonce
+            today_default = central_today()
+
+            mode = st.radio(
+                "Add entry type",
+                ["Single Day", "Date Range"],
+                horizontal=True,
+                key=f"cal_mode_{n}",
+                index=0,  # default to Single Day
+            )
+
             title = st.text_input(
                 "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
-                key="cal_title"
+                key=f"cal_title_{n}",
+                value="",
             ).strip()
 
             if mode == "Single Day":
-                one_day = st.date_input("Date", value=today, key="cal_single_date")
+                one_day = st.date_input(
+                    "Date",
+                    value=today_default,
+                    key=f"cal_single_date_{n}",
+                )
                 start_date = one_day
                 end_date = one_day
             else:
                 colA, colB = st.columns(2)
                 with colA:
-                    start_date = st.date_input("Start date", value=today, key="cal_start_date")
+                    start_date = st.date_input(
+                        "Start date",
+                        value=today_default,
+                        key=f"cal_start_date_{n}",
+                    )
                 with colB:
-                    end_date = st.date_input("End date", value=today, key="cal_end_date")
+                    end_date = st.date_input(
+                        "End date",
+                        value=today_default,
+                        key=f"cal_end_date_{n}",
+                    )
 
             add_col, finalize_col = st.columns([2, 1])
 
@@ -800,15 +827,8 @@ if page == "Dashboard":
                     if new_id:
                         st.success("Saved.")
 
-                        # Reset form state after successful save (UX polish)
-                        today_reset = central_today()
-
-                        st.session_state["cal_title"] = ""
-                        st.session_state["cal_mode"] = "Single Day"
-                        st.session_state["cal_single_date"] = today_reset
-                        st.session_state["cal_start_date"] = today_reset
-                        st.session_state["cal_end_date"] = today_reset
-
+                        # Reset the form by remounting widgets (Streamlit-safe)
+                        st.session_state.cal_form_nonce += 1
                         st.rerun()
                     else:
                         st.warning("Not saved (missing title, duplicate, or invalid dates).")

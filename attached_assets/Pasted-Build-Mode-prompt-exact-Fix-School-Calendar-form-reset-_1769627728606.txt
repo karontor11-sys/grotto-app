@@ -1,0 +1,110 @@
+Build Mode prompt (exact)
+
+Fix School Calendar form reset after Save & Add No-School Day(s) without Streamlit session_state modification errors.
+
+Requirements
+
+Implement a cal_form_nonce (or similar) in st.session_state to “remount” the calendar input widgets after a successful save.
+
+Update the School Calendar widgets’ keys to include the nonce:
+
+cal_mode
+
+cal_title
+
+cal_single_date
+
+cal_start_date
+
+cal_end_date
+
+After a successful save:
+
+increment the nonce
+
+st.rerun()
+
+Default values after reset must be:
+
+Mode = “Single Day”
+
+Dates = central_today()
+
+Title blank
+
+Remove the direct st.session_state["cal_title"]=... style resets that caused the exception.
+
+Scope: app.py only, within the School Calendar editor block.
+
+Tiny paste-in patch (app.py)
+Patch A — initialize the nonce
+
+Where: app.py → inside if page == "Dashboard": near where you initialize calendar state (anywhere before rendering the calendar widgets is fine).
+
+Paste:
+
+    # School Calendar form reset helper (forces widgets to re-mount after save)
+    if "cal_form_nonce" not in st.session_state:
+        st.session_state.cal_form_nonce = 0
+
+Patch B — update the widget keys to include the nonce
+
+Where: Inside your School Calendar editor UI block, replace your widget lines so their key= uses the nonce.
+
+Replace your existing widget declarations with these versions (keep your labels the same, just change keys + defaults):
+
+            n = st.session_state.cal_form_nonce
+            today_default = central_today()
+
+            mode = st.radio(
+                "Add entry type",
+                ["Single Day", "Date Range"],
+                horizontal=True,
+                key=f"cal_mode_{n}",
+                index=0,  # default to Single Day
+            )
+
+            title = st.text_input(
+                "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
+                key=f"cal_title_{n}",
+                value="",
+            ).strip()
+
+            if mode == "Single Day":
+                one_day = st.date_input(
+                    "Date",
+                    value=today_default,
+                    key=f"cal_single_date_{n}",
+                )
+                start_date = one_day
+                end_date = one_day
+            else:
+                colA, colB = st.columns(2)
+                with colA:
+                    start_date = st.date_input(
+                        "Start date",
+                        value=today_default,
+                        key=f"cal_start_date_{n}",
+                    )
+                with colB:
+                    end_date = st.date_input(
+                        "End date",
+                        value=today_default,
+                        key=f"cal_end_date_{n}",
+                    )
+
+
+✅ This ensures that after a nonce bump, everything resets to defaults (blank title, Single Day, today).
+
+Patch C — after successful save, bump the nonce (instead of setting session_state keys)
+
+Where: In your existing Save & Add No-School Day(s) button handler, remove the block that set st.session_state["cal_title"] = "" etc.
+
+Replace that reset block with:
+
+                    # Reset the form by remounting widgets (Streamlit-safe)
+                    st.session_state.cal_form_nonce += 1
+                    st.rerun()
+
+
+Important: If you already have st.rerun() right after success, keep only one rerun (don’t duplicate).

@@ -1,0 +1,106 @@
+Plan Mode Prompt #1 — Scan for st.stop() / st.rerun() and report exact locations
+
+Paste into Plan Mode:
+
+INVESTIGATION ONLY (no code changes):
+
+1) Search app.py for all occurrences of:
+   - st.stop(
+   - st.rerun(
+2) For each occurrence, report:
+   - the line number
+   - the surrounding function/block context (e.g., inside page == "Dashboard", inside School Calendar expander, inside navigation, etc.)
+   - whether it can execute during an initial Dashboard load (yes/no) and why
+
+Output format:
+- st.stop(): [count]
+  - line ###: context summary + can fire on initial Dashboard load? yes/no
+- st.rerun(): [count]
+  - line ###: context summary + can fire on initial Dashboard load? yes/no
+
+Plan Mode Prompt #2 — Check for duplicate widget keys (calendar form + editor/summary paths)
+
+Paste into Plan Mode:
+
+INVESTIGATION ONLY (no code changes):
+
+1) In app.py, locate the School Calendar UI code:
+   - the top editor expander: "📅 School Calendar Setup (No-School Days / Breaks)"
+   - the bottom summary expander: "📅 School Calendar (Finalized)" (or similar)
+
+2) List every Streamlit widget key used in BOTH areas, including:
+   - st.form(...) name/id
+   - st.radio(..., key=...)
+   - st.text_input(..., key=...)
+   - st.date_input(..., key=...)
+   - any st.button(..., key=...) that might collide
+   - any session_state flags used (school_calendar_edit_mode, cal_form_nonce, etc.)
+
+3) Report potential collisions:
+   - duplicates across top editor and bottom summary
+   - duplicates across conditional branches (Single Day vs Date Range)
+   - reusing a key both inside and outside a form
+
+Output:
+- Form IDs found:
+- Widget keys found (grouped by editor vs summary):
+- Any duplicates? (yes/no)
+- If yes, list duplicates and where they occur.
+
+Plan Mode Prompt #3 — Verify “prompt persists until finalized” logic is truly year-round
+
+Paste into Plan Mode:
+
+INVESTIGATION ONLY (no code changes):
+
+1) Find where app.py computes:
+   - finalized_calendar = dm.is_school_calendar_finalized(current_sy)
+   - show_calendar_prompt = ...
+
+2) Confirm whether show_calendar_prompt is:
+   a) still gated to August (today.month == 8), OR
+   b) year-round until finalized (not finalized_calendar), OR
+   c) something else
+
+3) Identify every conditional that controls whether the top School Calendar prompt/banner renders, including:
+   - any conditions that hide the editor block
+   - any conditions that hide the warning banner
+   - any conditions tied to closures length, finalized, edit_mode, etc.
+
+Output:
+- show_calendar_prompt definition (describe it)
+- conditions required for the top warning banner to appear
+- conditions required for the editor expander to appear at the TOP
+- conditions required for it to move to the bottom summary
+- any chance both top banner + editor could be hidden on first load? (yes/no and why)
+
+Plan Mode Prompt #4 — “Paint bug vs logic bug” quick test instructions (for the Plan output)
+
+Paste into Plan Mode:
+
+INVESTIGATION ONLY (no code changes):
+
+Create a short test checklist to distinguish a client-side first-paint issue from a logic/render gating issue.
+
+Include:
+1) Hard refresh (Shift+Reload) behavior expectations
+2) Incognito/private window test expectations
+3) Alternate browser test expectations
+4) What outcome implies cached/hydration issue vs logic hiding UI
+
+Output:
+- 6–10 bullet steps max
+- For each test, say what result means (paint bug vs logic bug)
+
+Plan Mode Prompt #5 — Quick question + st.stop() count summary
+
+Paste into Plan Mode:
+
+INVESTIGATION ONLY (no code changes):
+
+Answer:
+1) Based on current code behavior, is the blank Dashboard on first load still reproducible?
+2) How many st.stop() calls exist in app.py, and are any inside the Dashboard rendering path?
+3) If st.stop() exists in Dashboard path, list the block(s) that could fire on initial load.
+
+Return a short summary only.

@@ -694,53 +694,6 @@ if page == "Dashboard":
     today = central_today()
     current_sy = get_school_year_for_date(today)
 
-    # ==========================================================
-    # TEMPORARY — ONE-TIME SCHOOL CALENDAR RESET
-    # Purpose:
-    #   • Remove all No-School Day / Break entries
-    #   • Un-finalize the School Calendar
-    #   • Run automatically ONCE, then disable itself
-    #
-    # This simulates a real scenario where staff never completed
-    # the calendar setup, even mid-year (e.g., Jan 28).
-    # ==========================================================
-    if not st.session_state.get("_school_calendar_reset_ran", False):
-        session = dm.get_session()
-        try:
-            from db_manager import SchoolClosure, SchoolYearConfig
-
-            sy_start, sy_end = int(current_sy[0]), int(current_sy[1])
-
-            session.query(SchoolClosure).filter(
-                SchoolClosure.start_year == sy_start,
-                SchoolClosure.end_year == sy_end
-            ).delete(synchronize_session=False)
-
-            cfg = session.query(SchoolYearConfig).filter(
-                SchoolYearConfig.start_year == sy_start,
-                SchoolYearConfig.end_year == sy_end
-            ).first()
-
-            if cfg:
-                cfg.calendar_finalized = False
-                cfg.finalized_at = None
-
-            session.commit()
-
-            st.session_state["_school_calendar_reset_ran"] = True
-            st.sidebar.success(
-                f"School Calendar reset for SY {sy_start}-{str(sy_end)[-2:]} (one-time)."
-            )
-
-        except Exception as e:
-            session.rollback()
-            st.sidebar.error(f"School Calendar reset failed: {e}")
-
-        finally:
-            session.close()
-
-        st.stop()
-
     # School Calendar editor toggle (lets a user reopen the August-style workflow any time)
     if "school_calendar_edit_mode" not in st.session_state:
         st.session_state.school_calendar_edit_mode = False

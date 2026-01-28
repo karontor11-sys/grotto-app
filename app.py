@@ -695,91 +695,121 @@ if page == "Dashboard":
     today = central_today()
     current_sy = get_school_year_for_date(today)
 
+    # School Calendar editor toggle (lets a user reopen the August-style workflow any time)
+    if "school_calendar_edit_mode" not in st.session_state:
+        st.session_state.school_calendar_edit_mode = False
+
     # Show the prompt during August until the calendar is finalized for this school year
-    show_calendar_prompt = (today.month == 8) and (not dm.is_school_calendar_finalized(current_sy))
+    finalized_calendar = dm.is_school_calendar_finalized(current_sy)
+    show_calendar_prompt = (today.month == 8) and (not finalized_calendar)
 
     if show_calendar_prompt:
         st.warning("📅 School Calendar Setup: Please enter this school year's holidays / no-school days so schedules can skip them like weekends.")
 
-    # Allow access any time, but especially during August prompt window
-    with st.expander("📅 School Calendar Setup (No-School Days / Breaks)", expanded=show_calendar_prompt):
-        # Ensure config exists so finalize works cleanly
-        dm._ensure_school_year_config(current_sy)
+    # Editor mode is allowed any time via the bottom summary card's Edit button
+    edit_mode = st.session_state.get("school_calendar_edit_mode", False)
 
-        st.caption(f"School Year: {int(current_sy[0])}-{str(int(current_sy[1]))[-2:]}  (Aug → Jul)")
+    # Only render the full editor UI when:
+    # - It's August prompt time (not finalized), OR
+    # - User explicitly clicked Edit from the bottom summary
+    if show_calendar_prompt or (not finalized_calendar) or edit_mode:
+        with st.expander(
+            "📅 School Calendar Setup (No-School Days / Breaks)",
+            expanded=(show_calendar_prompt or edit_mode)
+        ):
+            # Ensure config exists so finalize works cleanly
+            dm._ensure_school_year_config(current_sy)
 
-        mode = st.radio("Add entry type", ["Single Day", "Date Range"], horizontal=True, key="cal_mode")
+            st.caption(f"School Year: {int(current_sy[0])}-{str(int(current_sy[1]))[-2:]}  (Aug → Jul)")
 
-        title = st.text_input("Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)", key="cal_title").strip()
+            # Pull closures once so we can drive button flow + reuse for rendering
+            closures = dm.list_school_closures(current_sy)
+            has_closures = len(closures) > 0
 
-        if mode == "Single Day":
-            one_day = st.date_input("Date", value=today, key="cal_single_date")
-            start_date = one_day
-            end_date = one_day
-        else:
-            colA, colB = st.columns(2)
-            with colA:
-                start_date = st.date_input("Start date", value=today, key="cal_start_date")
-            with colB:
-                end_date = st.date_input("End date", value=today, key="cal_end_date")
+            mode = st.radio("Add entry type", ["Single Day", "Date Range"], horizontal=True, key="cal_mode")
+            title = st.text_input(
+                "Title / label (e.g., Winter Break, MLK Day, Teacher Inservice)",
+                key="cal_title"
+            ).strip()
 
-        # Pull closures once so we can control button flow + reuse for rendering
-        closures = dm.list_school_closures(current_sy)
-        has_closures = len(closures) > 0
-
-        add_col, finalize_col = st.columns([2, 1])
-
-        with add_col:
-            if st.button("➕ Save & Add No-School Day(s)", use_container_width=True):
-                new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
-                if new_id:
-                    st.success("Saved.")
-                    st.rerun()
-                else:
-                    st.warning("Not saved (missing title, duplicate, or invalid dates).")
-
-        with finalize_col:
-            finalized = dm.is_school_calendar_finalized(current_sy)
-            if finalized:
-                st.success("✅ Calendar finalized")
+            if mode == "Single Day":
+                one_day = st.date_input("Date", value=today, key="cal_single_date")
+                start_date = one_day
+                end_date = one_day
             else:
-                # Before any entries exist: show Finalize Year here, but disabled
-                if not has_closures:
-                    st.button(
-                        "✅ Finalize Year",
-                        use_container_width=True,
-                        disabled=True,
-                        help="Add at least one no-school day before finalizing the year."
-                    )
-                # After entries exist: Finalize Year moves below the saved list (rendered later)
+                colA, colB = st.columns(2)
+                with colA:
+                    start_date = st.date_input("Start date", value=today, key="cal_start_date")
+                with colB:
+                    end_date = st.date_input("End date", value=today, key="cal_end_date")
 
-        st.divider()
+            add_col, finalize_col = st.columns([2, 1])
 
-        if not closures:
-            st.info("No no-school days entered yet.")
-        else:
-            st.markdown("**Saved no-school days:**")
-            for c in closures:
-                left, right = st.columns([6, 1])
-                label = c["title"]
-                if c["start_date"] == c["end_date"]:
-                    date_label = c["start_date"]
-                else:
-                    date_label = f'{c["start_date"]} → {c["end_date"]}'
-
-                with left:
-                    st.write(f"• **{label}** — {date_label}")
-                with right:
-                    if st.button("🗑️", key=f"del_closure_{c['id']}"):
-                        dm.delete_school_closure(c["id"])
+            with add_col:
+                if st.button("➕ Save & Add No-School Day(s)", use_container_width=True):
+                    new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
+                    if new_id:
+                        st.success("Saved.")
                         st.rerun()
+                    else:
+                        st.warning("Not saved (missing title, duplicate, or invalid dates).")
 
-            # After at least one saved entry exists: show Finalize Year underneath the list
-            if not dm.is_school_calendar_finalized(current_sy):
-                if st.button("✅ Finalize Year", use_container_width=True):
-                    dm.finalize_school_calendar(current_sy)
-                    st.success("Calendar finalized. August prompt will stop for this school year.")
-                    st.rerun()
+            with finalize_col:
+                # If already finalized and the user is editing, show a small status indicator.
+                # (No side effects: editing is allowed; finalizing again is a deliberate action.)
+                if finalized_calendar and edit_mode:
+                    st.success("✅ Calendar finalized (Edit Mode)")
+                elif finalized_calendar and not edit_mode:
+                    st.success("✅ Calendar finalized")
+                else:
+                    # Before any entries exist: show Finalize Year here, but disabled
+                    if not has_closures:
+                        st.button(
+                            "✅ Finalize Year",
+                            use_container_width=True,
+                            disabled=True,
+                            help="Add at least one no-school day before finalizing the year."
+                        )
+                    # After entries exist: Finalize Year moves below the saved list (rendered later)
+
+            st.divider()
+
+            if not closures:
+                st.info("No no-school days entered yet.")
+            else:
+                st.markdown("**Saved no-school days:**")
+                for c in closures:
+                    left, right = st.columns([6, 1])
+                    label = c["title"]
+                    if c["start_date"] == c["end_date"]:
+                        date_label = c["start_date"]
+                    else:
+                        date_label = f'{c["start_date"]} → {c["end_date"]}'
+
+                    with left:
+                        st.write(f"• **{label}** — {date_label}")
+                    with right:
+                        if st.button("🗑️", key=f"del_closure_{c['id']}"):
+                            dm.delete_school_closure(c["id"])
+                            st.rerun()
+
+                # After at least one saved entry exists: show Finalize Year underneath the list
+                if not dm.is_school_calendar_finalized(current_sy):
+                    if st.button("✅ Finalize Year", use_container_width=True):
+                        dm.finalize_school_calendar(current_sy)
+
+                        # Collapse + "move to bottom": exit edit mode and rerun
+                        st.session_state.school_calendar_edit_mode = False
+
+                        st.success("Calendar finalized. August prompt will stop for this school year.")
+                        st.rerun()
+                else:
+                    # If the calendar is already finalized, allow exiting edit mode cleanly
+                    if edit_mode:
+                        if st.button("Done Editing", use_container_width=True, type="secondary"):
+                            st.session_state.school_calendar_edit_mode = False
+                            st.rerun()
+    # Else: finalized + not editing -> editor UI is hidden here (it will appear as the bottom summary card)
 
     # ===== ISS PENDING ACTION DISPATCHER (best long-term fix) =====
     # Instead of scanning deferred_* keys (fragile), we process exactly ONE explicit action per rerun.
@@ -3905,6 +3935,35 @@ if page == "Dashboard":
                     expanded=_dashboard_should_expand(cpr_card_uid)
                 ):
                     render_unified_class_referral_card(placement, selected_date)
+
+    # =========================
+    # SCHOOL CALENDAR — FINALIZED SUMMARY (BOTTOM OF DASHBOARD)
+    # =========================
+    finalized_calendar = dm.is_school_calendar_finalized(current_sy)
+    edit_mode = st.session_state.get("school_calendar_edit_mode", False)
+
+    if finalized_calendar and (not edit_mode):
+        # View-only summary card at the bottom (collapsed by default)
+        with st.expander("📅 School Calendar (Finalized)", expanded=False):
+            st.caption(f"School Year: {int(current_sy[0])}-{str(int(current_sy[1]))[-2:]}  (Aug → Jul)")
+
+            closures = dm.list_school_closures(current_sy)
+
+            if not closures:
+                st.info("No no-school days are currently saved for this year.")
+            else:
+                st.markdown("**Saved no-school days:**")
+                for c in closures:
+                    label = c["title"]
+                    if c["start_date"] == c["end_date"]:
+                        date_label = c["start_date"]
+                    else:
+                        date_label = f'{c["start_date"]} → {c["end_date"]}'
+                    st.write(f"• **{label}** — {date_label}")
+
+            if st.button("✏️ Edit", use_container_width=True):
+                st.session_state.school_calendar_edit_mode = True
+                st.rerun()
 
     # Tick down the keep-open TTL once per Dashboard render
     _dashboard_keep_open_tick()

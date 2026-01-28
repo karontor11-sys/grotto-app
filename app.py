@@ -799,6 +799,16 @@ if page == "Dashboard":
                     new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
                     if new_id:
                         st.success("Saved.")
+
+                        # Reset form state after successful save (UX polish)
+                        today_reset = central_today()
+
+                        st.session_state["cal_title"] = ""
+                        st.session_state["cal_mode"] = "Single Day"
+                        st.session_state["cal_single_date"] = today_reset
+                        st.session_state["cal_start_date"] = today_reset
+                        st.session_state["cal_end_date"] = today_reset
+
                         st.rerun()
                     else:
                         st.warning("Not saved (missing title, duplicate, or invalid dates).")

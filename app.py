@@ -723,10 +723,14 @@ if page == "Dashboard":
             with colB:
                 end_date = st.date_input("End date", value=today, key="cal_end_date")
 
+        # Pull closures once so we can control button flow + reuse for rendering
+        closures = dm.list_school_closures(current_sy)
+        has_closures = len(closures) > 0
+
         add_col, finalize_col = st.columns([2, 1])
 
         with add_col:
-            if st.button("➕ Add No-School Day(s)", use_container_width=True):
+            if st.button("➕ Save & Add No-School Day(s)", use_container_width=True):
                 new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
                 if new_id:
                     st.success("Saved.")
@@ -739,14 +743,18 @@ if page == "Dashboard":
             if finalized:
                 st.success("✅ Calendar finalized")
             else:
-                if st.button("✅ Finalize", use_container_width=True):
-                    dm.finalize_school_calendar(current_sy)
-                    st.success("Calendar finalized. August prompt will stop for this school year.")
-                    st.rerun()
+                # Before any entries exist: show Finalize Year here, but disabled
+                if not has_closures:
+                    st.button(
+                        "✅ Finalize Year",
+                        use_container_width=True,
+                        disabled=True,
+                        help="Add at least one no-school day before finalizing the year."
+                    )
+                # After entries exist: Finalize Year moves below the saved list (rendered later)
 
         st.divider()
 
-        closures = dm.list_school_closures(current_sy)
         if not closures:
             st.info("No no-school days entered yet.")
         else:
@@ -758,12 +766,20 @@ if page == "Dashboard":
                     date_label = c["start_date"]
                 else:
                     date_label = f'{c["start_date"]} → {c["end_date"]}'
+
                 with left:
                     st.write(f"• **{label}** — {date_label}")
                 with right:
                     if st.button("🗑️", key=f"del_closure_{c['id']}"):
                         dm.delete_school_closure(c["id"])
                         st.rerun()
+
+            # After at least one saved entry exists: show Finalize Year underneath the list
+            if not dm.is_school_calendar_finalized(current_sy):
+                if st.button("✅ Finalize Year", use_container_width=True):
+                    dm.finalize_school_calendar(current_sy)
+                    st.success("Calendar finalized. August prompt will stop for this school year.")
+                    st.rerun()
 
     # ===== ISS PENDING ACTION DISPATCHER (best long-term fix) =====
     # Instead of scanning deferred_* keys (fragile), we process exactly ONE explicit action per rerun.

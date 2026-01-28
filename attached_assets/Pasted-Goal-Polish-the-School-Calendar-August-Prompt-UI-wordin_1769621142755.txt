@@ -1,0 +1,112 @@
+Goal: Polish the School Calendar “August Prompt” UI (wording + flow) with minimal risk and no backend changes.
+
+Scope: app.py only — the expander titled “📅 School Calendar Setup (No-School Days / Breaks)” under the Dashboard page’s “AUGUST PROMPT: SCHOOL CALENDAR (NO-SCHOOL DAYS)” section.
+
+Requirements
+
+Update the “add” button label to:
+
+“➕ Save & Add No-School Day(s)”
+
+Keep existing behavior (saves entry and reruns, allowing another entry immediately).
+
+Update the “Finalize” button label to:
+
+“✅ Finalize Year”
+
+Finalize Year button behavior + placement:
+
+On first open (no entries yet), keep the Finalize Year button in its current column/location but disabled/greyed out until at least one no-school entry exists.
+
+Once at least one entry exists, remove it from the top location and instead render Finalize Year beneath the “Saved no-school days:” list, enabled (unless already finalized).
+
+No side effects:
+
+Do not alter DB schema, DataManager methods, or finalization logic.
+
+Reuse the existing closure list result (don’t create multiple conflicting queries).
+
+Keep existing delete behavior.
+
+Acceptance criteria
+
+“Save & Add No-School Day(s)” appears and works as before.
+
+“Finalize Year” is disabled when there are zero saved entries.
+
+After saving the first entry, the enabled “Finalize Year” button appears under the saved list.
+
+If already finalized, show “✅ Calendar finalized” and do not show finalization buttons.
+
+Tiny Paste-In Patch (app.py)
+
+Natural lead-in:
+Paste this directly inside app.py in the Dashboard section, within:
+
+with st.expander("📅 School Calendar Setup (No-School Days / Breaks)", expanded=show_calendar_prompt):
+
+
+Replace the existing block that starts at:
+
+add_col, finalize_col = st.columns([2, 1])
+
+
+and runs through the saved closures rendering (down to the delete button loop) with the code below.
+
+        # Pull closures once so we can control button flow + reuse for rendering
+        closures = dm.list_school_closures(current_sy)
+        has_closures = len(closures) > 0
+
+        add_col, finalize_col = st.columns([2, 1])
+
+        with add_col:
+            if st.button("➕ Save & Add No-School Day(s)", use_container_width=True):
+                new_id = dm.add_school_closure(current_sy, title, start_date, end_date)
+                if new_id:
+                    st.success("Saved.")
+                    st.rerun()
+                else:
+                    st.warning("Not saved (missing title, duplicate, or invalid dates).")
+
+        with finalize_col:
+            finalized = dm.is_school_calendar_finalized(current_sy)
+            if finalized:
+                st.success("✅ Calendar finalized")
+            else:
+                # Before any entries exist: show Finalize Year here, but disabled
+                if not has_closures:
+                    st.button(
+                        "✅ Finalize Year",
+                        use_container_width=True,
+                        disabled=True,
+                        help="Add at least one no-school day before finalizing the year."
+                    )
+                # After entries exist: Finalize Year moves below the saved list (rendered later)
+
+        st.divider()
+
+        if not closures:
+            st.info("No no-school days entered yet.")
+        else:
+            st.markdown("**Saved no-school days:**")
+            for c in closures:
+                left, right = st.columns([6, 1])
+                label = c["title"]
+                if c["start_date"] == c["end_date"]:
+                    date_label = c["start_date"]
+                else:
+                    date_label = f'{c["start_date"]} → {c["end_date"]}'
+
+                with left:
+                    st.write(f"• **{label}** — {date_label}")
+                with right:
+                    if st.button("🗑️", key=f"del_closure_{c['id']}"):
+                        dm.delete_school_closure(c["id"])
+                        st.rerun()
+
+            # After at least one saved entry exists: show Finalize Year underneath the list
+            if not dm.is_school_calendar_finalized(current_sy):
+                if st.button("✅ Finalize Year", use_container_width=True):
+                    dm.finalize_school_calendar(current_sy)
+                    st.success("Calendar finalized. August prompt will stop for this school year.")
+                    st.rerun()

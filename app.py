@@ -673,19 +673,6 @@ warning_count = len([n for n in all_notifs if n.get('severity') == 'warning'])
 if warning_count > 0:
     st.sidebar.warning(f"⚠️ {warning_count} notifications require attention")
 
-# -------------------------------
-# DEV TOGGLE: Pre-Planned Debug UI
-# Default OFF (so it never appears unless manually enabled)
-# -------------------------------
-if "show_preplanned_debug_ui" not in st.session_state:
-    st.session_state.show_preplanned_debug_ui = False
-
-st.session_state.show_preplanned_debug_ui = st.sidebar.checkbox(
-    "Show Pre-Planned Debug",
-    value=st.session_state.show_preplanned_debug_ui,
-    help="Developer-only diagnostic expanders for Pre-Planned CPR records."
-)
-
 # Dashboard Page
 if page == "Dashboard":
     # =========================
@@ -3834,7 +3821,7 @@ if page == "Dashboard":
             is_day_completed = _is_day_completed_for_date(daily_log)
 
             # =========== DEBUG: Pre-Planned diagnostic (remove after investigation) ===========
-            if DEBUG_PREPLANNED_DIAG and is_preplanned and st.session_state.get("show_preplanned_debug_ui", False):
+            if DEBUG_PREPLANNED_DIAG and is_preplanned and False:
                 with st.expander(f"🔍 DEBUG: Pre-Planned Diag for {student_name} (ID: {placement_id})", expanded=False):
                     st.markdown("**Placement Fields:**")
                     st.write({

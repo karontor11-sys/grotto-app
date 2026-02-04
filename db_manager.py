@@ -3805,7 +3805,10 @@ class DatabaseManager:
                     # Only explicit True means make-up; False/NULL = original day (legacy-safe)
                     is_makeup = (log.is_makeup_session is True)
                     if not is_makeup:
-                        completed_dates.add(log.log_date)
+                        # DailyLog uses "date" (Date), while scheduled dates are stored as "YYYY-MM-DD" strings.
+                        # Convert to ISO string so comparisons are consistent.
+                        if log.date:
+                            completed_dates.add(log.date.isoformat())
 
             # All original scheduled dates must be completed
             for d in original_dates:

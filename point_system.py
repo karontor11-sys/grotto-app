@@ -9,7 +9,7 @@ class PointSystem:
             {"label": "Repair the harm – written (+1)", "code": "REPAIR_WRITTEN", "value": 1, "limit": "once_per_placement", "mutex": "REPAIR_VERBAL"},
             {"label": "Repair the harm – verbal (+2)", "code": "REPAIR_VERBAL", "value": 2, "limit": "once_per_placement", "mutex": "REPAIR_WRITTEN"},
             {"label": "Complete an assignment (+1)", "code": "COMPLETE_ASSIGNMENT", "value": 1},
-            {"label": "Read a chapter (+1)", "code": "READ_CHAPTER", "value": 1, "totalCap": 4},
+            {"label": "Read a chapter (+1)", "code": "READ_CHAPTER", "value": 1},
             {"label": "Meet with counselor (+1)", "code": "MEET_COUNSELOR", "value": 1},
             {"label": "Restorative discussion (+1)", "code": "RESTORATIVE_DISCUSSION", "value": 1},
             {"label": "Helpful task (+1)", "code": "HELPFUL_TASK", "value": 1},

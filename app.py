@@ -990,16 +990,18 @@ if page == "Dashboard":
         del st.session_state.placement_created
     
     # Date Selector (compact width)
-    if 'dashboard_selected_date' not in st.session_state:
-        st.session_state.dashboard_selected_date = central_today()
-    
+    # Use the widget key as the single source of truth to avoid Streamlit "default value + session_state" warnings.
+    if 'dashboard_date_selector' not in st.session_state:
+        st.session_state.dashboard_date_selector = central_today()
+
     date_col, _ = st.columns([1, 3])
     with date_col:
         selected_date = st.date_input(
             "Select Date",
-            value=st.session_state.dashboard_selected_date,
             key="dashboard_date_selector"
         )
+
+    # Keep internal state in sync (downstream code uses dashboard_selected_date)
     st.session_state.dashboard_selected_date = selected_date
     
     # Show past date indicator

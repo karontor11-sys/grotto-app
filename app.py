@@ -2773,6 +2773,9 @@ if page == "Dashboard":
         # LAZY LOADING: Only fetch daily log if it exists (read-only check)
         daily_log = dm.get_daily_log(placement_id, date_str)
         
+        # Stabilize override flag across all Streamlit rerun states (daily_log can be None early in the flow)
+        override_used = bool(daily_log and daily_log.get('overrideUsed', False))
+        
         # Get progress status and use centralized helpers for day-level absent/completion (pass pre-fetched daily_log)
         progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
         session_status = iss_session.get('status', 'scheduled')

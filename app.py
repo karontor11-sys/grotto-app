@@ -594,16 +594,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Main title with logo
-col_logo, col_title = st.columns([1, 4])
-with col_logo:
-    st.image("attached_assets/Bobcats_1761658497832.png", width=150)
-with col_title:
-    st.title("The Grotto")
-    st.caption("Student Support Placement Platform")
-
 # =========================
-# TOP NAVIGATION (GLOBAL)
+# WEBSITE-STYLE TOP NAV (GLOBAL)
 # =========================
 
 PAGE_OPTIONS = [
@@ -613,50 +605,113 @@ PAGE_OPTIONS = [
     "Assignments",
 ]
 
-# Initialize navigation state
+# Initialize nav state
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-# Handle programmatic navigation requests first
+def _set_page(page_name: str):
+    """Set current page + update query param for website-style navigation."""
+    st.session_state.current_page = page_name
+    try:
+        st.query_params["page"] = page_name
+    except Exception:
+        st.experimental_set_query_params(page=page_name)
+
+# --- Programmatic navigation flags (keep existing behavior) ---
 if st.session_state.get("navigate_to_dashboard"):
-    st.session_state.current_page = "Dashboard"
+    _set_page("Dashboard")
     del st.session_state.navigate_to_dashboard
 elif st.session_state.get("navigate_to_create_placement"):
-    st.session_state.current_page = "Placements"
+    _set_page("Placements")
     del st.session_state.navigate_to_create_placement
 elif st.session_state.get("navigate_to_completed_placements"):
-    st.session_state.current_page = "Completed Placements"
+    _set_page("Completed Placements")
     del st.session_state.navigate_to_completed_placements
 elif st.session_state.get("navigate_to_assignments"):
-    st.session_state.current_page = "Assignments"
+    _set_page("Assignments")
     del st.session_state.navigate_to_assignments
 elif st.session_state.get("navigate_to_iss_detail"):
-    # Hidden/detail page — not shown in top nav
+    # Hidden/detail page: do not show as a nav item; keep nav highlight sane.
     st.session_state.current_page = "ISS Detail"
     del st.session_state.navigate_to_iss_detail
 
-# Ensure nav always highlights a valid visible page
-display_page = (
-    st.session_state.current_page
-    if st.session_state.current_page in PAGE_OPTIONS
-    else "Dashboard"
+# --- Read requested page from URL (?page=...) ---
+requested = None
+try:
+    requested = st.query_params.get("page")
+except Exception:
+    qp = st.experimental_get_query_params()
+    requested = qp.get("page", [None])[0] if isinstance(qp.get("page"), list) else qp.get("page")
+
+# Normalize requested value
+if isinstance(requested, list):
+    requested = requested[0] if requested else None
+
+if requested in PAGE_OPTIONS:
+    st.session_state.current_page = requested
+
+# For hidden pages, keep display/highlight on Dashboard
+active_for_nav = st.session_state.current_page if st.session_state.current_page in PAGE_OPTIONS else "Dashboard"
+
+# --- CSS for nav styling + hover ---
+st.markdown(
+    """
+    <style>
+      .grotto-nav {
+        display: flex;
+        gap: 22px;
+        align-items: center;
+        padding: 6px 0 10px 0;
+        font-size: 1.05rem;
+        font-weight: 650;
+      }
+      .grotto-nav a {
+        text-decoration: none !important;
+        color: rgba(255,255,255,0.78);
+        transition: color 120ms ease, transform 120ms ease;
+      }
+      /* Hover */
+      .grotto-nav a:hover {
+        color: rgba(255,255,255,1.0);
+        transform: translateY(-1px);
+      }
+      /* Active page */
+      .grotto-nav a.active {
+        color: rgba(255,255,255,1.0);
+        text-decoration: underline !important;
+        text-underline-offset: 6px;
+      }
+      /* Light mode tweak */
+      @media (prefers-color-scheme: light) {
+        .grotto-nav a { color: rgba(0,0,0,0.65); }
+        .grotto-nav a:hover { color: rgba(0,0,0,0.95); }
+        .grotto-nav a.active { color: rgba(0,0,0,0.95); }
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
-# Render top navigation
-nav_choice = st.radio(
-    label="",
-    options=PAGE_OPTIONS,
-    index=PAGE_OPTIONS.index(display_page),
-    horizontal=True,
-    key="top_nav"
-)
+# --- Render nav links (website-style) ---
+links_html = '<div class="grotto-nav">'
+for name in PAGE_OPTIONS:
+    href = f"?page={name.replace(' ', '%20')}"
+    cls = "active" if name == active_for_nav else ""
+    links_html += f'<a class="{cls}" href="{href}">{name}</a>'
+links_html += "</div>"
 
-# Update current page if user clicks nav
-if nav_choice != st.session_state.current_page:
-    st.session_state.current_page = nav_choice
+st.markdown(links_html, unsafe_allow_html=True)
 
-# Source of truth for page rendering
+# Source of truth for routing
 page = st.session_state.current_page
+
+# Main title with logo
+col_logo, col_title = st.columns([1, 4])
+with col_logo:
+    st.image("attached_assets/Bobcats_1761658497832.png", width=150)
+with col_title:
+    st.title("The Grotto")
+    st.caption("Student Support Placement Platform")
 
 # Dashboard Page
 if page == "Dashboard":

@@ -1,0 +1,69 @@
+Top Navigation (global, ordered)
+
+We want navigation to live at the top of the app, visible on every page, with all primary pages always available. The navigation order should be:
+
+Dashboard → Placements → Completed Placements → Assignments
+
+This is a UI-only change. It should not affect placement logic, ISS multi-day behavior, or programmatic navigation already used elsewhere in the app.
+
+✅ PASTE-IN CODE (app.py)
+1️⃣ Remove / ignore the existing sidebar navigation
+
+(Delete or comment out the old st.sidebar.selectbox navigation block if it still exists.)
+
+2️⃣ Paste this block near the top of the main render flow (before page routing)
+# =========================
+# TOP NAVIGATION (GLOBAL)
+# =========================
+
+PAGE_OPTIONS = [
+    "Dashboard",
+    "Placements",
+    "Completed Placements",
+    "Assignments",
+]
+
+# Initialize navigation state
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Dashboard"
+
+# Handle programmatic navigation requests first
+if st.session_state.get("navigate_to_dashboard"):
+    st.session_state.current_page = "Dashboard"
+    del st.session_state.navigate_to_dashboard
+elif st.session_state.get("navigate_to_create_placement"):
+    st.session_state.current_page = "Placements"
+    del st.session_state.navigate_to_create_placement
+elif st.session_state.get("navigate_to_completed_placements"):
+    st.session_state.current_page = "Completed Placements"
+    del st.session_state.navigate_to_completed_placements
+elif st.session_state.get("navigate_to_assignments"):
+    st.session_state.current_page = "Assignments"
+    del st.session_state.navigate_to_assignments
+elif st.session_state.get("navigate_to_iss_detail"):
+    # Hidden/detail page — not shown in top nav
+    st.session_state.current_page = "ISS Detail"
+    del st.session_state.navigate_to_iss_detail
+
+# Ensure nav always highlights a valid visible page
+display_page = (
+    st.session_state.current_page
+    if st.session_state.current_page in PAGE_OPTIONS
+    else "Dashboard"
+)
+
+# Render top navigation
+nav_choice = st.radio(
+    label="",
+    options=PAGE_OPTIONS,
+    index=PAGE_OPTIONS.index(display_page),
+    horizontal=True,
+    key="top_nav"
+)
+
+# Update current page if user clicks nav
+if nav_choice != st.session_state.current_page:
+    st.session_state.current_page = nav_choice
+
+# Source of truth for page rendering
+page = st.session_state.current_page

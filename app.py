@@ -602,72 +602,61 @@ with col_title:
     st.title("The Grotto")
     st.caption("Student Support Placement Platform")
 
-# Sidebar navigation
-st.sidebar.title("Navigation")
+# =========================
+# TOP NAVIGATION (GLOBAL)
+# =========================
 
-# Staff role is the only role - no selector needed
-user_role = "Staff"
-
-st.sidebar.divider()
-
-# Page options for navigation
-PAGE_OPTIONS = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
+PAGE_OPTIONS = [
+    "Dashboard",
+    "Placements",
+    "Completed Placements",
+    "Assignments",
+]
 
 # Initialize navigation state
-if 'current_page' not in st.session_state:
+if "current_page" not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-# Handle navigation requests BEFORE rendering sidebar
-# These flags are set by various parts of the app to request page changes
-programmatic_nav_just_happened = False
-if st.session_state.get('navigate_to_create_placement'):
-    st.session_state.current_page = "Placements"
-    st.session_state.sidebar_page_widget = "Placements"  # Sync widget state
-    st.session_state.sidebar_page_selection = "Placements"
-    programmatic_nav_just_happened = True
-    del st.session_state.navigate_to_create_placement
-elif st.session_state.get('navigate_to_completed_placements'):
-    st.session_state.current_page = "Completed Placements"
-    st.session_state.sidebar_page_widget = "Completed Placements"  # Sync widget state
-    st.session_state.sidebar_page_selection = "Completed Placements"
-    programmatic_nav_just_happened = True
-    del st.session_state.navigate_to_completed_placements
-elif st.session_state.get('navigate_to_dashboard'):
+# Handle programmatic navigation requests first
+if st.session_state.get("navigate_to_dashboard"):
     st.session_state.current_page = "Dashboard"
-    st.session_state.sidebar_page_widget = "Dashboard"  # Sync widget state
-    st.session_state.sidebar_page_selection = "Dashboard"
-    programmatic_nav_just_happened = True
     del st.session_state.navigate_to_dashboard
-elif st.session_state.get('navigate_to_iss_detail'):
+elif st.session_state.get("navigate_to_create_placement"):
+    st.session_state.current_page = "Placements"
+    del st.session_state.navigate_to_create_placement
+elif st.session_state.get("navigate_to_completed_placements"):
+    st.session_state.current_page = "Completed Placements"
+    del st.session_state.navigate_to_completed_placements
+elif st.session_state.get("navigate_to_assignments"):
+    st.session_state.current_page = "Assignments"
+    del st.session_state.navigate_to_assignments
+elif st.session_state.get("navigate_to_iss_detail"):
+    # Hidden/detail page — not shown in top nav
     st.session_state.current_page = "ISS Detail"
     del st.session_state.navigate_to_iss_detail
 
-# Ensure current_page is in valid options for sidebar display (fallback to Dashboard for hidden pages)
-display_page = st.session_state.current_page if st.session_state.current_page in PAGE_OPTIONS else "Dashboard"
-
-# Initialize sidebar widget state if needed
-if 'sidebar_page_widget' not in st.session_state:
-    st.session_state.sidebar_page_widget = display_page
-
-# For programmatic navigation, sync the widget value
-if programmatic_nav_just_happened:
-    st.session_state.sidebar_page_widget = display_page
-
-# Sidebar page selector
-sidebar_page = st.sidebar.selectbox(
-    "Select a page:",
-    PAGE_OPTIONS,
-    key="sidebar_page_widget"
+# Ensure nav always highlights a valid visible page
+display_page = (
+    st.session_state.current_page
+    if st.session_state.current_page in PAGE_OPTIONS
+    else "Dashboard"
 )
 
-# Always sync current_page with widget value
-if sidebar_page != st.session_state.current_page:
-    st.session_state.current_page = sidebar_page
-    print(f"[DEBUG NAV CHANGE] Page changed to: {sidebar_page}")
+# Render top navigation
+nav_choice = st.radio(
+    label="",
+    options=PAGE_OPTIONS,
+    index=PAGE_OPTIONS.index(display_page),
+    horizontal=True,
+    key="top_nav"
+)
 
-# Use current_page as the source of truth for rendering
+# Update current page if user clicks nav
+if nav_choice != st.session_state.current_page:
+    st.session_state.current_page = nav_choice
+
+# Source of truth for page rendering
 page = st.session_state.current_page
-print(f"[DEBUG NAV] page={page}, sidebar_page={sidebar_page}, programmatic_nav={programmatic_nav_just_happened}")
 
 # Dashboard Page
 if page == "Dashboard":

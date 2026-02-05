@@ -241,10 +241,12 @@ def _parse_iso_date_safe(s):
         return None
 
 def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, target_date: date,
-                             end_date: date, is_absent: bool, day_number: int | None):
+                             end_date: date, is_absent: bool, day_number: int | None,
+                             is_same_day_cpr: bool = False):
     """
     Returns the suffix portion after 'Placement Type · ...' based on rules:
     - Absent day: 'Absent'
+    - Same-day CPR (Behavior/Cool-Down): 'Session Completed' (no day count)
     - Final day: 'X-Day Session Completed'
     - Prior served day: 'Day Y of X Completed'
     - Single day: '1-Day Session Completed'
@@ -253,6 +255,10 @@ def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, tar
         return "Absent"
 
     total_days = total_days or 1
+
+    # Behavior and Cool-Down CPRs are always same-day; no day count needed
+    if is_same_day_cpr:
+        return "Session Completed"
 
     if total_days == 1:
         return "1-Day Session Completed"
@@ -3919,7 +3925,8 @@ if page == "Dashboard":
                     target_date=selected_date,
                     end_date=end_date,
                     is_absent=bool(is_absent),
-                    day_number=day_num
+                    day_number=day_num,
+                    is_same_day_cpr=not is_preplanned  # Behavior/Cool-Down are always same-day
                 )
                 
                 # No hover flags for non-ISS placements (redundant)

@@ -1,0 +1,84 @@
+Replace <a href> nav links with in-app “link-looking” buttons (no new-page feel)
+
+Right now the top navigation is being rendered as real HTML hyperlinks (<a href="?page=...">). That’s why it feels like it opens a new page: every click triggers a browser-style navigation (new URL / history entry) + a full Streamlit rerun.
+
+We’re going to keep the same top-of-page menu and the same page order (Dashboard → Placements → Completed Placements → Assignments), but replace the <a href> links with a button row that simply updates st.session_state.current_page and reruns. This preserves your existing routing and all the programmatic flags (navigate_to_dashboard, navigate_to_create_placement, etc.) while making navigation feel instant and “in-app.”
+
+✅ PASTE-IN PATCH (app.py)
+1) In app.py, find and REPLACE this entire block:
+
+From:
+
+# WEBSITE-STYLE TOP NAV (GLOBAL)
+# =========================
+...
+page = st.session_state.current_page
+
+
+(Ending right before the comment # Main title with logo)
+
+2) Paste this in its place:
+# WEBSITE-STYLE TOP NAV (GLOBAL) — IN-APP (NO <a href>)
+# =========================
+
+PAGE_OPTIONS = [
+    "Dashboard",
+    "Placements",
+    "Completed Placements",
+    "Assignments",
+]
+
+# Initialize nav state
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Dashboard"
+
+def _set_page(page_name: str, *, do_rerun: bool = True):
+    """Set current page for in-app navigation (no URL navigation)."""
+    st.session_state.current_page = page_name
+    if do_rerun:
+        st.rerun()
+
+# --- Programmatic navigation flags (preserve existing behavior) ---
+if st.session_state.get("navigate_to_dashboard"):
+    del st.session_state.navigate_to_dashboard
+    _set_page("Dashboard")
+elif st.session_state.get("navigate_to_create_placement"):
+    del st.session_state.navigate_to_create_placement
+    _set_page("Placements")
+elif st.session_state.get("navigate_to_completed_placements"):
+    del st.session_state.navigate_to_completed_placements
+    _set_page("Completed Placements")
+elif st.session_state.get("navigate_to_assignments"):
+    del st.session_state.navigate_to_assignments
+    _set_page("Assignments")
+elif st.session_state.get("navigate_to_iss_detail"):
+    # Hidden/detail page: do not show as a nav item; keep nav highlight sane.
+    del st.session_state.navigate_to_iss_detail
+    st.session_state.current_page = "ISS Detail"
+
+# For hidden pages, keep display/highlight on Dashboard
+active_for_nav = (
+    st.session_state.current_page
+    if st.session_state.current_page in PAGE_OPTIONS
+    else "Dashboard"
+)
+
+# --- Nav row (buttons styled by type; active page uses primary) ---
+nav_cols = st.columns([1, 1, 1.5, 1], vertical_alignment="center")
+
+labels = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
+targets = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
+
+for col, label, target in zip(nav_cols, labels, targets):
+    with col:
+        is_active = (target == active_for_nav)
+        if st.button(
+            label,
+            key=f"nav_btn_{target.replace(' ', '_').lower()}",
+            type="primary" if is_active else "secondary",
+            use_container_width=True,
+        ):
+            _set_page(target)
+
+# Source of truth for routing
+page = st.session_state.current_page

@@ -595,7 +595,7 @@ st.set_page_config(
 )
 
 # =========================
-# WEBSITE-STYLE TOP NAV (GLOBAL)
+# WEBSITE-STYLE TOP NAV (GLOBAL) — IN-APP (NO <a href>)
 # =========================
 
 PAGE_OPTIONS = [
@@ -609,98 +609,53 @@ PAGE_OPTIONS = [
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
-def _set_page(page_name: str):
-    """Set current page + update query param for website-style navigation."""
+def _set_page(page_name: str, *, do_rerun: bool = True):
+    """Set current page for in-app navigation (no URL navigation)."""
     st.session_state.current_page = page_name
-    try:
-        st.query_params["page"] = page_name
-    except Exception:
-        st.experimental_set_query_params(page=page_name)
+    if do_rerun:
+        st.rerun()
 
-# --- Programmatic navigation flags (keep existing behavior) ---
+# --- Programmatic navigation flags (preserve existing behavior) ---
 if st.session_state.get("navigate_to_dashboard"):
-    _set_page("Dashboard")
     del st.session_state.navigate_to_dashboard
+    _set_page("Dashboard")
 elif st.session_state.get("navigate_to_create_placement"):
-    _set_page("Placements")
     del st.session_state.navigate_to_create_placement
+    _set_page("Placements")
 elif st.session_state.get("navigate_to_completed_placements"):
-    _set_page("Completed Placements")
     del st.session_state.navigate_to_completed_placements
+    _set_page("Completed Placements")
 elif st.session_state.get("navigate_to_assignments"):
-    _set_page("Assignments")
     del st.session_state.navigate_to_assignments
+    _set_page("Assignments")
 elif st.session_state.get("navigate_to_iss_detail"):
     # Hidden/detail page: do not show as a nav item; keep nav highlight sane.
-    st.session_state.current_page = "ISS Detail"
     del st.session_state.navigate_to_iss_detail
-
-# --- Read requested page from URL (?page=...) ---
-requested = None
-try:
-    requested = st.query_params.get("page")
-except Exception:
-    qp = st.experimental_get_query_params()
-    requested = qp.get("page", [None])[0] if isinstance(qp.get("page"), list) else qp.get("page")
-
-# Normalize requested value
-if isinstance(requested, list):
-    requested = requested[0] if requested else None
-
-if requested in PAGE_OPTIONS:
-    st.session_state.current_page = requested
+    st.session_state.current_page = "ISS Detail"
 
 # For hidden pages, keep display/highlight on Dashboard
-active_for_nav = st.session_state.current_page if st.session_state.current_page in PAGE_OPTIONS else "Dashboard"
-
-# --- CSS for nav styling + hover ---
-st.markdown(
-    """
-    <style>
-      .grotto-nav {
-        display: flex;
-        gap: 22px;
-        align-items: center;
-        padding: 6px 0 10px 0;
-        font-size: 1.05rem;
-        font-weight: 650;
-      }
-      .grotto-nav a {
-        text-decoration: none !important;
-        color: rgba(255,255,255,0.78);
-        transition: color 120ms ease, transform 120ms ease;
-      }
-      /* Hover */
-      .grotto-nav a:hover {
-        color: rgba(255,255,255,1.0);
-        transform: translateY(-1px);
-      }
-      /* Active page */
-      .grotto-nav a.active {
-        color: rgba(255,255,255,1.0);
-        text-decoration: underline !important;
-        text-underline-offset: 6px;
-      }
-      /* Light mode tweak */
-      @media (prefers-color-scheme: light) {
-        .grotto-nav a { color: rgba(0,0,0,0.65); }
-        .grotto-nav a:hover { color: rgba(0,0,0,0.95); }
-        .grotto-nav a.active { color: rgba(0,0,0,0.95); }
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
+active_for_nav = (
+    st.session_state.current_page
+    if st.session_state.current_page in PAGE_OPTIONS
+    else "Dashboard"
 )
 
-# --- Render nav links (website-style) ---
-links_html = '<div class="grotto-nav">'
-for name in PAGE_OPTIONS:
-    href = f"?page={name.replace(' ', '%20')}"
-    cls = "active" if name == active_for_nav else ""
-    links_html += f'<a class="{cls}" href="{href}">{name}</a>'
-links_html += "</div>"
+# --- Nav row (buttons styled by type; active page uses primary) ---
+nav_cols = st.columns([1, 1, 1.5, 1], vertical_alignment="center")
 
-st.markdown(links_html, unsafe_allow_html=True)
+labels = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
+targets = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
+
+for col, label, target in zip(nav_cols, labels, targets):
+    with col:
+        is_active = (target == active_for_nav)
+        if st.button(
+            label,
+            key=f"nav_btn_{target.replace(' ', '_').lower()}",
+            type="primary" if is_active else "secondary",
+            use_container_width=True,
+        ):
+            _set_page(target)
 
 # Source of truth for routing
 page = st.session_state.current_page

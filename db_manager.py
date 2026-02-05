@@ -1395,7 +1395,11 @@ class DatabaseManager:
             activated_count = 0
             for placement in scheduled_placements:
                 placement.status = PlacementStatus.active
-                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+
+                # IMPORTANT: Do NOT auto-set placements to IN_PROGRESS just because the date arrived.
+                # Green/NOT_STARTED must remain until a user explicitly checks in / starts the session.
+                placement.progress_status = PlacementProgressStatus.NOT_STARTED
+
                 activated_count += 1
             
             if activated_count > 0:

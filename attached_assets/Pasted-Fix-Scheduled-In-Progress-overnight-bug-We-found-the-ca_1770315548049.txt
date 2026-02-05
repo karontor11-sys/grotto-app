@@ -1,0 +1,52 @@
+Fix “Scheduled → In Progress overnight” bug
+
+We found the cause: in db_manager.py, the daily scheduled-activation sweep (activate_scheduled_placements) is correctly flipping Scheduled → Active when the start date arrives, but it is also incorrectly forcing progress_status = IN_PROGRESS. That’s what makes a placement appear “yellow / In Progress” overnight without user action.
+
+Fix: Keep the automatic Scheduled → Active transition, but leave progress as NOT_STARTED so the placement stays green until a user explicitly checks in / completes day / logs activity.
+
+✅ PASTE-IN CODE (single-line change, minimal side effects)
+
+Open: db_manager.py
+Find function: def activate_scheduled_placements(self) -> int:
+Inside the loop that currently sets progress_status = IN_PROGRESS, replace that single line with NOT_STARTED.
+
+def activate_scheduled_placements(self) -> int:
+        """Auto-transition scheduled placements to active when their start date has arrived.
+        
+        This should be called on app startup to ensure placements are activated
+        on their start date.
+        
+        Returns:
+            Number of placements that were activated.
+        """
+        session = self.get_session()
+        try:
+            today = central_today()
+            # Find all scheduled placements whose start_date is today or in the past
+            scheduled_placements = session.query(Placement).filter(
+                Placement.status == PlacementStatus.scheduled,
+                Placement.start_date <= today
+            ).all()
+            
+            activated_count = 0
+            for placement in scheduled_placements:
+                placement.status = PlacementStatus.active
+
+                # IMPORTANT: Do NOT auto-set placements to IN_PROGRESS just because the date arrived.
+                # Green/NOT_STARTED must remain until a user explicitly checks in / starts the session.
+                placement.progress_status = PlacementProgressStatus.NOT_STARTED
+
+                activated_count += 1
+            
+            if activated_count > 0:
+                session.commit()
+            
+            # Auto-complete Pre-Planned multi-day placements whose last date has passed
+            try:
+                self.auto_complete_preplanned_multi_day_after_last_date()
+            except Exception as e:
+                print(f"Pre-Planned auto-complete sweep failed: {e}")
+
+            return activated_count
+        finally:
+            session.close()

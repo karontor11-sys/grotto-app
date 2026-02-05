@@ -3959,6 +3959,8 @@ if page == "Dashboard":
                 ):
                     render_unified_class_referral_card(placement, selected_date)
 
+    st.divider()
+
     # =========================
     # SCHOOL CALENDAR — FINALIZED SUMMARY (BOTTOM OF DASHBOARD)
     # =========================

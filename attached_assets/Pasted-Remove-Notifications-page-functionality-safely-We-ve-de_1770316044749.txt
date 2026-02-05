@@ -1,0 +1,67 @@
+Remove Notifications (page + functionality) safely
+
+We’ve decided the Notifications page isn’t needed. Right now, app.py imports and initializes NotificationManager, shows a sidebar warning badge, includes “Notifications” in PAGE_OPTIONS, and renders a full Notifications page.
+
+Goal: Remove Notifications UI + runtime logic cleanly without affecting any placement workflows. We will:
+
+Remove the NotificationManager import + session initialization
+
+Remove Notifications from the sidebar page options
+
+Remove the sidebar warning badge code that depends on notifications
+
+Remove the entire Notifications page rendering block
+
+This is isolated to app.py only.
+
+✅ PASTE-IN CODE (app.py only)
+1) Remove Notifications import + session state initialization
+
+In app.py near the top, find this import line and delete it:
+
+from notifications import NotificationManager
+
+
+Then find this block and delete it:
+
+if 'notification_manager' not in st.session_state:
+    st.session_state.notification_manager = NotificationManager(st.session_state.data_manager)
+
+
+Also delete this variable assignment a few lines later:
+
+notifications = st.session_state.notification_manager
+
+2) Remove Notifications from navigation options
+
+Find:
+
+PAGE_OPTIONS = ["Dashboard", "Placements", "Completed Placements", "Assignments", "Notifications"]
+
+
+Replace with:
+
+PAGE_OPTIONS = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
+
+3) Remove the sidebar notification badge
+
+Find this block and delete it entirely:
+
+# Show notification badge in sidebar
+all_notifs = notifications.get_all_notifications()
+warning_count = len([n for n in all_notifs if n.get('severity') == 'warning'])
+if warning_count > 0:
+    st.sidebar.warning(f"⚠️ {warning_count} notifications require attention")
+
+4) Remove the Notifications page UI block
+
+Find this section and delete the whole thing (everything from elif page == "Notifications": down to just before the next major section begins):
+
+# Notifications Page
+elif page == "Notifications":
+    st.header("🔔 Notifications")
+    ...
+    st.info("No dismissed notifications.")
+
+
+(Keep the code that comes after it, like # Handle editing student ...)

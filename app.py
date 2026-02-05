@@ -7,7 +7,6 @@ from db_manager import DatabaseManager
 from point_system import PointSystem
 from analytics import AnalyticsEngine
 from import_export import ImportExportManager
-from notifications import NotificationManager
 from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today, get_placement_type_display_name, add_business_days, central_now, central_today, get_school_year_for_date
 
 # Initialize session state
@@ -19,8 +18,6 @@ if 'analytics_engine' not in st.session_state:
     st.session_state.analytics_engine = AnalyticsEngine(st.session_state.data_manager)
 if 'import_export_manager' not in st.session_state:
     st.session_state.import_export_manager = ImportExportManager(st.session_state.data_manager)
-if 'notification_manager' not in st.session_state:
-    st.session_state.notification_manager = NotificationManager(st.session_state.data_manager)
 
 # Initialize end-of-day processing flag (runs once per session)
 if 'eod_processing_checked' not in st.session_state:
@@ -30,7 +27,6 @@ dm = st.session_state.data_manager
 ps = st.session_state.point_system
 analytics = st.session_state.analytics_engine
 import_export = st.session_state.import_export_manager
-notifications = st.session_state.notification_manager
 
 # Authorized staff list for placement creation/editing
 AUTHORIZED_STAFF = ["Aaron Toronto", "Matthew Christie", "Todd Foster", "Chad Adamson"]
@@ -609,7 +605,7 @@ user_role = "Staff"
 st.sidebar.divider()
 
 # Page options for navigation
-PAGE_OPTIONS = ["Dashboard", "Placements", "Completed Placements", "Assignments", "Notifications"]
+PAGE_OPTIONS = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
 
 # Initialize navigation state
 if 'current_page' not in st.session_state:
@@ -666,12 +662,6 @@ if sidebar_page != st.session_state.current_page:
 # Use current_page as the source of truth for rendering
 page = st.session_state.current_page
 print(f"[DEBUG NAV] page={page}, sidebar_page={sidebar_page}, programmatic_nav={programmatic_nav_just_happened}")
-
-# Show notification badge in sidebar
-all_notifs = notifications.get_all_notifications()
-warning_count = len([n for n in all_notifs if n.get('severity') == 'warning'])
-if warning_count > 0:
-    st.sidebar.warning(f"⚠️ {warning_count} notifications require attention")
 
 # Dashboard Page
 if page == "Dashboard":
@@ -5260,127 +5250,6 @@ elif page == "ISS Detail":
 # Assignments Page (Placeholder - to be built in the future)
 elif page == "Assignments":
     st.header("Assignments")
-
-# Notifications Page
-elif page == "Notifications":
-    st.header("🔔 Notifications")
-    
-    # Get all notifications grouped by severity (active only)
-    with st.spinner("Loading notifications..."):
-        try:
-            grouped_notifications = notifications.get_notifications_by_severity()
-            dismissed_notifications = notifications.get_dismissed_notifications()
-            print(f"[DEBUG NOTIFICATIONS] Loaded {len(grouped_notifications.get('warning', []))} warnings, {len(grouped_notifications.get('info', []))} info, {len(grouped_notifications.get('success', []))} success, {len(dismissed_notifications)} dismissed")
-        except Exception as e:
-            st.error(f"Error loading notifications: {e}")
-            print(f"[DEBUG NOTIFICATIONS ERROR] {e}")
-            import traceback
-            traceback.print_exc()
-            grouped_notifications = {'warning': [], 'info': [], 'success': []}
-            dismissed_notifications = []
-    
-    # Summary metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("⚠️ Warnings", len(grouped_notifications['warning']))
-    with col2:
-        st.metric("ℹ️ Info", len(grouped_notifications['info']))
-    with col3:
-        st.metric("✅ Success", len(grouped_notifications['success']))
-    with col4:
-        st.metric("📁 Dismissed", len(dismissed_notifications))
-    
-    st.divider()
-    
-    # Helper function to render a notification with dismiss button
-    def render_notification_with_dismiss(notif, severity_style='info', idx=0, tab_prefix='all'):
-        """Render a notification card with dismiss button."""
-        notif_id = notif.get('notification_id', '')
-        unique_key = f"dismiss_{tab_prefix}_{idx}_{notif_id or idx}"
-        
-        with st.container():
-            col_content, col_action = st.columns([10, 2])
-            with col_content:
-                if severity_style == 'warning':
-                    st.warning(f"**{notif['title']}**\n\n{notif['message']}")
-                elif severity_style == 'success':
-                    st.success(f"**{notif['title']}**\n\n{notif['message']}")
-                else:
-                    st.info(f"**{notif['title']}**\n\n{notif['message']}")
-            with col_action:
-                if notif_id:
-                    if st.button("Dismiss", key=unique_key, type="secondary", use_container_width=True):
-                        if notifications.dismiss_notification(notif_id, notif):
-                            st.rerun()
-                else:
-                    st.caption("⚠️")
-            st.divider()
-    
-    # Display notifications by severity
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["All", "Warnings", "Info", "Success", "Dismissed"])
-    
-    with tab1:
-        all_notifications_list = notifications.get_all_notifications()
-        if all_notifications_list:
-            for idx, notif in enumerate(all_notifications_list):
-                severity_style = notif.get('severity', 'info')
-                render_notification_with_dismiss(notif, severity_style, idx, 'all')
-        else:
-            st.info("No active notifications at this time.")
-    
-    with tab2:
-        warning_notifs = grouped_notifications['warning']
-        if warning_notifs:
-            for idx, notif in enumerate(warning_notifs):
-                render_notification_with_dismiss(notif, 'warning', idx, 'warn')
-        else:
-            st.success("No warnings at this time.")
-    
-    with tab3:
-        info_notifs = grouped_notifications['info']
-        if info_notifs:
-            for idx, notif in enumerate(info_notifs):
-                render_notification_with_dismiss(notif, 'info', idx, 'info')
-        else:
-            st.info("No info notifications at this time.")
-    
-    with tab4:
-        success_notifs = grouped_notifications['success']
-        if success_notifs:
-            for idx, notif in enumerate(success_notifs):
-                render_notification_with_dismiss(notif, 'success', idx, 'success')
-        else:
-            st.info("No success notifications at this time.")
-    
-    with tab5:
-        st.subheader("📁 Dismissed Notifications")
-        st.caption("These notifications have been dismissed and are no longer active. You can restore them if needed.")
-        
-        if dismissed_notifications:
-            for idx, notif in enumerate(dismissed_notifications):
-                notif_id = notif.get('notification_id', '')
-                unique_key = f"restore_{idx}_{notif_id}"
-                severity_icon = {
-                    'warning': '⚠️',
-                    'info': 'ℹ️',
-                    'success': '✅'
-                }.get(notif.get('severity', 'info'), 'ℹ️')
-                
-                with st.container():
-                    col_icon, col_content, col_action = st.columns([1, 9, 2])
-                    with col_icon:
-                        st.write(severity_icon)
-                    with col_content:
-                        st.write(f"**{notif.get('title', 'Notification')}**")
-                        st.write(notif.get('message', ''))
-                    with col_action:
-                        if st.button("Restore", key=unique_key, type="secondary", use_container_width=True):
-                            if notif_id and notifications.restore_notification(notif_id):
-                                st.rerun()
-                    st.divider()
-        else:
-            st.info("No dismissed notifications.")
-
 
 # Handle editing student (if triggered from students page)
 if hasattr(st.session_state, 'editing_student'):

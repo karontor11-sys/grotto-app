@@ -3703,6 +3703,7 @@ if page == "Dashboard":
                     </div>""",
                     unsafe_allow_html=True
                 )
+                st.caption(f"Placement ID: {placement_id}")
             else:
                 # Active/In Progress: expandable card with full functionality
                 # Build a stable ISS card_uid that matches render_iss_session_card()

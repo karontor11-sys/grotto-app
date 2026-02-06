@@ -4575,9 +4575,7 @@ elif page == "Completed Placements":
     st.header("Completed Placements Archive")
     st.caption("Master archive of all completed placements organized by school year")
 
-    left_col, right_col = st.columns([5, 1])
-    with right_col:
-        show_admin_tools = st.toggle("Show admin tools", value=False)
+    show_admin_tools = st.toggle("Show admin tools", value=False)
 
     # -------------------------------
     # ADMIN: Fix legacy 3-day ISS records

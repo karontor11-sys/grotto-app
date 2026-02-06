@@ -4016,11 +4016,13 @@ if page == "Dashboard":
 elif page == "Placements":
     st.header("Placement Manager")
     
-    # Navigation button to Completed Placements
+    # Navigation button to Completed Placements (right-justified)
     completed_count = len(dm.get_completed_placements_with_students())
-    if st.button(f"📋 Completed Placements ({completed_count})", key="placements_completed_btn", type="secondary"):
-        st.session_state.navigate_to_completed_placements = True
-        st.rerun()
+    left_col, right_col = st.columns([5, 1])
+    with right_col:
+        if st.button(f"📋 Completed Placements ({completed_count})", key="placements_completed_btn", type="secondary"):
+            st.session_state.navigate_to_completed_placements = True
+            st.rerun()
     
     st.divider()
     

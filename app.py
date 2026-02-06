@@ -4564,6 +4564,87 @@ elif page == "Placements":
                     st.session_state.preplanned_schedule.pop()
                     st.rerun()
 
+    # -------------------------------
+    # ADMIN: Fix legacy 3-day ISS records (safe, controlled)
+    # -------------------------------
+    with st.expander("Admin: Fix legacy 3-day ISS records", expanded=False):
+        st.caption(
+            "Find 3-day ISS placements where all original days were completed, "
+            "but strict period reconciliation is short, and mark them completed by waiving the shortfall."
+        )
+
+        try:
+            active_with_students = dm.get_active_placements_with_students()
+        except Exception as e:
+            st.error(f"Could not load active placements: {e}")
+            active_with_students = []
+
+        candidates = []
+        for p in active_with_students:
+            try:
+                ptype = (p.get("placementType") or "").upper()
+                if ptype != "ISS":
+                    continue
+                if int(p.get("issDaysAssigned") or 0) != 3:
+                    continue
+                if int(p.get("daysCompleted") or 0) < 3:
+                    continue
+
+                placement_id = p.get("placementId")
+                if not placement_id:
+                    continue
+
+                strict = dm.check_iss_session_needs_makeup_strict(placement_id)
+                if strict.get("needsMakeup") and int(strict.get("periodsRemaining") or 0) > 0:
+                    candidates.append((p, strict))
+            except Exception:
+                continue
+
+        if not candidates:
+            st.info("No legacy 3-day ISS records found that need reconciliation.")
+        else:
+            st.warning("Review each record carefully before marking completed (this updates real data).")
+
+            for p, strict in candidates:
+                placement_id = p.get("placementId", "\u2014")
+                student = p.get("student") or {}
+                student_name = (
+                    student.get("preferredName")
+                    or student.get("firstName")
+                    or student.get("name")
+                    or "Student"
+                )
+                last_name = student.get("lastName") or ""
+                display_name = f"{student_name} {last_name}".strip()
+
+                required_ = strict.get("periodsRequired", "\u2014")
+                served_ = strict.get("periodsServed", "\u2014")
+                remaining_ = strict.get("periodsRemaining", "\u2014")
+
+                st.markdown(f"### {display_name}")
+                st.markdown(f"- **Placement ID:** `{placement_id}`")
+                st.markdown(f"- **Expected:** **{required_}** periods")
+                st.markdown(f"- **Credited:** **{served_}** periods")
+                st.markdown(f"- **Short by:** **{remaining_}** periods")
+
+                default_note = "Legacy reconciliation \u2014 AP counted session served; waiving remaining periods."
+                note_key = f"legacy_iss_note_{placement_id}"
+                note = st.text_input("Closure note (audit trail)", value=default_note, key=note_key)
+
+                btn_key = f"legacy_iss_close_{placement_id}"
+                if st.button("Waive shortfall & Mark Completed", key=btn_key):
+                    try:
+                        ok = dm.close_iss_session_early(placement_id, note=note)
+                        if ok:
+                            st.success("Marked completed. This record should now appear in Completed Placements.")
+                            st.rerun()
+                        else:
+                            st.error("Could not mark completed (close_iss_session_early returned False).")
+                    except Exception as e:
+                        st.error(f"Failed to mark completed: {e}")
+
+                st.divider()
+
 # Completed Placements Page - Dedicated page for completed placements archive
 elif page == "Completed Placements":
     print(f"[DEBUG] Entering Completed Placements page. page={page}, current_page={st.session_state.current_page}")

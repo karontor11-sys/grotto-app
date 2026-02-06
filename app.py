@@ -3679,7 +3679,11 @@ if page == "Dashboard":
 
             # COMPLETED placements or COMPLETED days: show non-interactive collapsed card
             if should_collapse:
-                completion_label = "Completed" if progress_status == "COMPLETED" else "Day Completed"
+                total_days_here = int(iss_days_assigned or 1)
+                if progress_status == "COMPLETED":
+                    completion_label = f"{total_days_here}-Day Session Completed"
+                else:
+                    completion_label = "Day Completed"
 
                 # Hover tooltip for ISS points breakdown
                 try:
@@ -3691,11 +3695,16 @@ if page == "Dashboard":
                 tooltip_text = build_iss_points_breakdown_tooltip(point_events_for_day, positive_menu_for_breakdown)
                 completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
 
+                if progress_status == "COMPLETED":
+                    subtitle = f"In-School Suspension (ISS) · {completion_label_html}"
+                else:
+                    subtitle = f"In-School Suspension (ISS) · {total_days_here}-Day · {completion_label_html}"
+
                 st.markdown(
                     f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
                     background-color: #fafafa; margin-bottom: 8px;">
                     <span style="font-size: 1.1em;">{status_circle} <strong>{student_name}</strong></span>
-                    <span style="color: #666; margin-left: 12px;">In-School Suspension (ISS) · {int(iss_days_assigned or 1)}-Day · {completion_label_html}</span>
+                    <span style="color: #666; margin-left: 12px;">{subtitle}</span>
                     </div>""",
                     unsafe_allow_html=True
                 )

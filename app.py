@@ -905,6 +905,15 @@ if page == "Dashboard":
                     if not pending.get("is_present", False):
                         dm.update_iss_attendance(pending["placement_id"], pending["log_date"], True)
 
+
+                    # STRICT make-up trigger (ISS only):
+                    # Only prompts after the final ORIGINAL session day is completed
+                    # and only when the student is still short under strict math (originalDayCount * 10).
+                    strict_makeup_check = dm.check_iss_session_needs_makeup_strict(pending["placement_id"])
+                    if strict_makeup_check.get("needsMakeup", False):
+                        st.session_state[f"show_makeup_prompt_{pending['placement_id']}"] = True
+                        st.session_state[f"makeup_info_{pending['placement_id']}"] = strict_makeup_check
+
                     st.success("Override applied! ISS Session complete." if result.get("isCompleted") else "Override applied!")
                 else:
                     st.error(result.get("message", "Failed to apply override"))
@@ -1496,7 +1505,7 @@ if page == "Dashboard":
                                 points_earned=total_points
                             )
                             # Check if make-up is needed after completing
-                            makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                            makeup_check = dm.check_iss_session_needs_makeup_strict(placement_id)
                             if makeup_check.get('needsMakeup', False):
                                 st.session_state[f"show_makeup_prompt_{placement_id}"] = True
                                 st.session_state[f"makeup_info_{placement_id}"] = makeup_check
@@ -1539,7 +1548,7 @@ if page == "Dashboard":
                                 )
                                 st.session_state[f"show_partial_override_{placement_id}_{date_str}"] = False
                                 # Check if make-up is needed after completing
-                                makeup_check = dm.check_iss_session_needs_makeup(placement_id)
+                                makeup_check = dm.check_iss_session_needs_makeup_strict(placement_id)
                                 if makeup_check.get('needsMakeup', False):
                                     st.session_state[f"show_makeup_prompt_{placement_id}"] = True
                                     st.session_state[f"makeup_info_{placement_id}"] = makeup_check
@@ -1622,7 +1631,13 @@ if page == "Dashboard":
             if st.session_state.get(f"show_makeup_prompt_{placement_id}", False):
                 makeup_info = st.session_state.get(f"makeup_info_{placement_id}", {})
                 periods_remaining = makeup_info.get('periodsRemaining', 0)
-                
+                periods_served = makeup_info.get('periodsServed', None)
+                periods_required = makeup_info.get('periodsRequired', None)
+
+                # Friendly display (avoid showing 'None' if the dict came from a non-strict source)
+                periods_served_display = periods_served if periods_served is not None else "\u2014"
+                periods_required_display = periods_required if periods_required is not None else "\u2014"
+
                 # Initialize session state for schedule builder
                 schedule_builder_key = f"show_makeup_builder_{placement_id}"
                 if schedule_builder_key not in st.session_state:
@@ -1723,9 +1738,13 @@ if page == "Dashboard":
                 else:
                     # Show initial prompt
                     st.warning(f"""
-                    **Add make-up days?**
+                    **Make-up time needed**
                     
-                    The student still has **{periods_remaining}** periods remaining to serve.
+                    The original ISS session is complete, but the credited periods are short.
+                    
+                    - Expected: **{periods_required_display}** periods
+                    - Credited: **{periods_served_display}** periods
+                    - Short by: **{periods_remaining}** periods
                     """)
                     
                     col_yes, col_no, col_close = st.columns(3)

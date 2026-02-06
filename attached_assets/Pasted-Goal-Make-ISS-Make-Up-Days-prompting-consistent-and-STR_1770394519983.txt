@@ -1,0 +1,113 @@
+Goal: Make ISS Make-Up Days prompting consistent and STRICT across all ISS completion paths, while keeping ISS operations and absence handling unchanged.
+
+Requirements:
+
+In app.py, after an ISS day is completed via the Dashboard override path (elif action == "override"), run the same strict make-up trigger used in the regular completion path:
+
+call dm.check_iss_session_needs_makeup_strict(pending["placement_id"])
+
+if needsMakeup is true, set:
+
+st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+
+st.session_state[f"makeup_info_{placement_id}"] = strict_makeup_check
+This ensures make-up prompting happens only after the final ORIGINAL session day is completed and only if strict period reconciliation is short, even when the last day is closed via Override.
+
+In the ISS Partial Day completion UI (both normal “Complete” and “Confirm Override”), replace calls to:
+
+dm.check_iss_session_needs_makeup(placement_id)
+with:
+
+dm.check_iss_session_needs_makeup_strict(placement_id)
+so strict gating is used everywhere.
+
+In the Make-Up prompt UI (where show_makeup_prompt_* is rendered), enhance the warning text to display:
+
+Expected (periodsRequired)
+
+Credited (periodsServed)
+
+Short by (periodsRemaining)
+Use safe fallback display (—) if any values are missing.
+
+Constraints:
+
+Touch only app.py
+
+No changes to database schema, ISS day crediting math, absence behavior, or completion logic
+
+Keep the existing make-up scheduler workflow and state keys intact
+
+Paste-in patch (app.py)
+--- app.py
++++ app.py
+@@ -904,6 +904,15 @@
+                         )
+                     if not pending.get("is_present", False):
+                         dm.update_iss_attendance(pending["placement_id"], pending["log_date"], True)
++
++
++                    # STRICT make-up trigger (ISS only):
++                    # Only prompts after the final ORIGINAL session day is completed
++                    # and only when the student is still short under strict math (originalDayCount * 10).
++                    strict_makeup_check = dm.check_iss_session_needs_makeup_strict(pending["placement_id"])
++                    if strict_makeup_check.get("needsMakeup", False):
++                        st.session_state[f"show_makeup_prompt_{pending['placement_id']}"] = True
++                        st.session_state[f"makeup_info_{pending['placement_id']}"] = strict_makeup_check
+ 
+                     st.success("Override applied! ISS Session complete." if result.get("isCompleted") else "Override applied!")
+                 else:
+                     st.error(result.get("message", "Failed to apply override"))
+@@ -1496,7 +1505,7 @@
+                                 points_earned=total_points
+                             )
+                             # Check if make-up is needed after completing
+-                            makeup_check = dm.check_iss_session_needs_makeup(placement_id)
++                            makeup_check = dm.check_iss_session_needs_makeup_strict(placement_id)
+                             if makeup_check.get('needsMakeup', False):
+                                 st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                 st.session_state[f"makeup_info_{placement_id}"] = makeup_check
+                             st.rerun()
+@@ -1539,7 +1548,7 @@
+                                 )
+                                 st.session_state[f"show_partial_override_{placement_id}_{date_str}"] = False
+                                 # Check if make-up is needed after completing
+-                                makeup_check = dm.check_iss_session_needs_makeup(placement_id)
++                                makeup_check = dm.check_iss_session_needs_makeup_strict(placement_id)
+                                 if makeup_check.get('needsMakeup', False):
+                                     st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                                     st.session_state[f"makeup_info_{placement_id}"] = makeup_check
+                                 st.rerun()
+@@ -1622,6 +1631,13 @@
+             # Shows after final day completion when periods are short
+             if st.session_state.get(f"show_makeup_prompt_{placement_id}", False):
+                 makeup_info = st.session_state.get(f"makeup_info_{placement_id}", {})
+                 periods_remaining = makeup_info.get('periodsRemaining', 0)
++                periods_served = makeup_info.get('periodsServed', None)
++                periods_required = makeup_info.get('periodsRequired', None)
++
++                # Friendly display (avoid showing 'None' if the dict came from a non-strict source)
++                periods_served_display = periods_served if periods_served is not None else "—"
++                periods_required_display = periods_required if periods_required is not None else "—"
+ 
+                 # Initialize session state for schedule builder
+                 schedule_builder_key = f"show_makeup_builder_{placement_id}"
+                 if schedule_builder_key not in st.session_state:
+                     st.session_state[schedule_builder_key] = False
+@@ -1723,9 +1739,13 @@
+                 else:
+                     # Show initial prompt
+                     st.warning(f"""
+-                    **Add make-up days?**
+-                    
+-                    The student still has **{periods_remaining}** periods remaining to serve.
++                    **Make-up time needed**
++                    
++                    The original ISS session is complete, but the credited periods are short.
++                    
++                    - Expected: **{periods_required_display}** periods
++                    - Credited: **{periods_served_display}** periods
++                    - Short by: **{periods_remaining}** periods
+                     """)
+ 
+                     col_yes, col_no, col_close = st.columns(3)

@@ -4575,10 +4575,13 @@ elif page == "Completed Placements":
     st.header("Completed Placements Archive")
     st.caption("Master archive of all completed placements organized by school year")
 
+    show_admin_tools = st.toggle("Show admin tools", value=False)
+
     # -------------------------------
     # ADMIN: Fix legacy 3-day ISS records
     # -------------------------------
-    with st.expander("Admin: Fix legacy 3-day ISS records", expanded=False):
+    if show_admin_tools:
+      with st.expander("Admin: Fix legacy 3-day ISS records", expanded=False):
         st.caption(
             "Find 3-day ISS placements where all original days were completed, "
             "but strict period reconciliation is short, and mark them completed."

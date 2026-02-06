@@ -962,15 +962,11 @@ if page == "Dashboard":
         st.rerun()
     # ===== END ISS PENDING ACTION DISPATCHER =====
     
-    # Navigation buttons - Create New Placement and Completed Placements
+    # Navigation button - Create New Placement
     btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
     with btn_col1:
         if st.button("Create New Placement", type="primary", use_container_width=True, key="dash_create_placement_btn"):
             st.session_state.navigate_to_create_placement = True
-            st.rerun()
-    with btn_col2:
-        if st.button("Completed Placements", type="secondary", use_container_width=True, key="dash_completed_placements_btn"):
-            st.session_state.navigate_to_completed_placements = True
             st.rerun()
     
     st.header("Dashboard")

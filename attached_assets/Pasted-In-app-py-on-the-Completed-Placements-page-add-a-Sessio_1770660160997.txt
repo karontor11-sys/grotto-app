@@ -1,0 +1,61 @@
+In app.py, on the Completed Placements page, add a Session Notes section for Lunch Detention records (expanded cards only), placed directly beneath Reason.
+
+Rules (Lunch Detention only):
+
+Always show the Session Notes header (even if empty).
+
+Use the placement’s servedDates list to determine the served days.
+
+Pull notes from DailyLog.notes for each served day using dm.get_daily_log(placement_id, date_str).
+
+Single-day (0–1 served dates): show header and the notes if any (empty underneath if none).
+
+Multi-day (2+ served dates): show Day 1 / Day 2 / Day 3… with notes under each day (blank if none).
+
+Match Reason styling: plain st.write, no captions/special styling.
+
+Do not add notes to exports/reports/printables.
+
+✅ ACTUAL PASTE-IN CODE (edit app.py)
+Where to paste
+
+In app.py, inside Completed Placements expanded record rendering, find this exact line:
+
+st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
+
+
+Immediately below it, paste this entire block:
+
+# LUNCH DETENTION ONLY (Completed Placements): Session Notes (UI display only — NOT for exports/reports)
+if placement_type == 'LUNCH_DETENTION':
+    st.divider()
+    st.write("**Session Notes:**")
+
+    served_dates_raw = placement.get('servedDates', []) or []
+
+    # De-duplicate while preserving order (just in case)
+    seen = set()
+    served_dates = []
+    for d in served_dates_raw:
+        if d and d not in seen:
+            seen.add(d)
+            served_dates.append(d)
+
+    # Single-day format (0–1 served dates)
+    if len(served_dates) <= 1:
+        note_text = ""
+        if served_dates:
+            dl = dm.get_daily_log(placement_id, served_dates[0]) or {}
+            note_text = (dl.get('notes') or "").strip()
+
+        if note_text:
+            st.write(note_text)
+
+    # Multi-day format (2+ served dates)
+    else:
+        for i, d in enumerate(served_dates, start=1):
+            st.write(f"Day {i}")
+            dl = dm.get_daily_log(placement_id, d) or {}
+            note_text = (dl.get('notes') or "").strip()
+            if note_text:
+                st.write(note_text)

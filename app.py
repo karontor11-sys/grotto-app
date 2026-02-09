@@ -4962,6 +4962,36 @@ elif page == "Completed Placements":
                                     st.divider()
                                     st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
                                     
+                                    if placement_type == 'LUNCH_DETENTION':
+                                        st.divider()
+                                        st.write("**Session Notes:**")
+
+                                        served_dates_raw = placement.get('servedDates', []) or []
+
+                                        seen = set()
+                                        served_dates = []
+                                        for d in served_dates_raw:
+                                            if d and d not in seen:
+                                                seen.add(d)
+                                                served_dates.append(d)
+
+                                        if len(served_dates) <= 1:
+                                            note_text = ""
+                                            if served_dates:
+                                                dl = dm.get_daily_log(placement_id, served_dates[0]) or {}
+                                                note_text = (dl.get('notes') or "").strip()
+
+                                            if note_text:
+                                                st.write(note_text)
+
+                                        else:
+                                            for i, d in enumerate(served_dates, start=1):
+                                                st.write(f"Day {i}")
+                                                dl = dm.get_daily_log(placement_id, d) or {}
+                                                note_text = (dl.get('notes') or "").strip()
+                                                if note_text:
+                                                    st.write(note_text)
+
                                     if placement_type == 'ISS':
                                         st.divider()
                                         st.write("**Session Notes:**")

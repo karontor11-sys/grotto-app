@@ -4962,6 +4962,37 @@ elif page == "Completed Placements":
                                     st.divider()
                                     st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
                                     
+                                    if placement_type == 'ISS':
+                                        st.divider()
+                                        st.write("**Session Notes:**")
+
+                                        logs = dm.get_iss_session_logs(placement_id) or []
+                                        raw_dates = [l.get('sessionDate') for l in logs if l.get('sessionDate')]
+
+                                        seen = set()
+                                        session_dates = []
+                                        for d in raw_dates:
+                                            if d and d not in seen:
+                                                seen.add(d)
+                                                session_dates.append(d)
+
+                                        if len(session_dates) <= 1:
+                                            note_text = ""
+                                            if session_dates:
+                                                dl = dm.get_daily_log(placement_id, session_dates[0])
+                                                note_text = (dl or {}).get('notes') or ""
+
+                                            if note_text:
+                                                st.write(note_text)
+
+                                        else:
+                                            for i, d in enumerate(session_dates, start=1):
+                                                st.write(f"Day {i}")
+                                                dl = dm.get_daily_log(placement_id, d)
+                                                note_text = (dl or {}).get('notes') or ""
+                                                if note_text:
+                                                    st.write(note_text)
+
                                     # ISS-specific details
                                     if placement_type == 'ISS':
                                         st.divider()

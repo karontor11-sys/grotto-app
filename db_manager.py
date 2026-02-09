@@ -299,6 +299,13 @@ class SchoolClosure(Base):
     __table_args__ = (UniqueConstraint('start_year', 'end_year', 'title', 'start_date', 'end_date', name='uix_school_closure'),)
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=True)
+
+
 class DatabaseManager:
     def __init__(self):
         """Initialize the database manager."""
@@ -1295,6 +1302,51 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_app_setting(self, key: str):
+        session = self.get_session()
+        try:
+            row = session.query(AppSetting).filter(AppSetting.key == key).first()
+            return row.value if row else None
+        finally:
+            session.close()
+
+    def set_app_setting(self, key: str, value=None):
+        session = self.get_session()
+        try:
+            row = session.query(AppSetting).filter(AppSetting.key == key).first()
+            if not row:
+                row = AppSetting(key=key, value=value)
+                session.add(row)
+            else:
+                row.value = value
+            session.commit()
+        finally:
+            session.close()
+
+    @staticmethod
+    def format_school_year_label(sy: tuple) -> str:
+        start, end = int(sy[0]), int(sy[1])
+        return f"{start}-{str(end)[-2:]}"
+
+    @staticmethod
+    def next_school_year_tuple(sy: tuple) -> tuple:
+        start, end = int(sy[0]), int(sy[1])
+        return (start + 1, end + 1)
+
+    def get_operating_school_year(self) -> tuple:
+        override = self.get_app_setting("operating_school_year_start")
+        if override:
+            try:
+                start = int(override)
+                return (start, start + 1)
+            except Exception:
+                pass
+        return get_school_year_for_date(central_today())
+
+    def set_operating_school_year(self, sy: tuple) -> None:
+        start = int(sy[0])
+        self.set_app_setting("operating_school_year_start", str(start))
+
     def restore_placement_to_active(self, placement_id: str) -> bool:
         """Restore a completed placement back to active status."""
         session = self.get_session()

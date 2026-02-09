@@ -1,0 +1,70 @@
+Chunk 2 — UI: Show Admin Tools + Flip to New School Year (NO date gate)
+Replit Prompt
+
+On the Dashboard page, add a shared Show admin tools toggle (session_state). Under it, add an “Admin: New School Year Reset” expander that:
+
+Is visible only when admin tools are ON
+
+Shows current operating year and the computed next year
+
+Requires typing the next year label exactly to enable the flip button
+
+On flip: calls dm.set_operating_school_year(next_sy) and reruns
+
+No calendar reset yet (next chunk).
+
+✅ PASTE-IN PATCH (app.py)
+1) Add shared session state for admin tools (near your other session_state inits at top of file)
+
+Search for other st.session_state initializations near the top and add:
+
+if "show_admin_tools" not in st.session_state:
+    st.session_state.show_admin_tools = False
+
+2) Update the existing Completed Placements toggle to use shared state
+
+Find:
+
+show_admin_tools = st.toggle("Show admin tools", value=False)
+
+
+Replace with:
+
+show_admin_tools = st.toggle("Show admin tools", key="show_admin_tools")
+
+3) Add the toggle + flip panel to the Dashboard header area
+
+In Dashboard section, right after:
+
+if page == "Dashboard":
+
+
+paste this:
+
+    # Admin toggle (shared across pages)
+    _left, _right = st.columns([6, 1])
+    with _right:
+        st.session_state.show_admin_tools = st.toggle("Show admin tools", key="show_admin_tools")
+
+    # Admin: Manual new school year flip (no date gate)
+    if st.session_state.show_admin_tools:
+        current_sy_operating = dm.get_operating_school_year()
+        next_sy = dm.next_school_year_tuple(current_sy_operating)
+        next_label = dm.format_school_year_label(next_sy)
+
+        with st.expander("Admin: New School Year Reset", expanded=False):
+            st.caption(f"Current operating school year: {dm.format_school_year_label(current_sy_operating)}")
+            st.caption(f"Next school year will be: {next_label}")
+
+            confirm_text = st.text_input(
+                f"Type {next_label} to confirm school year flip",
+                value="",
+                key="confirm_school_year_flip"
+            )
+
+            can_flip = (confirm_text.strip() == next_label)
+
+            if st.button("Flip to New School Year", disabled=not can_flip, key="flip_school_year_button"):
+                dm.set_operating_school_year(next_sy)
+                st.success(f"School year flipped to {next_label}.")
+                st.rerun()

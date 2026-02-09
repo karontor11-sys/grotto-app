@@ -1,0 +1,87 @@
+Add a tiny DB-backed settings table and helper methods so the app can store a persistent “operating school year” override. If no override exists, fall back to date-based school year.
+
+Add:
+
+AppSetting model (key, value)
+
+DB manager helpers:
+
+get_app_setting(key), set_app_setting(key, value)
+
+get_operating_school_year() (override if set, else date-based)
+
+set_operating_school_year((start,end))
+
+format_school_year_label((start,end)) → "2026-27"
+
+next_school_year_tuple((start,end))
+
+No UI changes yet.
+
+✅ PASTE-IN PATCH (db_manager.py)
+1) Add this model near the other models (anywhere above class DatabaseManager: is fine)
+class AppSetting(Base):
+    """Simple key/value settings stored in DB (e.g., manual operating school year override)."""
+    __tablename__ = "app_settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=True)
+
+2) Add these methods inside class DatabaseManager: (near other helpers)
+    # =========================
+    # APP SETTINGS (DB-backed)
+    # =========================
+    def get_app_setting(self, key: str) -> Optional[str]:
+        session = self.get_session()
+        try:
+            row = session.query(AppSetting).filter(AppSetting.key == key).first()
+            return row.value if row else None
+        finally:
+            session.close()
+
+    def set_app_setting(self, key: str, value: Optional[str]) -> None:
+        session = self.get_session()
+        try:
+            row = session.query(AppSetting).filter(AppSetting.key == key).first()
+            if not row:
+                row = AppSetting(key=key, value=value)
+                session.add(row)
+            else:
+                row.value = value
+            session.commit()
+        finally:
+            session.close()
+
+    # =========================
+    # OPERATING SCHOOL YEAR
+    # =========================
+    @staticmethod
+    def format_school_year_label(sy: tuple) -> str:
+        """(2026, 2027) -> '2026-27'"""
+        start, end = int(sy[0]), int(sy[1])
+        return f"{start}-{str(end)[-2:]}"
+
+    @staticmethod
+    def next_school_year_tuple(sy: tuple) -> tuple:
+        start, end = int(sy[0]), int(sy[1])
+        return (start + 1, end + 1)
+
+    def get_operating_school_year(self) -> tuple:
+        """
+        Returns the operating school year (manual override if present),
+        otherwise falls back to date-based school year.
+        """
+        override = self.get_app_setting("operating_school_year_start")
+        if override:
+            try:
+                start = int(override)
+                return (start, start + 1)
+            except Exception:
+                pass
+        # Default: date-based (existing utils)
+        return get_school_year_for_date(central_today())
+
+    def set_operating_school_year(self, sy: tuple) -> None:
+        """Persist manual override for operating school year."""
+        start = int(sy[0])
+        self.set_app_setting("operating_school_year_start", str(start))

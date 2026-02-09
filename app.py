@@ -4948,12 +4948,8 @@ elif page == "Completed Placements":
                                     
                                     # Lunch Detention specific details
                                     elif placement_type == 'LUNCH_DETENTION':
-                                        st.divider()
-                                        st.markdown("**Lunch Detention Details:**")
-                                        served_dates = placement.get('servedDates', [])
-                                        if served_dates:
-                                            st.write(f"**Served Dates:** {', '.join([format_date(d) for d in served_dates[:5]])}" + 
-                                                    (f" (+{len(served_dates)-5} more)" if len(served_dates) > 5 else ""))
+                                        # UI cleanup (Completed Placements): remove redundant Served Dates display
+                                        pass
                                     
                                     # Class Period Referral specific details
                                     elif placement_type == 'CLASS_REFERRAL':

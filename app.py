@@ -1023,7 +1023,8 @@ if page == "Dashboard":
 
             if st.button("Flip to New School Year", disabled=not can_flip, key="flip_school_year_button"):
                 dm.set_operating_school_year(next_sy)
-                st.success(f"School year flipped to {next_label}.")
+                dm.reset_school_calendar_for_year(next_sy)
+                st.success(f"School year flipped to {next_label}. School Calendar setup is now required for the new year.")
                 st.rerun()
 
     # Helper for debug logging (only logs when DEBUG_ISS_POINTS env var or session state is set)

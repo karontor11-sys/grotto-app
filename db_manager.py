@@ -1347,6 +1347,38 @@ class DatabaseManager:
         start = int(sy[0])
         self.set_app_setting("operating_school_year_start", str(start))
 
+    def reset_school_calendar_for_year(self, school_year: tuple) -> None:
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+
+            if not cfg:
+                cfg = SchoolYearConfig(
+                    id=self.generate_id(),
+                    start_year=sy_start,
+                    end_year=sy_end,
+                    calendar_finalized=False,
+                    finalized_at=None
+                )
+                session.add(cfg)
+            else:
+                cfg.calendar_finalized = False
+                cfg.finalized_at = None
+
+            session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).delete(synchronize_session=False)
+
+            session.commit()
+        finally:
+            session.close()
+
     def restore_placement_to_active(self, placement_id: str) -> bool:
         """Restore a completed placement back to active status."""
         session = self.get_session()

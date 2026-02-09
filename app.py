@@ -4962,6 +4962,26 @@ elif page == "Completed Placements":
                                     st.divider()
                                     st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
                                     
+                                    if placement_type == 'CLASS_REFERRAL' and referral_subtype in ('behavior', 'cool_down'):
+                                        st.divider()
+                                        st.write("**Session Notes:**")
+
+                                        date_iso = ""
+                                        try:
+                                            start_date_str = placement.get('startDate')
+                                            if start_date_str:
+                                                date_iso = datetime.fromisoformat(start_date_str).date().isoformat()
+                                        except Exception:
+                                            date_iso = ""
+
+                                        note_text = ""
+                                        if date_iso:
+                                            dl = dm.get_daily_log(placement_id, date_iso) or {}
+                                            note_text = (dl.get('notes') or "").strip()
+
+                                        if note_text:
+                                            st.write(note_text)
+
                                     if placement_type == 'LUNCH_DETENTION':
                                         st.divider()
                                         st.write("**Session Notes:**")

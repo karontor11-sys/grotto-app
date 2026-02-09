@@ -1309,6 +1309,27 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def delete_placement_hard(self, placement_id: str) -> bool:
+        session = self.get_session()
+        try:
+            session.query(DailyLog).filter(DailyLog.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(PointEvent).filter(PointEvent.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(Assignment).filter(Assignment.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(PartialDaySession).filter(PartialDaySession.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(ISSSessionLog).filter(ISSSessionLog.placement_id == placement_id).delete(synchronize_session=False)
+
+            deleted = session.query(Placement).filter(Placement.id == placement_id).delete(synchronize_session=False)
+
+            session.commit()
+            return deleted > 0
+
+        except Exception:
+            session.rollback()
+            return False
+
+        finally:
+            session.close()
+
     def auto_complete_preplanned_multi_day_after_last_date(self) -> int:
         """
         If the last scheduled date for a Pre-Planned multi-day placement

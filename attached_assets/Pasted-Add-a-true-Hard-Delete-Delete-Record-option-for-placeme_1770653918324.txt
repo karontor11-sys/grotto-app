@@ -1,0 +1,188 @@
+Add a true Hard Delete (Delete Record) option for placements, available on both Dashboard and Completed Placements expanded cards, but only when Show admin tools is enabled.
+
+Requirements:
+
+Add a shared Show admin tools toggle to the Dashboard page (Completed Placements already has one). Use a shared session_state key so it behaves consistently across pages.
+
+Add a ⚠️ Danger Zone expander at the bottom of expanded records (Dashboard + Completed Placements) that includes:
+
+a text input requiring the user to type DELETE
+
+a “🗑️ Delete Record Permanently” button that is disabled unless input == DELETE
+
+Implement delete_placement_hard(placement_id) in db_manager.py that permanently deletes:
+
+daily_logs, point_events, assignments, sessions, iss_session_logs
+
+and then the placement itself
+
+No logging, no deletion reason, no restore.
+
+UI-only integration: after delete, clear dashboard caches and rerun.
+
+✅ ACTUAL PASTE-IN CODE
+1) app.py — add shared admin toggle state + delete UI helper
+A) Add this near the top of app.py, right after your existing session-state initializations (near where eod_processing_checked is set)
+# Shared Admin Tools toggle (used across Dashboard + Completed Placements)
+if 'show_admin_tools' not in st.session_state:
+    st.session_state.show_admin_tools = False
+
+B) Add this helper function anywhere after clear_dashboard_caches() is defined (recommended: right under it)
+def render_delete_record_danger_zone(*, dm: DatabaseManager, placement_id: str, show_admin_tools: bool):
+    """Admin-only hard delete with typed DELETE confirmation."""
+    if not show_admin_tools:
+        return
+
+    with st.expander("⚠️ Danger Zone", expanded=False):
+        confirm = st.text_input(
+            "Type DELETE to permanently delete this record",
+            key=f"delete_confirm_{placement_id}"
+        )
+
+        delete_disabled = (confirm or "").strip() != "DELETE"
+
+        if st.button(
+            "🗑️ Delete Record Permanently",
+            key=f"delete_btn_{placement_id}",
+            disabled=delete_disabled,
+            use_container_width=True
+        ):
+            ok = dm.delete_placement_hard(placement_id)
+            clear_dashboard_caches()
+            if ok:
+                st.success("✅ Record deleted permanently.")
+            else:
+                st.error("⚠️ Could not delete record (it may have already been removed).")
+            st.rerun()
+
+2) app.py — Dashboard: add the Show admin tools toggle + hook delete UI into cards
+A) In the Dashboard page block, find:
+if page == "Dashboard":
+    st.header("Dashboard")
+
+
+Immediately after st.header("Dashboard"), paste:
+
+    # Admin toggle (shared with Completed Placements)
+    dash_admin_col1, dash_admin_col2 = st.columns([3, 1])
+    with dash_admin_col2:
+        show_admin_tools = st.toggle("Show admin tools", key="show_admin_tools")
+
+
+This creates show_admin_tools for the Dashboard scope and keeps it synced with Completed Placements using the shared key.
+
+B) Add delete Danger Zone to ISS session expanded cards (Dashboard)
+
+In def render_iss_session_card(...), near the bottom you already have:
+
+            st.divider()
+
+
+Right before that divider line, paste:
+
+            # Admin-only hard delete
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
+
+So it becomes:
+
+            # Admin-only hard delete
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
+            st.divider()
+
+C) Add delete Danger Zone to Lunch Detention cards (Dashboard)
+
+In def render_lunch_detention_card(...), near the end you currently have:
+
+            st.divider()
+
+
+Right before that divider, paste:
+
+            # Admin-only hard delete
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
+D) Add delete Danger Zone to Class Period Referral cards (Dashboard)
+
+In def render_unified_class_referral_card(...), near the bottom (right before its final divider / end of the card UI), paste the same block:
+
+            # Admin-only hard delete
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
+
+Put it at the very bottom of the expanded UI so it feels like a true “Danger Zone”.
+
+3) app.py — Completed Placements: convert admin toggle to shared key + replace restore action with delete
+A) In Completed Placements, find the existing toggle line:
+        show_admin_tools = st.toggle("Show admin tools", value=False)
+
+
+Replace it with:
+
+        show_admin_tools = st.toggle("Show admin tools", key="show_admin_tools")
+
+B) In Completed Placements expanded record UI, find this block:
+                                    # Restore button (admin function)
+                                    st.divider()
+                                    if st.button(f"↩️ Restore to Active", key=f"restore_{placement_id}"):
+                                        dm.restore_placement_to_active(placement_id)
+                                        st.success("✅ Placement restored to active!")
+                                        st.rerun()
+
+
+Replace it with:
+
+                                    # Admin-only hard delete (replaces restore-to-active)
+                                    render_delete_record_danger_zone(
+                                        dm=dm,
+                                        placement_id=placement_id,
+                                        show_admin_tools=show_admin_tools
+                                    )
+
+4) db_manager.py — add the hard delete method
+
+In db_manager.py, place this method right after restore_placement_to_active() (or anywhere in the “Placement operations” area):
+
+    def delete_placement_hard(self, placement_id: str) -> bool:
+        """
+        Permanently delete a placement AND all dependent records.
+        No logging, no recovery.
+        """
+        session = self.get_session()
+        try:
+            # Delete children first (manual cascade)
+            session.query(DailyLog).filter(DailyLog.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(PointEvent).filter(PointEvent.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(Assignment).filter(Assignment.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(PartialDaySession).filter(PartialDaySession.placement_id == placement_id).delete(synchronize_session=False)
+            session.query(ISSSessionLog).filter(ISSSessionLog.placement_id == placement_id).delete(synchronize_session=False)
+
+            # Delete the placement itself
+            deleted = session.query(Placement).filter(Placement.id == placement_id).delete(synchronize_session=False)
+
+            session.commit()
+            return deleted > 0
+
+        except Exception:
+            session.rollback()
+            return False
+
+        finally:
+            session.close()

@@ -23,6 +23,9 @@ if 'import_export_manager' not in st.session_state:
 if 'eod_processing_checked' not in st.session_state:
     st.session_state.eod_processing_checked = False
 
+if 'show_admin_tools' not in st.session_state:
+    st.session_state.show_admin_tools = False
+
 dm = st.session_state.data_manager
 ps = st.session_state.point_system
 analytics = st.session_state.analytics_engine
@@ -229,6 +232,32 @@ def clear_dashboard_caches():
     get_scheduled_iss_placements_cached.clear()
 
 # ===== END CACHING LAYER =====
+
+def render_delete_record_danger_zone(*, dm, placement_id: str, show_admin_tools: bool):
+    if not show_admin_tools:
+        return
+
+    with st.expander("⚠️ Danger Zone", expanded=False):
+        confirm = st.text_input(
+            "Type DELETE to permanently delete this record",
+            key=f"delete_confirm_{placement_id}"
+        )
+
+        delete_disabled = (confirm or "").strip() != "DELETE"
+
+        if st.button(
+            "🗑️ Delete Record Permanently",
+            key=f"delete_btn_{placement_id}",
+            disabled=delete_disabled,
+            use_container_width=True
+        ):
+            ok = dm.delete_placement_hard(placement_id)
+            clear_dashboard_caches()
+            if ok:
+                st.success("✅ Record deleted permanently.")
+            else:
+                st.error("⚠️ Could not delete record (it may have already been removed).")
+            st.rerun()
 
 # ---------- Dashboard Completed-Session Title Helpers ----------
 
@@ -970,6 +999,10 @@ if page == "Dashboard":
             st.rerun()
     
     st.header("Dashboard")
+    
+    dash_admin_col1, dash_admin_col2 = st.columns([3, 1])
+    with dash_admin_col2:
+        show_admin_tools = st.toggle("Show admin tools", key="show_admin_tools")
     
     # Helper for debug logging (only logs when DEBUG_ISS_POINTS env var or session state is set)
     def iss_debug_log(msg: str):
@@ -1887,6 +1920,12 @@ if page == "Dashboard":
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
             
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
             st.divider()
     
     # ---------------------------------------------------------------------
@@ -2191,6 +2230,12 @@ if page == "Dashboard":
             else:
                 st.success("Completed")
             
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
             st.divider()
     
     # Unified helper function to render Class Period Referral student card (all subtypes)
@@ -2676,6 +2721,12 @@ if page == "Dashboard":
                 help_text=None
             )
             
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
             st.divider()
     
     # Helper function to render enhanced ISS session card
@@ -3560,6 +3611,12 @@ if page == "Dashboard":
                 lambda notes: dm.update_daily_log_notes(placement_id, date_str, notes)
             )
             
+            render_delete_record_danger_zone(
+                dm=dm,
+                placement_id=placement_id,
+                show_admin_tools=show_admin_tools
+            )
+
             st.divider()
     
     # Five Placement Type Sections with Clickable Student Names
@@ -4584,7 +4641,7 @@ elif page == "Completed Placements":
 
     left_col, right_col = st.columns([5, 1])
     with right_col:
-        show_admin_tools = st.toggle("Show admin tools", value=False)
+        show_admin_tools = st.toggle("Show admin tools", key="show_admin_tools")
 
     # -------------------------------
     # ADMIN: Fix legacy 3-day ISS records
@@ -4990,6 +5047,11 @@ elif page == "Completed Placements":
                                         st.divider()
                                         st.write(f"**Notes:** {notes}")
                                     
+                                    render_delete_record_danger_zone(
+                                        dm=dm,
+                                        placement_id=placement_id,
+                                        show_admin_tools=show_admin_tools
+                                    )
                         
                         st.markdown("---")
 

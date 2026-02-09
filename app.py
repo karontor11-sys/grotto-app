@@ -3345,7 +3345,7 @@ if page == "Dashboard":
                     def _defer_override_day():
                         print(f"[DEBUG OVERRIDE] Phase 1 (on_click): Deferring override for card_uid={card_uid}")
 
-                        override_note = "Retroactive override: Student released early due to positive behavior; remaining periods waived."
+                        override_note = "Override Applied"
 
                         # Store pending action data (single dispatcher pattern - replaces deferred_* keys)
                         st.session_state["ISS_PENDING_ACTION"] = {
@@ -3409,7 +3409,7 @@ if page == "Dashboard":
                             st.error(result.get('message', 'Failed to complete session'))
                 with retro_col2:
                     if st.button("Apply Override", key=f"iss_retro_override_{card_uid}"):
-                        override_note = "Retroactive override: session marked complete after end-of-day processing."
+                        override_note = "Override Applied"
                         result = dm.complete_iss_day(
                             placement_id=placement_id,
                             log_date=date_str,
@@ -5319,8 +5319,7 @@ elif page == "ISS Detail":
     override_used = daily_log.get('overrideUsed', False)
     
     if override_used:
-        st.success("✅ Placement closed using 'Call It Good' override")
-        st.info(f"**Override Comment:** {daily_log.get('overrideComment', 'No comment provided')}")
+        st.success("✅ Override Applied")
         st.caption(f"Completed by: {daily_log.get('finalizedBy', 'Unknown')} at {daily_log.get('finalizedAt', 'Unknown')}")
         st.divider()
         if st.button("← Return to Dashboard", type="primary"):

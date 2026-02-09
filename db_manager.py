@@ -5087,7 +5087,8 @@ class DatabaseManager:
             
             if is_override:
                 log.override_used = True
-                log.override_comment = override_note
+                if override_note:
+                    log.override_comment = override_note
             
             # Flush to ensure this log is included in the sum query
             session.flush()

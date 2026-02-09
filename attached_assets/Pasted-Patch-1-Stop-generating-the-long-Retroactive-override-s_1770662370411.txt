@@ -1,0 +1,86 @@
+Patch 1 — Stop generating the long “Retroactive override…” strings
+
+File: app.py
+Change these two lines:
+
+A) Dashboard override button (the one you saw)
+
+Find this line (yours is at ~3348):
+
+override_note = "Retroactive override: Student released early due to positive behavior; remaining periods waived."
+
+
+Replace with:
+
+override_note = "Override Applied"
+
+B) The other override path (no-show / end-of-day one)
+
+Find this line (yours is at ~3412):
+
+override_note = "Retroactive override: session marked complete after end-of-day processing."
+
+
+Replace with:
+
+override_note = "Override Applied"
+
+
+That ensures any override created by pressing an Override button uses the same short, clean phrase.
+
+Patch 2 — Don’t force-save an override comment when it’s missing (and don’t overwrite with None)
+
+Right now, your DB layer always does:
+
+log.override_comment = override_note
+
+
+even if it’s empty/None — so let’s make it safe.
+
+File: db_manager.py
+Method: complete_iss_day(...) (yours starts around ~4996)
+
+Find this block (yours is ~5088–5091):
+
+if is_override:
+    log.override_used = True
+    log.override_comment = override_note
+
+
+Replace with this:
+
+if is_override:
+    log.override_used = True
+    if override_note:
+        log.override_comment = override_note
+
+
+This prevents blank/None overwrites and keeps behavior consistent with your mark_session_completed() method (which already guards with if override_comment:).
+
+Patch 3 — UI: show ONLY “Override Applied” (never show the stored comment)
+
+This is the part that makes your records always display cleanly, even if old records still have the long comment stored.
+
+File: app.py
+ISS Daily Log screen: your override UI is around ~5321–5324
+
+Find this:
+
+if override_used:
+    st.success("✅ Placement closed using 'Call It Good' override")
+    st.info(f"**Override Comment:** {daily_log.get('overrideComment', 'No comment provided')}")
+    st.caption(f"Completed by: {daily_log.get('finalizedBy', 'Unknown')} at {daily_log.get('finalizedAt', 'Unknown')}")
+    st.divider()
+    ...
+
+
+Replace with this:
+
+if override_used:
+    st.success("✅ Override Applied")
+    st.caption(f"Completed by: {daily_log.get('finalizedBy', 'Unknown')} at {daily_log.get('finalizedAt', 'Unknown')}")
+    st.divider()
+    ...
+
+
+✅ Result: the Daily Log view never prints overrideComment at all — only the clean label.

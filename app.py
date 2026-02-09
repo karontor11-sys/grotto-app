@@ -4978,20 +4978,31 @@ elif page == "Completed Placements":
 
                                         if len(session_dates) <= 1:
                                             note_text = ""
+                                            override_applied = False
+
                                             if session_dates:
-                                                dl = dm.get_daily_log(placement_id, session_dates[0])
-                                                note_text = (dl or {}).get('notes') or ""
+                                                dl = dm.get_daily_log(placement_id, session_dates[0]) or {}
+                                                note_text = (dl.get('notes') or "").strip()
+                                                override_applied = bool(dl.get('overrideUsed', False))
 
                                             if note_text:
                                                 st.write(note_text)
 
+                                            if override_applied:
+                                                st.write("Override Applied")
+
                                         else:
                                             for i, d in enumerate(session_dates, start=1):
                                                 st.write(f"Day {i}")
-                                                dl = dm.get_daily_log(placement_id, d)
-                                                note_text = (dl or {}).get('notes') or ""
+                                                dl = dm.get_daily_log(placement_id, d) or {}
+                                                note_text = (dl.get('notes') or "").strip()
+                                                override_applied = bool(dl.get('overrideUsed', False))
+
                                                 if note_text:
                                                     st.write(note_text)
+
+                                                if override_applied:
+                                                    st.write("Override Applied")
 
                                     # ISS-specific details
                                     if placement_type == 'ISS':

@@ -1,0 +1,89 @@
+In app.py, inside Completed Placements for ISS only, update the existing Session Notes display so that:
+
+After displaying the notes for a day (or with no notes), show the text “Override Applied” only if that day’s daily log has overrideUsed == True.
+
+This should work for both:
+
+single-day ISS (0–1 session dates)
+
+multi-day ISS (Day 1 / Day 2 / Day 3…)
+
+Do not show any other override wording.
+
+This is Completed Placements UI only — do not add anything to exports/reports.
+
+✅ ACTUAL PASTE-IN CODE (edit app.py)
+Where to edit
+
+Find the ISS Session Notes block you added earlier on Completed Placements (the one that:
+
+writes Session Notes:
+
+gets logs = dm.get_iss_session_logs(placement_id)
+
+builds session_dates
+
+then renders single-day vs multi-day notes)
+
+Inside that block, make these two inserts:
+
+1) Single-day section: add “Override Applied” if used
+
+Find this part:
+
+if len(session_dates) <= 1:
+    note_text = ""
+    if session_dates:
+        dl = dm.get_daily_log(placement_id, session_dates[0])
+        note_text = (dl or {}).get('notes') or ""
+
+    if note_text:
+        st.write(note_text)
+
+
+Replace it with this:
+
+if len(session_dates) <= 1:
+    note_text = ""
+    override_applied = False
+
+    if session_dates:
+        dl = dm.get_daily_log(placement_id, session_dates[0]) or {}
+        note_text = (dl.get('notes') or "").strip()
+        override_applied = bool(dl.get('overrideUsed', False))
+
+    if note_text:
+        st.write(note_text)
+
+    # Only show this if override was used for this day
+    if override_applied:
+        st.write("Override Applied")
+
+2) Multi-day loop: add “Override Applied” per day if used
+
+Find this part:
+
+else:
+    for i, d in enumerate(session_dates, start=1):
+        st.write(f"Day {i}")
+        dl = dm.get_daily_log(placement_id, d)
+        note_text = (dl or {}).get('notes') or ""
+        if note_text:
+            st.write(note_text)
+
+
+Replace it with this:
+
+else:
+    for i, d in enumerate(session_dates, start=1):
+        st.write(f"Day {i}")
+        dl = dm.get_daily_log(placement_id, d) or {}
+        note_text = (dl.get('notes') or "").strip()
+        override_applied = bool(dl.get('overrideUsed', False))
+
+        if note_text:
+            st.write(note_text)
+
+        # Only show this if override was used for this day
+        if override_applied:
+            st.write("Override Applied")

@@ -4962,6 +4962,44 @@ elif page == "Completed Placements":
                                     st.divider()
                                     st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
                                     
+                                    if placement_type == 'CLASS_REFERRAL' and referral_subtype == 'pre_planned':
+                                        st.divider()
+                                        st.write("**Session Notes:**")
+
+                                        sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+
+                                        seen = set()
+                                        session_dates = []
+                                        for s in sessions:
+                                            raw = s.get('sessionDate') or s.get('date') or s.get('session_date')
+                                            if not raw:
+                                                continue
+                                            try:
+                                                d = datetime.fromisoformat(raw).date().isoformat()
+                                            except Exception:
+                                                d = str(raw).strip()
+
+                                            if d and d not in seen:
+                                                seen.add(d)
+                                                session_dates.append(d)
+
+                                        if len(session_dates) <= 1:
+                                            note_text = ""
+                                            if session_dates:
+                                                dl = dm.get_daily_log(placement_id, session_dates[0]) or {}
+                                                note_text = (dl.get('notes') or "").strip()
+
+                                            if note_text:
+                                                st.write(note_text)
+
+                                        else:
+                                            for i, d in enumerate(session_dates, start=1):
+                                                st.write(f"Day {i}")
+                                                dl = dm.get_daily_log(placement_id, d) or {}
+                                                note_text = (dl.get('notes') or "").strip()
+                                                if note_text:
+                                                    st.write(note_text)
+
                                     if placement_type == 'CLASS_REFERRAL' and referral_subtype in ('behavior', 'cool_down'):
                                         st.divider()
                                         st.write("**Session Notes:**")

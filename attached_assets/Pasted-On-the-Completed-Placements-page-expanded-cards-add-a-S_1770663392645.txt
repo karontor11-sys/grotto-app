@@ -1,0 +1,74 @@
+On the Completed Placements page (expanded cards), add a Session Notes section for Class Period Referrals with subtype Pre-Planned.
+
+Requirements:
+
+Only apply when placement_type == 'CLASS_REFERRAL' and referral_subtype == 'pre_planned'.
+
+Insert directly beneath the Reason line in the expanded view (same placement as ISS/LD Session Notes).
+
+Always show the Session Notes header (even if empty).
+
+Build the served/scheduled day list from dm.get_partial_day_sessions_for_placement(placement_id) and extract each session’s date.
+
+Single-day (0–1 session dates): show header + notes (if any).
+
+Multi-day (2+ session dates): show Day 1 / Day 2 / Day 3… and notes under each day (blank if none).
+
+Pull notes from DailyLog.notes via dm.get_daily_log(placement_id, date_str) using YYYY-MM-DD.
+
+Plain st.write styling only (match Reason).
+
+No changes to exports / Excel-style records / reports / printables (UI-only Completed Placements change).
+
+✅ ACTUAL PASTE-IN CODE (edit app.py)
+Where to paste
+
+In app.py, inside Completed Placements expanded record rendering, find:
+
+st.write(f"**Reason:** {placement.get('reason', 'N/A')}")
+
+
+Immediately below it, paste this block:
+
+# CLASS PERIOD REFERRAL (Pre-Planned only, Completed Placements): Session Notes (UI-only; NOT for exports/printables)
+if placement_type == 'CLASS_REFERRAL' and referral_subtype == 'pre_planned':
+    st.divider()
+    st.write("**Session Notes:**")
+
+    sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+
+    # Extract session dates; normalize to YYYY-MM-DD; de-duplicate while preserving order
+    seen = set()
+    session_dates = []
+    for s in sessions:
+        raw = s.get('sessionDate') or s.get('date') or s.get('session_date')
+        if not raw:
+            continue
+        try:
+            d = datetime.fromisoformat(raw).date().isoformat()  # YYYY-MM-DD
+        except Exception:
+            # If it's already YYYY-MM-DD or some other format, keep as-is
+            d = str(raw).strip()
+
+        if d and d not in seen:
+            seen.add(d)
+            session_dates.append(d)
+
+    # Single-day format (0–1 session dates)
+    if len(session_dates) <= 1:
+        note_text = ""
+        if session_dates:
+            dl = dm.get_daily_log(placement_id, session_dates[0]) or {}
+            note_text = (dl.get('notes') or "").strip()
+
+        if note_text:
+            st.write(note_text)
+
+    # Multi-day format (2+ session dates)
+    else:
+        for i, d in enumerate(session_dates, start=1):
+            st.write(f"Day {i}")
+            dl = dm.get_daily_log(placement_id, d) or {}
+            note_text = (dl.get('notes') or "").strip()
+            if note_text:
+                st.write(note_text)

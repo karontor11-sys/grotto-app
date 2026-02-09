@@ -1004,6 +1004,28 @@ if page == "Dashboard":
     with dash_admin_col2:
         show_admin_tools = st.toggle("Show admin tools", key="show_admin_tools")
     
+    if show_admin_tools:
+        current_sy_operating = dm.get_operating_school_year()
+        next_sy = dm.next_school_year_tuple(current_sy_operating)
+        next_label = dm.format_school_year_label(next_sy)
+
+        with st.expander("Admin: New School Year Reset", expanded=False):
+            st.caption(f"Current operating school year: {dm.format_school_year_label(current_sy_operating)}")
+            st.caption(f"Next school year will be: {next_label}")
+
+            confirm_text = st.text_input(
+                f"Type {next_label} to confirm school year flip",
+                value="",
+                key="confirm_school_year_flip"
+            )
+
+            can_flip = (confirm_text.strip() == next_label)
+
+            if st.button("Flip to New School Year", disabled=not can_flip, key="flip_school_year_button"):
+                dm.set_operating_school_year(next_sy)
+                st.success(f"School year flipped to {next_label}.")
+                st.rerun()
+
     # Helper for debug logging (only logs when DEBUG_ISS_POINTS env var or session state is set)
     def iss_debug_log(msg: str):
         """Console log only when DEBUG_ISS_POINTS is enabled."""

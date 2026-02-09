@@ -1,0 +1,62 @@
+Calendar reset on flip + sticky “Add School Calendar” behavior
+Replit Prompt
+
+When flipping to the new school year, reset School Calendar setup for that year:
+
+Ensure SchoolYearConfig exists for the new year
+
+Mark it unfinalized (calendar_finalized = False, finalized_at = None)
+
+Delete any SchoolClosure rows for that new year (start clean)
+Update Dashboard flip handler to call this reset before rerun.
+
+✅ PASTE-IN PATCH
+A) Add this method to db_manager.py inside class DatabaseManager:
+    def reset_school_calendar_for_year(self, school_year: tuple) -> None:
+        """Resets School Calendar setup for a given school year (config + closures)."""
+        session = self.get_session()
+        try:
+            sy_start, sy_end = int(school_year[0]), int(school_year[1])
+
+            cfg = session.query(SchoolYearConfig).filter(
+                SchoolYearConfig.start_year == sy_start,
+                SchoolYearConfig.end_year == sy_end
+            ).first()
+
+            if not cfg:
+                cfg = SchoolYearConfig(
+                    id=self.generate_id(),
+                    start_year=sy_start,
+                    end_year=sy_end,
+                    calendar_finalized=False,
+                    finalized_at=None
+                )
+                session.add(cfg)
+            else:
+                cfg.calendar_finalized = False
+                cfg.finalized_at = None
+
+            session.query(SchoolClosure).filter(
+                SchoolClosure.start_year == sy_start,
+                SchoolClosure.end_year == sy_end
+            ).delete(synchronize_session=False)
+
+            session.commit()
+        finally:
+            session.close()
+
+B) Update the flip click handler in app.py (from Chunk 2)
+
+Find:
+
+dm.set_operating_school_year(next_sy)
+st.success(f"School year flipped to {next_label}.")
+st.rerun()
+
+
+Replace with:
+
+dm.set_operating_school_year(next_sy)
+dm.reset_school_calendar_for_year(next_sy)
+st.success(f"School year flipped to {next_label}. School Calendar setup is now required for the new year.")
+st.rerun()

@@ -4959,7 +4959,6 @@ elif page == "Completed Placements":
                                     elif placement_type == 'CLASS_REFERRAL':
                                         st.divider()
                                         st.markdown("**Referral Details:**")
-                                        st.write(f"**Subtype:** {referral_subtype.replace('_', ' ').title() if referral_subtype else 'N/A'}")
                                         
                                         # Pre-Planned specific: Show scheduled sessions (stored as PartialDaySession rows)
                                         if referral_subtype == 'pre_planned':
@@ -4995,12 +4994,6 @@ elif page == "Completed Placements":
                                         st.divider()
                                         st.write(f"**Notes:** {notes}")
                                     
-                                    # Restore button (admin function)
-                                    st.divider()
-                                    if st.button(f"↩️ Restore to Active", key=f"restore_{placement_id}"):
-                                        dm.restore_placement_to_active(placement_id)
-                                        st.success("✅ Placement restored to active!")
-                                        st.rerun()
                         
                         st.markdown("---")
 

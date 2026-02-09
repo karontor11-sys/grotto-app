@@ -1,0 +1,50 @@
+Make two UI cleanup changes on the Completed Placements page only:
+
+Remove the “↩️ Restore to Active” admin control from expanded records in Completed Placements. This includes removing the divider + button + handler that calls dm.restore_placement_to_active(...). Completed records should remain completed; do not change any other Completed Placements behavior.
+
+In expanded completed records for Class Period Referrals, under Referral Details, remove the redundant display line:
+Subtype: ...
+Do NOT remove or alter the referral_subtype variable or the logic that uses it (especially the if referral_subtype == 'pre_planned': section). Only remove the displayed Subtype line.
+
+Implement as a minimal patch in app.py only.
+
+Paste-in Patch (edit app.py)
+A) Remove “Subtype: …” display under Referral Details
+
+Find this block in app.py (it’s in Completed Placements expanded record rendering, around the CLASS_REFERRAL section):
+
+elif placement_type == 'CLASS_REFERRAL':
+    st.divider()
+    st.markdown("**Referral Details:**")
+    st.write(f"**Subtype:** {referral_subtype.replace('_', ' ').title() if referral_subtype else 'N/A'}")
+    
+    # Pre-Planned specific: Show scheduled sessions (stored as PartialDaySession rows)
+    if referral_subtype == 'pre_planned':
+        sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+        ...
+
+
+Replace it with (same block, just remove the Subtype display line):
+
+elif placement_type == 'CLASS_REFERRAL':
+    st.divider()
+    st.markdown("**Referral Details:**")
+    
+    # Pre-Planned specific: Show scheduled sessions (stored as PartialDaySession rows)
+    if referral_subtype == 'pre_planned':
+        sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []
+        ...
+
+B) Remove “↩️ Restore to Active” button + handler
+
+Find this block in app.py (around line ~5000 in your ZIP):
+
+# Restore button (admin function)
+st.divider()
+if st.button(f"↩️ Restore to Active", key=f"restore_{placement_id}"):
+    dm.restore_placement_to_active(placement_id)
+    st.success("✅ Placement restored to active!")
+    st.rerun()
+
+
+Delete that entire block (all lines shown above). Do not replace it with anything.

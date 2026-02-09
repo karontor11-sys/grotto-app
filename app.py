@@ -5140,9 +5140,6 @@ elif page == "Completed Placements":
                                     
                                     # Class Period Referral specific details
                                     elif placement_type == 'CLASS_REFERRAL':
-                                        st.divider()
-                                        st.markdown("**Referral Details:**")
-                                        
                                         # Pre-Planned specific: Show scheduled sessions (stored as PartialDaySession rows)
                                         if referral_subtype == 'pre_planned':
                                             sessions = dm.get_partial_day_sessions_for_placement(placement_id) or []

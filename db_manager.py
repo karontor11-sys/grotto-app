@@ -132,6 +132,7 @@ class Placement(Base):
     makeup_days_used = Column(Integer, default=0)  # Number of make-up days completed
     makeup_periods_served = Column(Integer, default=0)  # Total periods served on make-up days
     makeup_note = Column(Text, nullable=True)  # Note about make-up days used (e.g., "Make-up required: 1 additional day (4 periods)")
+    school_year_start = Column(Integer, nullable=True, index=True)  # e.g., 2026 for '2026-27'
 
 class DailyLog(Base):
     __tablename__ = 'daily_logs'
@@ -352,7 +353,7 @@ class DatabaseManager:
                 SELECT column_name 
                 FROM information_schema.columns 
                 WHERE table_name = 'placements' 
-                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'scheduled_lunch_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived', 'original_day_count', 'makeup_days_used', 'makeup_periods_served', 'makeup_note')
+                AND column_name IN ('start_period', 'end_period', 'scheduled_iss_dates', 'scheduled_iss_sessions', 'served_dates', 'scheduled_lunch_dates', 'total_iss_periods', 'iss_start_date', 'iss_total_days', 'iss_remaining_days', 'iss_days_assigned', 'iss_total_required_periods', 'iss_periods_served', 'iss_label', 'is_flexible_session_mode', 'closed_early', 'early_closure_note', 'periods_waived', 'original_day_count', 'makeup_days_used', 'makeup_periods_served', 'makeup_note', 'school_year_start')
             """)
             existing_columns = {row[0] for row in result}
             
@@ -473,6 +474,17 @@ class DatabaseManager:
                 session.execute("ALTER TABLE placements ADD COLUMN makeup_note TEXT")
                 session.commit()
             
+            if 'school_year_start' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN school_year_start INTEGER")
+                session.commit()
+
+            placements_to_fill = session.query(Placement).filter(Placement.school_year_start.is_(None)).all()
+            for p in placements_to_fill:
+                if p.start_date:
+                    sy = get_school_year_for_date(p.start_date)
+                    p.school_year_start = int(sy[0])
+            session.commit()
+
             # Migrate existing ISS placements to populate new period-based fields
             session.execute("""
                 UPDATE placements 
@@ -914,7 +926,8 @@ class DatabaseManager:
                 referral_subtype=placement_data.get('referralSubtype'),
                 status=initial_status,
                 created_by=placement_data.get('createdBy'),
-                created_at=datetime.fromisoformat(placement_data.get('createdAt', central_now_naive().isoformat()))
+                created_at=datetime.fromisoformat(placement_data.get('createdAt', central_now_naive().isoformat())),
+                school_year_start=int(get_school_year_for_date(start_date_obj)[0]) if start_date_obj else None
             )
             session.add(placement)
             session.commit()
@@ -1044,7 +1057,7 @@ class DatabaseManager:
         
         return result
     
-    def get_active_placements_for_date(self, target_date: date) -> List[Dict[str, Any]]:
+    def get_active_placements_for_date(self, target_date: date, school_year_start: int = None) -> List[Dict[str, Any]]:
         """Get placements that are/were/will be active on a specific date.
         
         Supports viewing past, present, and future dates:
@@ -1061,6 +1074,8 @@ class DatabaseManager:
         For Class Period Referrals:
         - Behavior/Cool-Down: Single-day, show on start_date
         - Pre-Planned: Check for sessions scheduled on target_date
+        
+        If school_year_start is provided, only return placements for that school year.
         """
         session = self.get_session()
         try:
@@ -1080,11 +1095,13 @@ class DatabaseManager:
                     Placement.start_date <= target_date
                 )
             else:
-                # TODAY: include completed placements too, so they can remain visible on the calendar day they occurred.
                 base_query = session.query(Placement).filter(
                     Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled, PlacementStatus.completed]),
                     Placement.start_date <= target_date
                 )
+            
+            if school_year_start is not None:
+                base_query = base_query.filter(Placement.school_year_start == school_year_start)
             
             placements = base_query.all()
             
@@ -2984,7 +3001,7 @@ class DatabaseManager:
         finally:
             db_session.close()
     
-    def get_scheduled_iss_placements(self) -> List[Dict[str, Any]]:
+    def get_scheduled_iss_placements(self, school_year_start: int = None) -> List[Dict[str, Any]]:
         """Get all scheduled ISS placements that haven't started yet.
         
         These are placements with status='scheduled' and start_date in the future.
@@ -2993,11 +3010,14 @@ class DatabaseManager:
         db_session = self.get_session()
         try:
             today = central_today()
-            placements = db_session.query(Placement).filter(
+            query = db_session.query(Placement).filter(
                 Placement.status == PlacementStatus.scheduled,
                 Placement.placement_type == PlacementCategory.ISS,
                 Placement.start_date > today
-            ).all()
+            )
+            if school_year_start is not None:
+                query = query.filter(Placement.school_year_start == school_year_start)
+            placements = query.all()
             
             result = []
             for placement in placements:
@@ -6191,7 +6211,8 @@ class DatabaseManager:
             # Make-up / misc note (useful for non-ISS metadata too)
             'makeupDaysUsed': placement.makeup_days_used or 0,
             'makeupPeriodsServed': placement.makeup_periods_served or 0,
-            'makeupNote': placement.makeup_note
+            'makeupNote': placement.makeup_note,
+            'schoolYearStart': placement.school_year_start
         }
     
     def _daily_log_to_dict(self, log: DailyLog) -> Dict[str, Any]:

@@ -55,6 +55,7 @@ The UI features the following navigation pages:
 - **Dashboard Navigation Buttons**: Quick navigation buttons ("Create New Placement" and "Completed Placements") for easy access.
 - **Session State-Based Tab Navigation**: Placements page uses session state for programmatic tab selection.
 - **Programmatic Navigation Handling**: Navigation handlers sync widget states to prevent conflicts.
+- **School Year Filtering**: Placements have a `school_year_start` column (Integer, indexed). Dashboard queries filter by operating school year so only current-year placements appear. Auto-set on placement creation from start_date via `get_school_year_for_date`.
 
 ### Notification System
 The Notifications page provides dynamically-generated alerts for placement events. Notifications are computed on-demand, with dismissed notifications stored persistently. There are 8 types of notifications, including a unified "Placement No-Show" detection across all placement types. Dismissal functionality allows users to remove notifications from the active list, which are then viewable in a "Dismissed" tab with restoration capability.

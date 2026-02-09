@@ -1,0 +1,105 @@
+Dashboard filtering: current year only (no history) + make calendar use operating year
+Replit Prompt
+
+Make Dashboard strictly current-year only:
+
+Add school_year_start column to placements
+
+Set it at placement creation time using placement start date’s school year
+
+Backfill existing placements where null
+
+Add optional school_year_start filters to active-placement fetches
+
+Update Dashboard to use dm.get_operating_school_year() and pass its start year into active placement queries
+Completed Placements remains the archive. No exports/printables changes.
+
+✅ PASTE-IN PATCH
+A) db_manager.py — add column to Placement
+
+In class Placement(Base): add:
+
+    school_year_start = Column(Integer, nullable=True, index=True)  # e.g., 2026 for '2026-27'
+
+B) db_manager.py — migration + backfill in _run_migrations
+
+Add 'school_year_start' to the placements column check list:
+Find the SQL IN (...) list for placements and append:
+
+, 'school_year_start'
+
+
+After existing_columns is computed, add:
+
+            # Add school_year_start if missing
+            if 'school_year_start' not in existing_columns:
+                session.execute("ALTER TABLE placements ADD COLUMN school_year_start INTEGER")
+                session.commit()
+
+            # Backfill existing placements (safe + one-time)
+            placements_to_fill = session.query(Placement).filter(Placement.school_year_start.is_(None)).all()
+            for p in placements_to_fill:
+                if p.start_date:
+                    sy = get_school_year_for_date(p.start_date)
+                    p.school_year_start = int(sy[0])
+            session.commit()
+
+C) db_manager.py — set school_year_start at placement creation time
+
+In add_placement, where you build the Placement(...) object, add:
+
+                school_year_start=int(get_school_year_for_date(start_date_obj)[0]) if start_date_obj else None,
+
+D) db_manager.py — add optional year filter to active placement fetches
+
+Change:
+
+def get_active_placements(self) -> List[Dict[str, Any]]:
+
+
+to:
+
+def get_active_placements(self, school_year_start: Optional[int] = None) -> List[Dict[str, Any]]:
+
+
+Then modify the query:
+
+            q = session.query(Placement).filter(
+                Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup])
+            )
+            if school_year_start is not None:
+                q = q.filter(Placement.school_year_start == int(school_year_start))
+
+            placements = q.all()
+
+
+Also update get_active_placements_with_students signature:
+
+def get_active_placements_with_students(self, school_year_start: Optional[int] = None) -> List[Dict[str, Any]]:
+
+
+and change its call:
+
+active_placements = self.get_active_placements(school_year_start=school_year_start)
+
+E) app.py — make Dashboard calendar use operating year + filter active placements
+
+In Dashboard, find:
+
+today = central_today()
+current_sy = get_school_year_for_date(today)
+
+
+Replace with:
+
+today = central_today()
+current_sy = dm.get_operating_school_year()
+
+
+Then, wherever Dashboard gets active placements with students (search for get_active_placements_with_students()), change to:
+
+operating_start = int(current_sy[0])
+active_placements = dm.get_active_placements_with_students(school_year_start=operating_start)
+
+
+✅ Result: Dashboard shows only current operating year, no clutter, no prior-year access.

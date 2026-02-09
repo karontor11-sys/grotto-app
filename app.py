@@ -193,14 +193,14 @@ def build_iss_session_points_summary(point_events, positive_menu):
 # Uses closure pattern to access 'dm' without including it in cache key.
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_active_placements_for_date_cached(selected_date_str: str):
+def get_active_placements_for_date_cached(selected_date_str: str, school_year_start: int = None):
     """Cached wrapper for get_active_placements_for_date.
     
-    Caches results keyed by selected_date string for 60 seconds.
+    Caches results keyed by selected_date string and school_year_start for 60 seconds.
     Uses closure to access dm instance without including in cache key.
     """
     selected_date = date.fromisoformat(selected_date_str)
-    return dm.get_active_placements_for_date(selected_date)
+    return dm.get_active_placements_for_date(selected_date, school_year_start=school_year_start)
 
 @st.cache_data(ttl=60, show_spinner=False)
 def get_students_by_ids_cached(student_ids: tuple):
@@ -217,9 +217,9 @@ def get_iss_sessions_for_date_cached(target_date_str: str):
     return dm.get_iss_sessions_for_date(target_date)
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_scheduled_iss_placements_cached():
+def get_scheduled_iss_placements_cached(school_year_start: int = None):
     """Cached wrapper for scheduled ISS placements lookup."""
-    return dm.get_scheduled_iss_placements()
+    return dm.get_scheduled_iss_placements(school_year_start=school_year_start)
 
 def clear_dashboard_caches():
     """Clear all Dashboard-related caches after data mutations.
@@ -1065,9 +1065,10 @@ if page == "Dashboard":
     if is_past_date:
         st.info(f"📅 Viewing historical data for {selected_date.strftime('%B %d, %Y')}. You can still complete sessions retroactively.")
     
-    # Get all active placements for selected date (used by placement sections below)
-    # CACHED: Results cached for 60 seconds to improve Dashboard responsiveness
-    placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat())
+    operating_sy = dm.get_operating_school_year()
+    operating_sy_start = int(operating_sy[0])
+    
+    placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat(), school_year_start=operating_sy_start)
     
     # Date display
     st.subheader(f"{selected_date.strftime('%B %d, %Y')}")

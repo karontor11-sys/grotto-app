@@ -5226,7 +5226,21 @@ class DatabaseManager:
             log.daily_fulfillment = 'yes'
             log.finalized_by = completed_by
             log.finalized_at = central_now_naive()
-            
+
+            if points_earned is not None:
+                try:
+                    pe = int(points_earned)
+                except Exception:
+                    pe = 0
+                log.positive_total = pe if pe > 0 else 0
+                log.negative_total = 0
+                log.daily_total = pe
+            else:
+                try:
+                    self.update_daily_log_totals(placement_id, date_obj.isoformat())
+                except Exception:
+                    pass
+
             if is_override:
                 log.override_used = True
                 if override_note:

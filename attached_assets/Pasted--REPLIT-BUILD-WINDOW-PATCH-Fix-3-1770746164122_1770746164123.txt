@@ -1,0 +1,52 @@
+# ============================================================
+# REPLIT BUILD WINDOW PATCH
+# Fix: "3-Day Session Completed" tooltip still shows all 0s
+# Cause: complete_iss_day() logs points_earned into ISSSessionLog but does NOT
+#        write DailyLog positive_total/negative_total/daily_total, so fallback totals are 0.
+# Fix: When points_earned is provided, persist it into the DailyLog totals for THAT DAY.
+#
+# File: db_manager.py
+# Function: complete_iss_day(...)
+# ============================================================
+
+
+# In db_manager.py, find:
+#   def complete_iss_day(...):
+#
+# Inside that function, locate the section where the daily log is updated:
+#
+#     log.day_type = db_day_type
+#     log.start_period = actual_start
+#     log.end_period = actual_end
+#     log.periods_covered = periods_covered
+#     log.periods_added = served_periods_for_day
+#     log.required_points = served_periods_for_day
+#     log.daily_fulfillment = 'yes'
+#     log.finalized_by = completed_by
+#     log.finalized_at = central_now_naive()
+#
+# DIRECTLY AFTER log.finalized_at = central_now_naive(), paste this block:
+
+            # ------------------------------------------------------------
+            # IMPORTANT: Persist day totals for tooltip/reporting consistency
+            # If the UI completes the day using a single points_earned value,
+            # there may be NO PointEvents to summarize. In that case the
+            # "Final Day Points" tooltip should still show THIS DAY'S points.
+            #
+            # Store the day totals on the DailyLog for this date.
+            # ------------------------------------------------------------
+            if points_earned is not None:
+                try:
+                    pe = int(points_earned)
+                except Exception:
+                    pe = 0
+                log.positive_total = pe if pe > 0 else 0
+                log.negative_total = 0
+                log.daily_total = pe
+            else:
+                # If points were added via PointEvents, ensure totals are up to date.
+                # (Safe no-op if already correct.)
+                try:
+                    self.update_daily_log_totals(placement_id, date_obj.isoformat())
+                except Exception:
+                    pass

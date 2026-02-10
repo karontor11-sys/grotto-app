@@ -3648,12 +3648,21 @@ if page == "Dashboard":
     # CACHED: Results cached for 60 seconds to improve Dashboard responsiveness
     iss_sessions = get_iss_sessions_for_date_cached(selected_date.isoformat())
     
+    # Identify completed ISS placements that don't have a session on the target date
+    # so they still appear on the Dashboard as collapsed completed cards
+    iss_session_placement_ids = {s.get('placement_id') for s in iss_sessions}
+    completed_iss_without_session = [
+        p for p in iss_placements
+        if p.get('status') == 'completed' and p['_id'] not in iss_session_placement_ids
+    ]
+    
     st.markdown("#### In-School Suspension (ISS)")
     
     # First, show active sessions for the selected date
     has_active_sessions = len(iss_sessions) > 0
+    has_completed_iss = len(completed_iss_without_session) > 0
     
-    if not has_active_sessions:
+    if not has_active_sessions and not has_completed_iss:
         st.caption("No students")
     else:
         # Show active sessions first
@@ -3801,6 +3810,20 @@ if page == "Dashboard":
                     expanded=_dashboard_should_expand(iss_card_uid)
                 ):
                     render_iss_session_card(iss_session, selected_date)
+        
+        for comp_iss in completed_iss_without_session:
+            comp_student = comp_iss['student']
+            comp_name = f"{comp_student['firstName']} {comp_student['lastName']}"
+            comp_pid = comp_iss['_id']
+            st.markdown(f"🟢 {comp_name} · Completed")
+
+            if show_admin_tools:
+                render_danger_zone(
+                    placement=comp_iss,
+                    student_name=comp_name,
+                    placement_id=comp_pid,
+                    show_admin_tools=show_admin_tools
+                )
     
     st.divider()
     

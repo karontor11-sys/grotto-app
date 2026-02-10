@@ -3713,25 +3713,43 @@ if page == "Dashboard":
                 suffix_html = suffix
 
                 if (not bool(is_absent_day)) and (suffix or ""):
-                    tooltip_date = None
-                    tooltip_title = None
 
                     if "Session Completed" in suffix:
-                        tooltip_title = "Final Day Points"
+                        final_date = end_date
+                        if not final_date:
+                            try:
+                                final_date = _parse_iso_date_safe(dm.get_last_iss_session_date(placement_id))
+                            except Exception:
+                                final_date = None
+                        final_date = final_date or selected_date
+                        final_date_str = final_date.isoformat()
 
-                        resolved_iso = None
                         try:
-                            resolved_iso = dm.get_last_scored_or_completed_date(placement_id)
+                            positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
                         except Exception:
-                            resolved_iso = None
+                            positive_menu_for_breakdown = ps.get_positive_point_menu()
 
-                        tooltip_date = end_date or _parse_iso_date_safe(resolved_iso) or selected_date
+                        point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
+
+                        if point_events_for_final_day:
+                            breakdown = build_iss_points_breakdown_tooltip(point_events_for_final_day, positive_menu_for_breakdown)
+                            tooltip_text = "Final Day Points\n" + (breakdown or "")
+                        else:
+                            pts = None
+                            try:
+                                pts = dm.get_iss_session_points_for_date(placement_id, final_date_str)
+                            except Exception:
+                                pts = None
+
+                            if pts is not None:
+                                tooltip_text = f"Final Day Points\nTotal Points: {int(pts)}\n(No category breakdown recorded for this day)"
+                            else:
+                                tooltip_text = "Final Day Points\n(No point data found for this day)"
+
+                        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
 
                     elif "Day Completed" in suffix:
-                        tooltip_title = "Day Points"
                         tooltip_date = selected_date
-
-                    if tooltip_date:
                         tooltip_date_str = tooltip_date.isoformat()
 
                         try:
@@ -3741,34 +3759,22 @@ if page == "Dashboard":
 
                         point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
 
-                        if not point_events_for_tooltip_day:
-                            totals = None
-                            try:
-                                totals = dm.get_iss_totals_for_date(placement_id, tooltip_date_str)
-                            except Exception:
-                                totals = None
-
-                            if totals:
-                                total_val = int(totals.get("daily_total") or 0)
-                                pos_val = totals.get("positive_total", None)
-                                neg_val = totals.get("negative_total", None)
-
-                                lines = [f"{tooltip_title}", f"Total Points: {total_val}"]
-                                if pos_val is not None and neg_val is not None:
-                                    lines.append(f"Positive: {int(pos_val)}")
-                                    lines.append(f"Negative: {int(neg_val)}")
-                                lines.append("(No category breakdown recorded for this day)")
-
-                                tooltip_text = "\n".join(lines)
-                                suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
-                            else:
-                                tooltip_text = f"{tooltip_title}\n(No point data found for this day)"
-                                suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
-
-                        else:
+                        if point_events_for_tooltip_day:
                             breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
-                            tooltip_text = f"{tooltip_title}\n" + (breakdown or "")
-                            suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+                            tooltip_text = "Day Points\n" + (breakdown or "")
+                        else:
+                            pts = None
+                            try:
+                                pts = dm.get_iss_session_points_for_date(placement_id, tooltip_date_str)
+                            except Exception:
+                                pts = None
+
+                            if pts is not None:
+                                tooltip_text = f"Day Points\nTotal Points: {int(pts)}\n(No category breakdown recorded for this day)"
+                            else:
+                                tooltip_text = "Day Points\n(No point data found for this day)"
+
+                        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
 
                 # Standardize ISS completed subtitle to match LD/CPR:
                 # - 1-Day Session Completed (single-day)

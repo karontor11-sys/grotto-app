@@ -1,0 +1,126 @@
+# ============================================================
+# REPLIT BUILD WINDOW PATCH
+# Fix: "X-Day Session Completed" tooltip shows all 0s
+# Cause: final-day points were stored in ISSSessionLog.points_earned (historical),
+#        but tooltip only summarized PointEvents.
+# Fix: if no PointEvents exist for the final day, fall back to ISSSessionLog.points_earned
+#      for THAT final day (not whole-session totals).
+#
+# Files: db_manager.py, app.py
+# ============================================================
+
+
+# =========================
+# PATCH A — db_manager.py
+# 1) Import func from sqlalchemy
+# =========================
+# Find this line near the top:
+# from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_
+#
+# Replace it with:
+
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_, func
+
+
+# =========================
+# PATCH B — db_manager.py
+# 2) Add two helpers for ISSSessionLog final-day tooltip support
+# =========================
+# Paste BOTH of these new methods anywhere inside the DBManager class
+# (a great spot is right below get_point_events_for_date()).
+
+def get_last_iss_session_date(self, placement_id: str) -> Optional[str]:
+    """Returns the most recent ISSSessionLog.session_date for this placement."""
+    session = self.get_session()
+    try:
+        last_date = session.query(func.max(ISSSessionLog.session_date)).filter(
+            ISSSessionLog.placement_id == placement_id
+        ).scalar()
+        return last_date.isoformat() if last_date else None
+    finally:
+        session.close()
+
+
+def get_iss_session_points_for_date(self, placement_id: str, date_iso: str) -> Optional[int]:
+    """
+    Returns points_earned from ISSSessionLog for the given date.
+    This is the historical day-level store used by the 'Complete Day' flow.
+    """
+    session = self.get_session()
+    try:
+        d = _parse_iso_date_safe(date_iso)
+        if not d:
+            return None
+
+        row = session.query(ISSSessionLog).filter(
+            ISSSessionLog.placement_id == placement_id,
+            ISSSessionLog.session_date == d
+        ).order_by(ISSSessionLog.created_at.desc()).first()
+
+        if row and row.points_earned is not None:
+            try:
+                return int(row.points_earned)
+            except Exception:
+                return 0
+        return None
+    finally:
+        session.close()
+
+
+
+# =========================
+# PATCH C — app.py
+# 3) Replace the existing "Final Day Points" tooltip block for Session Completed
+# =========================
+# In app.py, search for this exact block (you have it in the Dashboard ISS collapsed/completed card):
+#
+# if (not bool(is_absent_day)) and ("Session Completed" in (suffix or "")):
+#     final_date = end_date or selected_date
+#     final_date_str = final_date.isoformat()
+#     ...
+#     point_events_for_final_day = dm.get_point_events_for_final_day(...)
+#     breakdown = build_iss_points_breakdown_tooltip(...)
+#     tooltip_text = "Final Day Points\n" + (breakdown or "")
+#     suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+#
+# Replace that whole IF BLOCK with this:
+
+if (not bool(is_absent_day)) and ("Session Completed" in (suffix or "")):
+    # Resolve the true final day:
+    # 1) placement.endDate if present
+    # 2) latest ISSSessionLog.session_date (historical truth for completed days)
+    # 3) selected_date as a last resort (should rarely be needed after this)
+    final_date = end_date
+    if not final_date:
+        try:
+            final_date = _parse_iso_date_safe(dm.get_last_iss_session_date(placement_id))
+        except Exception:
+            final_date = None
+    final_date = final_date or selected_date
+    final_date_str = final_date.isoformat()
+
+    try:
+        positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+    except Exception:
+        positive_menu_for_breakdown = ps.get_positive_point_menu()
+
+    # First try PointEvents (category breakdown days)
+    point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
+
+    if point_events_for_final_day:
+        breakdown = build_iss_points_breakdown_tooltip(point_events_for_final_day, positive_menu_for_breakdown)
+        tooltip_text = "Final Day Points\n" + (breakdown or "")
+    else:
+        # Fall back to historical day-total points stored on ISSSessionLog for THIS final day
+        pts = None
+        try:
+            pts = dm.get_iss_session_points_for_date(placement_id, final_date_str)
+        except Exception:
+            pts = None
+
+        if pts is not None:
+            tooltip_text = f"Final Day Points\nTotal Points: {int(pts)}\n(No category breakdown recorded for this day)"
+        else:
+            tooltip_text = "Final Day Points\n(No point data found for this day)"
+
+    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)

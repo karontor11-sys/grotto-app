@@ -6053,6 +6053,40 @@ class DatabaseManager:
         finally:
             session.close()
 
+    def get_last_iss_session_date(self, placement_id: str) -> Optional[str]:
+        session = self.get_session()
+        try:
+            last_date = session.query(func.max(ISSSessionLog.session_date)).filter(
+                ISSSessionLog.placement_id == placement_id
+            ).scalar()
+            return last_date.isoformat() if last_date else None
+        finally:
+            session.close()
+
+    def get_iss_session_points_for_date(self, placement_id: str, date_iso: str) -> Optional[int]:
+        session = self.get_session()
+        try:
+            try:
+                d = datetime.fromisoformat(date_iso).date() if isinstance(date_iso, str) else date_iso
+            except Exception:
+                return None
+            if not d:
+                return None
+
+            row = session.query(ISSSessionLog).filter(
+                ISSSessionLog.placement_id == placement_id,
+                ISSSessionLog.session_date == d
+            ).order_by(ISSSessionLog.created_at.desc()).first()
+
+            if row and row.points_earned is not None:
+                try:
+                    return int(row.points_earned)
+                except Exception:
+                    return 0
+            return None
+        finally:
+            session.close()
+
     def get_last_scored_or_completed_date(self, placement_id: str) -> Optional[str]:
         session = self.get_session()
         try:

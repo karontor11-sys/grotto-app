@@ -1101,7 +1101,12 @@ class DatabaseManager:
                 )
             
             if school_year_start is not None:
-                base_query = base_query.filter(Placement.school_year_start == school_year_start)
+                base_query = base_query.filter(
+                    or_(
+                        Placement.school_year_start == school_year_start,
+                        Placement.school_year_start.is_(None)
+                    )
+                )
             
             placements = base_query.all()
             
@@ -1297,6 +1302,23 @@ class DatabaseManager:
                         elif placement.status == PlacementStatus.completed and placement.start_date <= target_date:
                             result.append(placement_dict)
                 
+                elif placement_type == 'PRE_PLANNED_REFERRAL':
+                    sessions_for_date = session.query(PartialDaySession).filter(
+                        PartialDaySession.placement_id == placement.id,
+                        PartialDaySession.date == target_date
+                    ).all()
+
+                    if sessions_for_date:
+                        all_periods = []
+                        for s in sessions_for_date:
+                            all_periods.extend(s.periods or [])
+
+                        placement_dict['scheduledSlots'] = [
+                            {'date': target_date.isoformat(), 'period': p}
+                            for p in all_periods
+                        ]
+                        result.append(placement_dict)
+
                 # Cool-Down filtering (same-day only, like referrals)
                 elif placement_type == 'COOL_DOWN':
                     if placement.start_date == target_date:

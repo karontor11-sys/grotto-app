@@ -1,0 +1,72 @@
+make the Dashboard filter by the school year of the date you’re viewing (so past dates don’t get wiped by the “operating year” override), and we’ll harden the DB query so legacy rows with school_year_start = NULL don’t disappear. While we’re in there, we’ll also make PRE_PLANNED_REFERRAL behave like Pre-Planned CPR (session-based) on the calendar.
+
+# =========================
+# PATCH 1 — app.py (Dashboard): filter by the selected date’s school year
+# =========================
+# In app.py, find this block (near your Dashboard date picker):
+#
+#     operating_sy = dm.get_operating_school_year()
+#     operating_sy_start = int(operating_sy[0])
+#     placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat(), school_year_start=operating_sy_start)
+#
+# Replace it with:
+
+selected_sy = get_school_year_for_date(selected_date)
+selected_sy_start = int(selected_sy[0])
+
+placements_for_date = get_active_placements_for_date_cached(
+    selected_date.isoformat(),
+    school_year_start=selected_sy_start
+)
+
+
+# =========================
+# PATCH 2 — db_manager.py: make school-year filter NULL-safe + handle PRE_PLANNED_REFERRAL like pre-planned CPR
+# =========================
+# In db_manager.py, inside:
+#     def get_active_placements_for_date(self, target_date: date, school_year_start: int = None) -> List[Dict[str, Any]]:
+#
+# (A) Find this line:
+#     base_query = base_query.filter(Placement.school_year_start == school_year_start)
+#
+# Replace it with this NULL-safe filter:
+
+from sqlalchemy import or_  # (you already import or_ at the top; this is harmless if left in or removed)
+
+if school_year_start is not None:
+    base_query = base_query.filter(
+        or_(
+            Placement.school_year_start == school_year_start,
+            Placement.school_year_start.is_(None)  # legacy rows stay visible instead of vanishing
+        )
+    )
+
+# NOTE: If you already have the surrounding "if school_year_start is not None:" block,
+# just replace the single filter line inside it with the or_(...) version above.
+
+
+# (B) Still in get_active_placements_for_date(), find the placement-type filtering section where you have:
+#     elif placement_type == 'CLASS_REFERRAL':
+#         ...
+#     # Cool-Down filtering ...
+#     elif placement_type == 'COOL_DOWN':
+#
+# Insert this NEW block *between* CLASS_REFERRAL and COOL_DOWN:
+
+elif placement_type == 'PRE_PLANNED_REFERRAL':
+    # Treat PRE_PLANNED_REFERRAL like a pre-planned CPR: show it on any date that has sessions.
+    sessions_for_date = session.query(PartialDaySession).filter(
+        PartialDaySession.placement_id == placement.id,
+        PartialDaySession.date == target_date
+    ).all()
+
+    if sessions_for_date:
+        all_periods = []
+        for s in sessions_for_date:
+            all_periods.extend(s.periods or [])
+
+        placement_dict['scheduledSlots'] = [
+            {'date': target_date.isoformat(), 'period': p}
+            for p in all_periods
+        ]
+        result.append(placement_dict)

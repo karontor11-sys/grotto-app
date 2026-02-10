@@ -1065,10 +1065,10 @@ if page == "Dashboard":
     if is_past_date:
         st.info(f"📅 Viewing historical data for {selected_date.strftime('%B %d, %Y')}. You can still complete sessions retroactively.")
     
-    operating_sy = dm.get_operating_school_year()
-    operating_sy_start = int(operating_sy[0])
-    
-    placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat(), school_year_start=operating_sy_start)
+    selected_sy = get_school_year_for_date(selected_date)
+    selected_sy_start = int(selected_sy[0])
+
+    placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat(), school_year_start=selected_sy_start)
     
     # Date display
     st.subheader(f"{selected_date.strftime('%B %d, %Y')}")

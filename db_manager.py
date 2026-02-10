@@ -1134,9 +1134,8 @@ class DatabaseManager:
                         continue
                     
                     # Check if placement had ended by target_date (using authoritative end_date)
-                    # But always include completed placements so they remain visible on Dashboard
                     end_date = placement.end_date
-                    if end_date and target_date > end_date and placement.status != PlacementStatus.completed:
+                    if end_date and target_date > end_date:
                         continue
                     
                     # For past dates: Use authoritative completion signals
@@ -1190,9 +1189,13 @@ class DatabaseManager:
                     needs_makeup = (iss_remaining_days <= 0 and iss_periods_served < iss_total_required)
                     is_needs_makeup_status = placement.status == PlacementStatus.needs_makeup
                     
-                    # Include completed ISS so they remain visible on Dashboard
+                    # If ISS is completed, only show it on the dates it was actually active.
                     if placement.status == PlacementStatus.completed:
-                        result.append(placement_dict)
+                        if end_date:
+                            if iss_start_date <= target_date <= end_date:
+                                result.append(placement_dict)
+                        elif target_date == iss_start_date:
+                            result.append(placement_dict)
                         continue
                     
                     # Skip fully served ISS that hasn't been formally completed yet
@@ -1240,18 +1243,10 @@ class DatabaseManager:
                             result.append(placement_dict)
                         continue
                     
-                    # For today/future: Current active logic
-                    days_served = len(served_dates)
-                    days_assigned = placement.days_assigned or 0
-                    
-                    if days_served >= days_assigned:
+                    # For today/future: show ONLY if this date is scheduled (or served today), or legacy-no-schedule on start_date.
+                    if target_date in scheduled_date_objs or target_date in served_date_objs:
                         result.append(placement_dict)
-                        continue
-                    
-                    # Check if target_date is a scheduled date (not yet served)
-                    if target_date in scheduled_date_objs:
-                        result.append(placement_dict)
-                    elif target_date not in scheduled_date_objs and placement.start_date <= target_date:
+                    elif not scheduled_date_objs and placement.start_date == target_date:
                         result.append(placement_dict)
                 
                 # Class Period Referral filtering
@@ -1295,11 +1290,8 @@ class DatabaseManager:
                                 ]
                                 result.append(placement_dict)
                     else:
-                        # Behavior/Cool-Down: Single-day, show on start_date
-                        # Also show completed ones on today if start_date <= today
+                        # Behavior/Cool-Down: single-day only — show only on the actual event date.
                         if placement.start_date == target_date:
-                            result.append(placement_dict)
-                        elif placement.status == PlacementStatus.completed and placement.start_date <= target_date:
                             result.append(placement_dict)
                 
                 elif placement_type == 'PRE_PLANNED_REFERRAL':
@@ -1322,8 +1314,6 @@ class DatabaseManager:
                 # Cool-Down filtering (same-day only, like referrals)
                 elif placement_type == 'COOL_DOWN':
                     if placement.start_date == target_date:
-                        result.append(placement_dict)
-                    elif placement.status == PlacementStatus.completed and placement.start_date <= target_date:
                         result.append(placement_dict)
                 
                 # Legacy/other placement types - use date range logic

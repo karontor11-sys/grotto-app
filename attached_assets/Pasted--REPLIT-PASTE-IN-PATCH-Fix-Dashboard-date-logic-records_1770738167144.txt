@@ -1,0 +1,67 @@
+# =========================
+# REPLIT PASTE-IN PATCH
+# Fix Dashboard date logic (records showing on "today" incorrectly)
+# File: db_manager.py
+# Function: get_active_placements_for_date()
+# =========================
+
+# 1) ISS: REMOVE the "always include completed ISS" behavior
+# Find this exact block inside the ISS section:
+#
+#     # Include completed ISS so they remain visible on Dashboard
+#     if placement.status == PlacementStatus.completed:
+#         result.append(placement_dict)
+#         continue
+#
+# Replace it with this DATE-TRUE version:
+
+# If ISS is completed, only show it on the dates it was actually active.
+if placement.status == PlacementStatus.completed:
+    if end_date and iss_start_date <= target_date <= end_date:
+        result.append(placement_dict)
+    # If end_date is missing, we don't "spray" it onto Today. Past-date logic above already handles history.
+    continue
+
+
+# 2) LUNCH DETENTION: STOP showing LD on every date after start_date
+# In the Lunch Detention section, find this whole block:
+#
+#     # For today/future: Current active logic
+#     days_served = len(served_dates)
+#     days_assigned = placement.days_assigned or 0
+#
+#     if days_served >= days_assigned:
+#         result.append(placement_dict)
+#         continue
+#
+#     # Check if target_date is a scheduled date (not yet served)
+#     if target_date in scheduled_date_objs:
+#         result.append(placement_dict)
+#     elif target_date not in scheduled_date_objs and placement.start_date <= target_date:
+#         result.append(placement_dict)
+#
+# Replace it with this DATE-TRUE logic:
+
+# For today/future: show ONLY if this date is scheduled (or served today), or legacy-no-schedule on start_date.
+if target_date in scheduled_date_objs or target_date in served_date_objs:
+    result.append(placement_dict)
+elif not scheduled_date_objs and placement.start_date == target_date:
+    # Legacy records that never got scheduled_lunch_dates: only show on their start_date
+    result.append(placement_dict)
+
+
+# 3) CLASS PERIOD REFERRAL (non-preplanned): STOP showing completed CPR on every later date
+# In the Class Period Referral section, in the NON pre_planned branch, find this block:
+#
+#     # Behavior/Cool-Down: Single-day, show on start_date
+#     # Also show completed ones on today if start_date <= today
+#     if placement.start_date == target_date:
+#         result.append(placement_dict)
+#     elif placement.status == PlacementStatus.completed and placement.start_date <= target_date:
+#         result.append(placement_dict)
+#
+# Replace it with:
+
+# Behavior/Cool-Down: single-day only — show only on the actual event date.
+if placement.start_date == target_date:
+    result.append(placement_dict)

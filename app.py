@@ -3710,21 +3710,40 @@ if page == "Dashboard":
                     day_number=day_num
                 )
 
-                # Add hover tooltip ONLY for whole-session completion labels
                 suffix_html = suffix
-                if (not bool(is_absent_day)) and ("Session Completed" in (suffix or "")):
-                    final_date = end_date or selected_date
-                    final_date_str = final_date.isoformat()
 
-                    try:
-                        positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
-                    except Exception:
-                        positive_menu_for_breakdown = ps.get_positive_point_menu()
+                if (not bool(is_absent_day)) and (suffix or ""):
+                    tooltip_date = None
+                    tooltip_title = None
 
-                    point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
-                    breakdown = build_iss_points_breakdown_tooltip(point_events_for_final_day, positive_menu_for_breakdown)
-                    tooltip_text = "Final Day Points\n" + (breakdown or "")
-                    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+                    if "Session Completed" in suffix:
+                        tooltip_title = "Final Day Points"
+
+                        last_completed_iso = None
+                        try:
+                            last_completed_iso = dm.get_last_completed_service_date(placement_id)
+                        except Exception:
+                            last_completed_iso = None
+
+                        tooltip_date = end_date or _parse_iso_date_safe(last_completed_iso) or selected_date
+
+                    elif "Day Completed" in suffix:
+                        tooltip_title = "Day Points"
+                        tooltip_date = selected_date
+
+                    if tooltip_date:
+                        tooltip_date_str = tooltip_date.isoformat()
+
+                        try:
+                            positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+                        except Exception:
+                            positive_menu_for_breakdown = ps.get_positive_point_menu()
+
+                        point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
+                        breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
+
+                        tooltip_text = f"{tooltip_title}\n" + (breakdown or "")
+                        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
 
                 # Standardize ISS completed subtitle to match LD/CPR:
                 # - 1-Day Session Completed (single-day)

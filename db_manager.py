@@ -3443,7 +3443,23 @@ class DatabaseManager:
             }
         finally:
             db_session.close()
-    
+
+    def get_last_completed_service_date(self, placement_id: str) -> Optional[str]:
+        session = self.get_session()
+        try:
+            last_log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.checked_in == True,
+                DailyLog.daily_fulfillment == 'yes',
+                or_(DailyLog.day_type != 'absent', DailyLog.day_type.is_(None))
+            ).order_by(DailyLog.date.desc()).first()
+
+            if last_log and last_log.date:
+                return last_log.date.isoformat()
+            return None
+        finally:
+            session.close()
+
     def get_lunch_detention_days_served_info(self, placement_id: str, target_date: str = None) -> Dict[str, Any]:
         """Get Lunch Detention days served information for Day X of Y display.
         

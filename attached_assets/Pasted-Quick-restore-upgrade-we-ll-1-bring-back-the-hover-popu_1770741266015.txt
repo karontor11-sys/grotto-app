@@ -1,0 +1,100 @@
+Quick restore + upgrade: we’ll (1) bring back the hover “popup flag” for multi-day “Day Completed” rows by adding the tooltip wrapper there too, and (2) fix the “Session Completed shows all zeros” problem by pulling the true final served/completed ISS date (instead of falling back to “today” when endDate is missing).
+
+# ============================================================
+# REPLIT BUILD WINDOW PATCH
+# Goal:
+# 1) ISS “Day Completed” rows regain the hover tooltip flag (multi-day).
+# 2) “X-day Session Completed” tooltip shows FINAL DAY points (not all zeros).
+#
+# Files touched:
+#   - db_manager.py  (add helper to find last completed ISS date)
+#   - app.py         (use tooltip wrapper for Day Completed + reliable final-date)
+# ============================================================
+
+
+# =========================
+# PATCH A — db_manager.py
+# Add a helper: get_last_completed_service_date()
+# =========================
+# In db_manager.py, scroll to the end of:
+#   def get_iss_days_served_info(...)
+# and paste THIS NEW METHOD immediately after it (before the next def ...):
+
+def get_last_completed_service_date(self, placement_id: str) -> Optional[str]:
+    """
+    Returns the most recent date where this placement had a completed, present day.
+    Used for ISS final-day tooltips when endDate is missing/None.
+    """
+    session = self.get_session()
+    try:
+        last_log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.checked_in == True,
+            DailyLog.daily_fulfillment == 'yes',
+            or_(DailyLog.day_type != 'absent', DailyLog.day_type.is_(None))
+        ).order_by(DailyLog.date.desc()).first()
+
+        if last_log and last_log.date:
+            return last_log.date.isoformat()
+        return None
+    finally:
+        session.close()
+
+
+
+# =========================
+# PATCH B — app.py
+# ISS: add tooltip for “Day Completed” and fix final-day date resolution
+# =========================
+# In app.py, find this exact block in the Dashboard ISS rendering:
+#
+#     # Add hover tooltip ONLY for whole-session completion labels
+#     suffix_html = suffix
+#     if (not bool(is_absent_day)) and ("Session Completed" in (suffix or "")):
+#         final_date = end_date or selected_date
+#         final_date_str = final_date.isoformat()
+#         ...
+#         tooltip_text = "Final Day Points\n" + (breakdown or "")
+#         suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+#
+# Replace that WHOLE block with this:
+
+# Add hover tooltip for completion labels:
+# - "Day Completed" → show points for THIS day (selected_date)
+# - "Session Completed" → show points for TRUE final served/completed day
+suffix_html = suffix
+
+if (not bool(is_absent_day)) and (suffix or ""):
+    tooltip_date = None
+    tooltip_title = None
+
+    if "Session Completed" in suffix:
+        tooltip_title = "Final Day Points"
+
+        # Prefer endDate if present; otherwise pull last completed/present daily log date
+        last_completed_iso = None
+        try:
+            last_completed_iso = dm.get_last_completed_service_date(placement_id)
+        except Exception:
+            last_completed_iso = None
+
+        tooltip_date = end_date or _parse_iso_date_safe(last_completed_iso) or selected_date
+
+    elif "Day Completed" in suffix:
+        tooltip_title = "Day Points"
+        tooltip_date = selected_date
+
+    if tooltip_date:
+        tooltip_date_str = tooltip_date.isoformat()
+
+        try:
+            positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+        except Exception:
+            positive_menu_for_breakdown = ps.get_positive_point_menu()
+
+        point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
+        breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
+
+        # Keep it clean but informative (and consistent)
+        tooltip_text = f"{tooltip_title}\n" + (breakdown or "")
+        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)

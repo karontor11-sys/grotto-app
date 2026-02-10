@@ -259,6 +259,18 @@ def render_delete_record_danger_zone(*, dm, placement_id: str, show_admin_tools:
                 st.error("⚠️ Could not delete record (it may have already been removed).")
             st.rerun()
 
+def render_danger_zone(*, placement=None, student_name=None, placement_id: str, show_admin_tools: bool):
+    """
+    Back-compat wrapper.
+    Some UI sections still call render_danger_zone(...).
+    The real implementation lives in render_delete_record_danger_zone(...).
+    """
+    return render_delete_record_danger_zone(
+        dm=dm,
+        placement_id=placement_id,
+        show_admin_tools=show_admin_tools
+    )
+
 # ---------- Dashboard Completed-Session Title Helpers ----------
 
 def _parse_iso_date_safe(s):

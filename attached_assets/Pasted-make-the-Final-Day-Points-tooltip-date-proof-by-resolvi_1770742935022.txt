@@ -1,0 +1,117 @@
+make the “Final Day Points” tooltip date-proof by resolving the final-day date from the data that actually drives the points (PointEvents first), then falling back to DailyLog / ISSSessionLog. Then the tooltip will stop defaulting to “today” and showing zeros.
+
+# ============================================================
+# REPLIT BUILD WINDOW PATCH
+# Fix: "X-Day Session Completed" tooltip shows all 0s
+# Strategy: Resolve the true final scored/completed date (PointEvent max date first),
+# then use THAT date to fetch point events for the tooltip.
+# Files: db_manager.py, app.py
+# ============================================================
+
+
+# =========================
+# PATCH A — db_manager.py
+# 1) Add func to sqlalchemy imports
+# =========================
+# Find this line near the top:
+# from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_
+#
+# Replace it with:
+
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_, func
+
+
+# =========================
+# PATCH B — db_manager.py
+# 2) Add a robust date resolver for "final day" tooltips
+# =========================
+# Paste this NEW method anywhere inside the DBManager class (good spot: right below
+# get_point_events_for_date(), since it’s used for tooltip point-event lookups).
+
+def get_last_scored_or_completed_date(self, placement_id: str) -> Optional[str]:
+    """
+    Returns the most reliable "final day" date for tooltips:
+    1) Latest PointEvent.date for the placement (best match for "show me the points")
+    2) Latest DailyLog.date where daily_fulfillment == 'yes' and not absent (no checked_in requirement)
+    3) Latest ISSSessionLog.session_date for the placement
+    """
+    session = self.get_session()
+    try:
+        # 1) Points drive the tooltip — use the latest date where points exist
+        last_point_date = session.query(func.max(PointEvent.date)).filter(
+            PointEvent.placement_id == placement_id
+        ).scalar()
+        if last_point_date:
+            return last_point_date.isoformat()
+
+        # 2) Fall back to completion logs (do NOT require checked_in)
+        last_completed_log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.daily_fulfillment == 'yes',
+            or_(DailyLog.day_type != 'absent', DailyLog.day_type.is_(None))
+        ).order_by(DailyLog.date.desc()).first()
+        if last_completed_log and last_completed_log.date:
+            return last_completed_log.date.isoformat()
+
+        # 3) Fall back to session logs if present
+        last_session_date = session.query(func.max(ISSSessionLog.session_date)).filter(
+            ISSSessionLog.placement_id == placement_id
+        ).scalar()
+        if last_session_date:
+            return last_session_date.isoformat()
+
+        return None
+    finally:
+        session.close()
+
+
+
+# =========================
+# PATCH C — app.py
+# 3) Use the resolver for "Session Completed" tooltip date
+# =========================
+# In app.py, find this existing tooltip block in the Dashboard ISS rendering:
+#
+# if (not bool(is_absent_day)) and ("Session Completed" in (suffix or "")):
+#     final_date = end_date or selected_date
+#     final_date_str = final_date.isoformat()
+#     ...
+#     point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
+#     ...
+#
+# Replace ONLY that entire "if (not bool...) ..." block with this:
+
+if (not bool(is_absent_day)) and (suffix or ""):
+    suffix_html = suffix
+
+    # Tooltip for final-day session completion: resolve true final scored/completed date
+    if "Session Completed" in suffix:
+        # Prefer end_date if it exists; otherwise use DB resolver (points-first)
+        resolved_iso = None
+        try:
+            resolved_iso = dm.get_last_scored_or_completed_date(placement_id)
+        except Exception:
+            resolved_iso = None
+
+        tooltip_date = end_date or _parse_iso_date_safe(resolved_iso) or selected_date
+        tooltip_date_str = tooltip_date.isoformat()
+
+        try:
+            positive_menu_for_breakdown = ps.get_positive_point_menu('iss_full_day')
+        except Exception:
+            positive_menu_for_breakdown = ps.get_positive_point_menu()
+
+        point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
+        breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
+
+        tooltip_text = "Final Day Points\n" + (breakdown or "")
+        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+
+    # (Optional but safe) Keep your existing Day Completed tooltip logic if you already added it elsewhere.
+    # If you currently have a separate Day Completed tooltip block nearby, leave it as-is.
+
+
+# NOTE:
+# If your code already defines suffix_html earlier, keep that variable usage consistent.
+# The key change is: Session Completed uses dm.get_last_scored_or_completed_date(...)
+# instead of falling back to selected_date when end_date is missing.

@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -5999,6 +5999,33 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_last_scored_or_completed_date(self, placement_id: str) -> Optional[str]:
+        session = self.get_session()
+        try:
+            last_point_date = session.query(func.max(PointEvent.date)).filter(
+                PointEvent.placement_id == placement_id
+            ).scalar()
+            if last_point_date:
+                return last_point_date.isoformat()
+
+            last_completed_log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.daily_fulfillment == 'yes',
+                or_(DailyLog.day_type != 'absent', DailyLog.day_type.is_(None))
+            ).order_by(DailyLog.date.desc()).first()
+            if last_completed_log and last_completed_log.date:
+                return last_completed_log.date.isoformat()
+
+            last_session_date = session.query(func.max(ISSSessionLog.session_date)).filter(
+                ISSSessionLog.placement_id == placement_id
+            ).scalar()
+            if last_session_date:
+                return last_session_date.isoformat()
+
+            return None
+        finally:
+            session.close()
+
     def get_point_events_for_session(self, session_id: str, event_date: str) -> List[Dict[str, Any]]:
         """Get all point events for a specific session on a specific date."""
         db_session = self.get_session()

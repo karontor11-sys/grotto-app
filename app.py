@@ -3719,13 +3719,13 @@ if page == "Dashboard":
                     if "Session Completed" in suffix:
                         tooltip_title = "Final Day Points"
 
-                        last_completed_iso = None
+                        resolved_iso = None
                         try:
-                            last_completed_iso = dm.get_last_completed_service_date(placement_id)
+                            resolved_iso = dm.get_last_scored_or_completed_date(placement_id)
                         except Exception:
-                            last_completed_iso = None
+                            resolved_iso = None
 
-                        tooltip_date = end_date or _parse_iso_date_safe(last_completed_iso) or selected_date
+                        tooltip_date = end_date or _parse_iso_date_safe(resolved_iso) or selected_date
 
                     elif "Day Completed" in suffix:
                         tooltip_title = "Day Points"

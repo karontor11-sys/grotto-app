@@ -3815,7 +3815,29 @@ if page == "Dashboard":
             comp_student = comp_iss['student']
             comp_name = f"{comp_student['firstName']} {comp_student['lastName']}"
             comp_pid = comp_iss['_id']
-            st.markdown(f"🟢 {comp_name} · Completed")
+            total_days_comp = int(comp_iss.get('issDaysAssigned') or comp_iss.get('issTotalDays') or comp_iss.get('daysAssigned', 1))
+            completion_label_comp = f"{total_days_comp}-Day Session Completed"
+
+            try:
+                positive_menu_comp = ps.get_positive_point_menu('iss_full_day')
+            except Exception:
+                positive_menu_comp = ps.get_positive_point_menu()
+
+            point_events_comp = dm.get_point_events_for_date(comp_pid, selected_date.isoformat())
+            tooltip_comp = build_iss_points_breakdown_tooltip(point_events_comp, positive_menu_comp)
+            completion_label_html_comp = build_completion_label_with_tooltip(completion_label_comp, tooltip_comp)
+
+            subtitle_comp = f"In-School Suspension (ISS) · {completion_label_html_comp}"
+            status_circle_comp = '🔴'
+
+            st.markdown(
+                f"""<div style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
+                background-color: #fafafa; margin-bottom: 8px;">
+                <span style="font-size: 1.1em;">{status_circle_comp} <strong>{comp_name}</strong></span>
+                <span style="color: #666; margin-left: 12px;">{subtitle_comp}</span>
+                </div>""",
+                unsafe_allow_html=True
+            )
 
             if show_admin_tools:
                 render_danger_zone(

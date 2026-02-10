@@ -1,0 +1,113 @@
+Final Day Points” tooltip is still pulling from PointEvents, but Beckett’s final-day points were saved into DailyLogs / ISSSessionLogs totals (not as PointEvent rows). So we’ll add a safe fallback: if there are no PointEvents for the tooltip day, show the saved totals instead of a 0-category breakdown.
+
+# ============================================================
+# REPLIT BUILD WINDOW PATCH
+# Fix: "3-Day Session Completed" tooltip shows all 0s when final-day points
+# were saved as totals (DailyLog/ISSSessionLog) instead of PointEvents.
+#
+# Files: db_manager.py, app.py
+# ============================================================
+
+
+# =========================
+# PATCH A — db_manager.py
+# Add helper: get_iss_totals_for_date()
+# =========================
+# In db_manager.py, inside the DBManager class, paste this NEW method
+# (good spot: near get_point_events_for_date / other helpers):
+
+def get_iss_totals_for_date(self, placement_id: str, date_iso: str) -> Optional[Dict[str, Any]]:
+    """
+    Returns ISS totals for a given date when PointEvents may not exist.
+
+    Priority:
+      1) DailyLog totals (positive_total / negative_total / daily_total)
+      2) ISSSessionLog points_earned (total only)
+    """
+    session = self.get_session()
+    try:
+        d = _parse_iso_date_safe(date_iso)
+        if not d:
+            return None
+
+        # 1) DailyLog is the most reliable store for day totals
+        log = session.query(DailyLog).filter(
+            DailyLog.placement_id == placement_id,
+            DailyLog.date == d
+        ).first()
+
+        if log:
+            return {
+                "source": "daily_log",
+                "date": d.isoformat(),
+                "positive_total": int(log.positive_total or 0),
+                "negative_total": int(log.negative_total or 0),
+                "daily_total": int(log.daily_total or 0),
+            }
+
+        # 2) Fall back to ISSSessionLog if present
+        s = session.query(ISSSessionLog).filter(
+            ISSSessionLog.placement_id == placement_id,
+            ISSSessionLog.session_date == d
+        ).order_by(ISSSessionLog.created_at.desc()).first()
+
+        if s and s.points_earned is not None:
+            return {
+                "source": "iss_session_log",
+                "date": d.isoformat(),
+                "daily_total": int(s.points_earned or 0),
+            }
+
+        return None
+    finally:
+        session.close()
+
+
+
+# =========================
+# PATCH B — app.py
+# Tooltip: if no PointEvents exist, show saved totals (not zeros)
+# =========================
+# In app.py, find this block (it’s in the Dashboard ISS rendering; you’ll see it
+# right under: point_events_for_tooltip_day = dm.get_point_events_for_date(...))
+#
+#     point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
+#     breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
+#     tooltip_text = f"{tooltip_title}\n" + (breakdown or "")
+#     suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+#
+# Replace ONLY those 3 lines (breakdown/tooltip_text/suffix_html) with this:
+
+point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
+
+# If no PointEvents exist, fall back to stored totals (DailyLog/ISSSessionLog)
+if not point_events_for_tooltip_day:
+    totals = None
+    try:
+        totals = dm.get_iss_totals_for_date(placement_id, tooltip_date_str)
+    except Exception:
+        totals = None
+
+    if totals:
+        # Prefer a clean totals display instead of an all-zero category breakdown
+        total_val = int(totals.get("daily_total") or 0)
+        pos_val = totals.get("positive_total", None)
+        neg_val = totals.get("negative_total", None)
+
+        lines = [f"{tooltip_title}", f"Total Points: {total_val}"]
+        if pos_val is not None and neg_val is not None:
+            lines.append(f"Positive: {int(pos_val)}")
+            lines.append(f"Negative: {int(neg_val)}")
+        lines.append("(No category breakdown recorded for this day)")
+
+        tooltip_text = "\n".join(lines)
+        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+    else:
+        # No totals found either — keep existing behavior but make it explicit
+        tooltip_text = f"{tooltip_title}\n(No point data found for this day)"
+        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+
+else:
+    breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
+    tooltip_text = f"{tooltip_title}\n" + (breakdown or "")
+    suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)

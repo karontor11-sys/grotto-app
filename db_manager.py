@@ -5999,6 +5999,46 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_iss_totals_for_date(self, placement_id: str, date_iso: str) -> Optional[Dict[str, Any]]:
+        session = self.get_session()
+        try:
+            try:
+                d = datetime.fromisoformat(date_iso).date() if isinstance(date_iso, str) else date_iso
+            except Exception:
+                return None
+            if not d:
+                return None
+
+            log = session.query(DailyLog).filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == d
+            ).first()
+
+            if log:
+                return {
+                    "source": "daily_log",
+                    "date": d.isoformat(),
+                    "positive_total": int(log.positive_total or 0),
+                    "negative_total": int(log.negative_total or 0),
+                    "daily_total": int(log.daily_total or 0),
+                }
+
+            s = session.query(ISSSessionLog).filter(
+                ISSSessionLog.placement_id == placement_id,
+                ISSSessionLog.session_date == d
+            ).order_by(ISSSessionLog.created_at.desc()).first()
+
+            if s and s.points_earned is not None:
+                return {
+                    "source": "iss_session_log",
+                    "date": d.isoformat(),
+                    "daily_total": int(s.points_earned or 0),
+                }
+
+            return None
+        finally:
+            session.close()
+
     def get_last_scored_or_completed_date(self, placement_id: str) -> Optional[str]:
         session = self.get_session()
         try:

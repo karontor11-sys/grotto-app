@@ -3740,10 +3740,35 @@ if page == "Dashboard":
                             positive_menu_for_breakdown = ps.get_positive_point_menu()
 
                         point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
-                        breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
 
-                        tooltip_text = f"{tooltip_title}\n" + (breakdown or "")
-                        suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+                        if not point_events_for_tooltip_day:
+                            totals = None
+                            try:
+                                totals = dm.get_iss_totals_for_date(placement_id, tooltip_date_str)
+                            except Exception:
+                                totals = None
+
+                            if totals:
+                                total_val = int(totals.get("daily_total") or 0)
+                                pos_val = totals.get("positive_total", None)
+                                neg_val = totals.get("negative_total", None)
+
+                                lines = [f"{tooltip_title}", f"Total Points: {total_val}"]
+                                if pos_val is not None and neg_val is not None:
+                                    lines.append(f"Positive: {int(pos_val)}")
+                                    lines.append(f"Negative: {int(neg_val)}")
+                                lines.append("(No category breakdown recorded for this day)")
+
+                                tooltip_text = "\n".join(lines)
+                                suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+                            else:
+                                tooltip_text = f"{tooltip_title}\n(No point data found for this day)"
+                                suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
+
+                        else:
+                            breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
+                            tooltip_text = f"{tooltip_title}\n" + (breakdown or "")
+                            suffix_html = build_completion_label_with_tooltip(suffix, tooltip_text)
 
                 # Standardize ISS completed subtitle to match LD/CPR:
                 # - 1-Day Session Completed (single-day)

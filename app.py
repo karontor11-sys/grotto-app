@@ -53,10 +53,16 @@ def require_login():
         )
         st.stop()
 
-    left, mid, right = st.columns([1, 1.2, 1])
+    left, mid, right = st.columns([1, 1.6, 1])
     with mid:
-        st.title("Grotto Student Placement Platform")
-        st.subheader("Staff Access")
+
+        title_col1, title_col2 = st.columns([1, 5])
+        with title_col1:
+            st.image("attached_assets/Bobcats_1761658497832.png", width=70)
+        with title_col2:
+            st.markdown("## GROTTO STUDENT PLACEMENT PLATFORM")
+
+        st.markdown("### Staff Access")
         st.caption("Please sign in to continue.")
 
         with st.form("login_form", clear_on_submit=False):
@@ -70,6 +76,14 @@ def require_login():
                 st.rerun()
             else:
                 st.error("Incorrect username or password.")
+
+    st.markdown("---")
+    st.markdown(
+        "<div style='text-align: center; font-size: 0.9rem; color: gray;'>"
+        "George S. Mickelson Middle School – Brookings, South Dakota"
+        "</div>",
+        unsafe_allow_html=True
+    )
 
     st.stop()
 

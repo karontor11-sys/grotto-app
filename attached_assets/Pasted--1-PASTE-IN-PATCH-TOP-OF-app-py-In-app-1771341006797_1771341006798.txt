@@ -1,0 +1,133 @@
+# =========================
+# 1) PASTE-IN PATCH (TOP OF app.py)
+# =========================
+# In app.py, find this block near the top:
+#
+#   # Initialize session state
+#   if 'data_manager' not in st.session_state:
+#       ...
+#   import_export = st.session_state.import_export_manager
+#
+# REPLACE that entire block with EVERYTHING below.
+
+# ---- Page config MUST be early (we moved it here) ----
+st.set_page_config(
+    page_title="The Grotto",
+    page_icon="🏫",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ---- Simple Staff Login Gate (Replit Secrets) ----
+def _get_secret(name: str) -> str:
+    # Works on Replit/hosted envs where secrets are exposed as env vars
+    import os
+    return (os.environ.get(name) or "").strip()
+
+def _hide_streamlit_chrome_for_login():
+    st.markdown(
+        """
+        <style>
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+        [data-testid="stSidebar"] {display: none;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def require_login():
+    # Already authed this session
+    if st.session_state.get("auth_ok", False):
+        return
+
+    # Pull creds from secrets
+    expected_user = _get_secret("GROTTO_USERNAME")
+    expected_pass = _get_secret("GROTTO_PASSWORD")
+
+    _hide_streamlit_chrome_for_login()
+
+    # If secrets are missing, show a clear admin-facing message
+    if not expected_user or not expected_pass:
+        st.title("Grotto Student Placement Platform")
+        st.subheader("Staff Access")
+        st.error(
+            "Login is not configured.\n\n"
+            "An administrator needs to set Replit Secrets:\n"
+            "• GROTTO_USERNAME\n"
+            "• GROTTO_PASSWORD"
+        )
+        st.stop()
+
+    # Centered login “card”
+    left, mid, right = st.columns([1, 1.2, 1])
+    with mid:
+        st.title("Grotto Student Placement Platform")
+        st.subheader("Staff Access")
+        st.caption("Please sign in to continue.")
+
+        with st.form("login_form", clear_on_submit=False):
+            username = st.text_input("Username", key="login_username")
+            password = st.text_input("Password", type="password", key="login_password")
+            submitted = st.form_submit_button("Sign in")
+
+        if submitted:
+            if username.strip() == expected_user and password == expected_pass:
+                st.session_state.auth_ok = True
+                # Clear the typed password out of session_state as a nice hygiene step
+                st.session_state.login_password = ""
+                st.rerun()
+            else:
+                st.error("Incorrect username or password.")
+
+    st.stop()
+
+# Require login before ANY app services/DB initialize
+require_login()
+
+# ---- Initialize session state ONLY AFTER login ----
+if "data_manager" not in st.session_state:
+    st.session_state.data_manager = DatabaseManager()
+if "point_system" not in st.session_state:
+    st.session_state.point_system = PointSystem()
+if "analytics_engine" not in st.session_state:
+    st.session_state.analytics_engine = AnalyticsEngine(st.session_state.data_manager)
+if "import_export_manager" not in st.session_state:
+    st.session_state.import_export_manager = ImportExportManager(st.session_state.data_manager)
+
+# Initialize end-of-day processing flag (runs once per session)
+if "eod_processing_checked" not in st.session_state:
+    st.session_state.eod_processing_checked = False
+
+# Admin tools flag (unchanged)
+if "show_admin_tools" not in st.session_state:
+    st.session_state.show_admin_tools = False
+
+# Convenience globals (unchanged)
+dm = st.session_state.data_manager
+ps = st.session_state.point_system
+analytics = st.session_state.analytics_engine
+import_export = st.session_state.import_export_manager
+
+# Optional: add a simple logout helper you can call anywhere later
+def do_logout():
+    st.session_state.auth_ok = False
+    # Clear any sensitive per-session objects if you want a truly fresh start
+    for k in ["data_manager", "point_system", "analytics_engine", "import_export_manager"]:
+        if k in st.session_state:
+            del st.session_state[k]
+    st.rerun()
+
+
+# =========================
+# 2) DISABLE DUPLICATE set_page_config (LATER IN FILE)
+# =========================
+# Later in app.py you currently have:
+#
+#   # Page configuration
+#   st.set_page_config(...)
+#
+# Replace that whole block with this comment (or delete it):
+#
+#   # Page configuration moved to top (login gate).

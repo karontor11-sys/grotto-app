@@ -9,27 +9,99 @@ from analytics import AnalyticsEngine
 from import_export import ImportExportManager
 from utils import format_date, calculate_days_remaining, get_status_color, calculate_school_day_number, get_placement_type_label, get_placement_duration_info, is_placement_active_today, get_placement_type_display_name, add_business_days, central_now, central_today, get_school_year_for_date
 
-# Initialize session state
-if 'data_manager' not in st.session_state:
+st.set_page_config(
+    page_title="The Grotto",
+    page_icon="🏫",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+def _get_secret(name: str) -> str:
+    import os
+    return (os.environ.get(name) or "").strip()
+
+def _hide_streamlit_chrome_for_login():
+    st.markdown(
+        """
+        <style>
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+        [data-testid="stSidebar"] {display: none;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def require_login():
+    if st.session_state.get("auth_ok", False):
+        return
+
+    expected_user = _get_secret("GROTTO_USERNAME")
+    expected_pass = _get_secret("GROTTO_PASSWORD")
+
+    _hide_streamlit_chrome_for_login()
+
+    if not expected_user or not expected_pass:
+        st.title("Grotto Student Placement Platform")
+        st.subheader("Staff Access")
+        st.error(
+            "Login is not configured.\n\n"
+            "An administrator needs to set Replit Secrets:\n"
+            "• GROTTO_USERNAME\n"
+            "• GROTTO_PASSWORD"
+        )
+        st.stop()
+
+    left, mid, right = st.columns([1, 1.2, 1])
+    with mid:
+        st.title("Grotto Student Placement Platform")
+        st.subheader("Staff Access")
+        st.caption("Please sign in to continue.")
+
+        with st.form("login_form", clear_on_submit=False):
+            username = st.text_input("Username", key="login_username")
+            password = st.text_input("Password", type="password", key="login_password")
+            submitted = st.form_submit_button("Sign in")
+
+        if submitted:
+            if username.strip() == expected_user and password == expected_pass:
+                st.session_state.auth_ok = True
+                st.session_state.login_password = ""
+                st.rerun()
+            else:
+                st.error("Incorrect username or password.")
+
+    st.stop()
+
+require_login()
+
+if "data_manager" not in st.session_state:
     st.session_state.data_manager = DatabaseManager()
-if 'point_system' not in st.session_state:
+if "point_system" not in st.session_state:
     st.session_state.point_system = PointSystem()
-if 'analytics_engine' not in st.session_state:
+if "analytics_engine" not in st.session_state:
     st.session_state.analytics_engine = AnalyticsEngine(st.session_state.data_manager)
-if 'import_export_manager' not in st.session_state:
+if "import_export_manager" not in st.session_state:
     st.session_state.import_export_manager = ImportExportManager(st.session_state.data_manager)
 
-# Initialize end-of-day processing flag (runs once per session)
-if 'eod_processing_checked' not in st.session_state:
+if "eod_processing_checked" not in st.session_state:
     st.session_state.eod_processing_checked = False
 
-if 'show_admin_tools' not in st.session_state:
+if "show_admin_tools" not in st.session_state:
     st.session_state.show_admin_tools = False
 
 dm = st.session_state.data_manager
 ps = st.session_state.point_system
 analytics = st.session_state.analytics_engine
 import_export = st.session_state.import_export_manager
+
+def do_logout():
+    st.session_state.auth_ok = False
+    for k in ["data_manager", "point_system", "analytics_engine", "import_export_manager"]:
+        if k in st.session_state:
+            del st.session_state[k]
+    st.rerun()
 
 # Authorized staff list for placement creation/editing
 AUTHORIZED_STAFF = ["Aaron Toronto", "Matthew Christie", "Todd Foster", "Chad Adamson"]
@@ -627,13 +699,7 @@ def render_auto_save_notes(unique_key: str, current_notes: str, save_callback, d
         if saved_time > 0 and (time.time() - saved_time) < 2:
             st.markdown("<span style='color: #28a745; font-size: 0.85em;'>✓ Saved</span>", unsafe_allow_html=True)
 
-# Page configuration
-st.set_page_config(
-    page_title="The Grotto",
-    page_icon="🏫",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Page configuration moved to top (login gate).
 
 # =========================
 # WEBSITE-STYLE TOP NAV (GLOBAL) — IN-APP (NO <a href>)

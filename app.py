@@ -97,9 +97,6 @@ import_export = st.session_state.import_export_manager
 
 def do_logout():
     st.session_state.auth_ok = False
-    for k in ["data_manager", "point_system", "analytics_engine", "import_export_manager"]:
-        if k in st.session_state:
-            del st.session_state[k]
     st.rerun()
 
 # Authorized staff list for placement creation/editing
@@ -747,12 +744,12 @@ active_for_nav = (
 )
 
 # --- Nav row (buttons styled by type; active page uses primary) ---
-nav_cols = st.columns([1, 1, 1.5, 1], vertical_alignment="center")
+nav_cols = st.columns([1, 1, 1.5, 1, 0.5], vertical_alignment="center")
 
 labels = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
 targets = ["Dashboard", "Placements", "Completed Placements", "Assignments"]
 
-for col, label, target in zip(nav_cols, labels, targets):
+for col, label, target in zip(nav_cols[:4], labels, targets):
     with col:
         is_active = (target == active_for_nav)
         if st.button(
@@ -762,6 +759,10 @@ for col, label, target in zip(nav_cols, labels, targets):
             use_container_width=True,
         ):
             _set_page(target)
+
+with nav_cols[-1]:
+    if st.button("Logout", key="nav_btn_logout", use_container_width=True):
+        do_logout()
 
 # Source of truth for routing
 page = st.session_state.current_page

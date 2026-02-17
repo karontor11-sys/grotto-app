@@ -58,7 +58,7 @@ def require_login():
 
         title_col1, title_col2 = st.columns([1, 5])
         with title_col1:
-            st.image("attached_assets/Bobcats_1761658497832.png", width=70)
+            st.image("attached_assets/Bobcats_1761658497832.png", width=110)
         with title_col2:
             st.markdown("## GROTTO STUDENT PLACEMENT PLATFORM")
 

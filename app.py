@@ -67,7 +67,6 @@ def require_login():
         if submitted:
             if username.strip() == expected_user and password == expected_pass:
                 st.session_state.auth_ok = True
-                st.session_state.login_password = ""
                 st.rerun()
             else:
                 st.error("Incorrect username or password.")

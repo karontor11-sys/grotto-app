@@ -1,0 +1,139 @@
+# =========================
+# PATCH: ISS points dropdown reliability + card-tied guardrail warning
+# File: app.py
+# =========================
+
+# ---------------------------------------------------------
+# 1) Add a small shared key + helpers near your ISS dispatcher
+# ---------------------------------------------------------
+# FIND this section (you already have this):
+#
+#     ISS_PENDING_KEY = "ISS_PENDING_ACTION"
+#
+# DIRECTLY UNDER IT, PASTE THIS:
+
+ISS_POINT_ERR_KEY = "ISS_POINT_ADD_ERROR_BY_CARD"
+
+def _iss_set_point_error(card_uid: str, date_str: str, msg: str):
+    if not card_uid:
+        return
+    st.session_state.setdefault(ISS_POINT_ERR_KEY, {})
+    st.session_state[ISS_POINT_ERR_KEY][card_uid] = {"date": date_str or "", "msg": msg}
+
+def _iss_clear_point_error(card_uid: str):
+    if not card_uid:
+        return
+    err_map = st.session_state.get(ISS_POINT_ERR_KEY, {})
+    if card_uid in err_map:
+        del err_map[card_uid]
+        st.session_state[ISS_POINT_ERR_KEY] = err_map
+
+
+# ---------------------------------------------------------
+# 2) Update the ISS dispatcher so warnings are tied to the card/date
+# ---------------------------------------------------------
+# FIND this existing block inside the dispatcher:
+#
+#                     if not can_add:
+#                         st.warning(f"🔒 {reason}")
+#                     else:
+#                         event_id = dm.add_point_event(payload)
+#                         if not event_id:
+#                             st.warning("🔒 Points were not added. Confirm **Full Day** or confirm **Partial Day** periods for this date first.")
+#
+# REPLACE that entire block with this:
+
+                    if not can_add:
+                        _iss_set_point_error(
+                            pending.get("card_uid"),
+                            date_for_gate,
+                            f"🔒 {reason}"
+                        )
+                    else:
+                        event_id = dm.add_point_event(payload)
+                        if not event_id:
+                            _iss_set_point_error(
+                                pending.get("card_uid"),
+                                date_for_gate,
+                                "🔒 Points were not added for this date. Confirm **Full Day** or confirm **Partial Day** periods first."
+                            )
+                        else:
+                            _iss_clear_point_error(pending.get("card_uid"))
+
+
+# ---------------------------------------------------------
+# 3) Show the guardrail warning INSIDE the correct ISS card (by date)
+# ---------------------------------------------------------
+# FIND the ISS card UI area where the Positive/Negative dropdowns appear.
+# You will see:
+#
+#     with pos_col:
+#         ...
+#         st.selectbox("Positive", ...)
+#     with neg_col:
+#         ...
+#         st.selectbox("Negative", ...)
+#
+# JUST BEFORE the "with pos_col:" line, INSERT THIS:
+
+                # If a point-add was blocked, show the warning inside THIS card + THIS date
+                err_map = st.session_state.get(ISS_POINT_ERR_KEY, {})
+                err = err_map.get(card_uid)
+                if err and err.get("date") == date_str and err.get("msg"):
+                    st.warning(err["msg"])
+
+
+# ---------------------------------------------------------
+# 4) Make dropdowns reset IMMEDIATELY upon selection (so repeats always trigger)
+# ---------------------------------------------------------
+# FIND the on_positive_change() function. Inside it, locate the final section:
+#
+#     # Dispatch ONE targeted action; Dashboard processes it
+#     st.session_state["ISS_PENDING_ACTION"] = {...}
+#     _dashboard_request_keep_open(card_uid, ttl=2)
+#     st.rerun()
+#
+# REPLACE that final section with this:
+
+                            # Reset immediately so selecting the same item again still triggers
+                            st.session_state[pos_key] = "+ Positive"
+
+                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state["ISS_PENDING_ACTION"] = {
+                                "action": "add_point",
+                                "card_uid": card_uid,
+                                "payload": payload,
+                            }
+                            _dashboard_request_keep_open(card_uid, ttl=2)
+                            st.rerun()
+
+
+# NOW do the same for on_negative_change().
+# FIND the on_negative_change() function and locate the final section:
+#
+#     # Dispatch ONE targeted action; Dashboard processes it
+#     st.session_state["ISS_PENDING_ACTION"] = {...}
+#     st.rerun()
+#
+# REPLACE that final section with this:
+
+                            # Reset immediately so selecting the same item again still triggers
+                            st.session_state[neg_key] = "- Negative"
+
+                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state["ISS_PENDING_ACTION"] = {
+                                "action": "add_point",
+                                "card_uid": card_uid,
+                                "payload": payload,
+                            }
+                            _dashboard_request_keep_open(card_uid, ttl=2)
+                            st.rerun()
+
+
+# ---------------------------------------------------------
+# Done.
+# What this changes:
+# - Dropdowns always reset instantly after a selection (repeat selections always fire)
+# - If points are blocked, the warning appears inside the exact ISS card + date
+# - No extra success messages added
+# ---------------------------------------------------------

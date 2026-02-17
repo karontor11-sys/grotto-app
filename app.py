@@ -937,6 +937,22 @@ if page == "Dashboard":
     # Instead of scanning deferred_* keys (fragile), we process exactly ONE explicit action per rerun.
     ISS_PENDING_KEY = "ISS_PENDING_ACTION"
 
+    ISS_POINT_ERR_KEY = "ISS_POINT_ADD_ERROR_BY_CARD"
+
+    def _iss_set_point_error(card_uid: str, date_str: str, msg: str):
+        if not card_uid:
+            return
+        st.session_state.setdefault(ISS_POINT_ERR_KEY, {})
+        st.session_state[ISS_POINT_ERR_KEY][card_uid] = {"date": date_str or "", "msg": msg}
+
+    def _iss_clear_point_error(card_uid: str):
+        if not card_uid:
+            return
+        err_map = st.session_state.get(ISS_POINT_ERR_KEY, {})
+        if card_uid in err_map:
+            del err_map[card_uid]
+            st.session_state[ISS_POINT_ERR_KEY] = err_map
+
     pending = st.session_state.pop(ISS_PENDING_KEY, None)
     if pending:
         # Keep the originating ISS card expanded through this rerun cycle
@@ -967,11 +983,21 @@ if page == "Dashboard":
                     )
 
                     if not can_add:
-                        st.warning(f"🔒 {reason}")
+                        _iss_set_point_error(
+                            pending.get("card_uid"),
+                            date_for_gate,
+                            f"🔒 {reason}"
+                        )
                     else:
                         event_id = dm.add_point_event(payload)
                         if not event_id:
-                            st.warning("🔒 Points were not added. Confirm **Full Day** or confirm **Partial Day** periods for this date first.")
+                            _iss_set_point_error(
+                                pending.get("card_uid"),
+                                date_for_gate,
+                                "🔒 Points were not added for this date. Confirm **Full Day** or confirm **Partial Day** periods first."
+                            )
+                        else:
+                            _iss_clear_point_error(pending.get("card_uid"))
 
                 # Reset dropdowns by setting defaults (not deleting keys) so the next selection triggers cleanly
                 card_uid = pending.get("card_uid")
@@ -3216,6 +3242,11 @@ if page == "Dashboard":
                     st.markdown("**Add Behaviors**")
                     pos_col, neg_col = st.columns(2)
                     
+                    err_map = st.session_state.get(ISS_POINT_ERR_KEY, {})
+                    err = err_map.get(card_uid)
+                    if err and err.get("date") == date_str and err.get("msg"):
+                        st.warning(err["msg"])
+
                     with pos_col:
                         positive_menu = ps.get_positive_point_menu()
 
@@ -3264,7 +3295,8 @@ if page == "Dashboard":
                                 "date": date_str,
                             }
 
-                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state[pos_key] = "+ Positive"
+
                             st.session_state["ISS_PENDING_ACTION"] = {
                                 "action": "add_point",
                                 "card_uid": card_uid,
@@ -3307,12 +3339,14 @@ if page == "Dashboard":
                                 "date": date_str,
                             }
 
-                            # Dispatch ONE targeted action; Dashboard processes it
+                            st.session_state[neg_key] = "- Negative"
+
                             st.session_state["ISS_PENDING_ACTION"] = {
                                 "action": "add_point",
                                 "card_uid": card_uid,
                                 "payload": payload,
                             }
+                            _dashboard_request_keep_open(card_uid, ttl=2)
                             st.rerun()
 
                         st.selectbox(

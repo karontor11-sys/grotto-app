@@ -1,5 +1,6 @@
 import os
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_, func
@@ -563,6 +564,23 @@ class DatabaseManager:
     def get_session(self) -> Session:
         """Get a new database session."""
         return self.SessionLocal()
+
+    @contextmanager
+    def get_db_session(self):
+        """
+        Compatibility helper.
+
+        Some newer helper functions expect DatabaseManager.get_db_session()
+        as a context manager. This wraps get_session() and guarantees close().
+        """
+        session = self.get_session()
+        try:
+            yield session
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
     
     def generate_id(self) -> str:
         """Generate a unique identifier."""

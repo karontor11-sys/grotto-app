@@ -1203,6 +1203,10 @@ class DatabaseManager:
                     if iss_periods_served >= iss_total_required and iss_remaining_days <= 0 and not is_needs_makeup_status:
                         continue
                     
+                    if end_date and target_date > end_date and placement.status != PlacementStatus.completed:
+                        result.append(placement_dict)
+                        continue
+                    
                     # Include if has remaining days, needs makeup, or has needs_makeup status
                     if iss_remaining_days > 0 or needs_makeup or is_needs_makeup_status:
                         result.append(placement_dict)

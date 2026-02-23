@@ -1188,6 +1188,67 @@ if page == "Dashboard":
 
     placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat(), school_year_start=selected_sy_start)
 
+    from datetime import date as _date
+
+    def _to_date(x):
+        if x is None:
+            return None
+        if isinstance(x, _date):
+            return x
+        try:
+            return datetime.fromisoformat(str(x)).date()
+        except Exception:
+            try:
+                return datetime.strptime(str(x), "%Y-%m-%d").date()
+            except Exception:
+                return None
+
+    def normalize_placement(p: dict) -> dict:
+        if not isinstance(p, dict):
+            return p
+
+        out = dict(p)
+
+        if "placement_type" not in out or out.get("placement_type") is None:
+            out["placement_type"] = out.get("placementType") or out.get("type")
+
+        if "start_date" not in out or out.get("start_date") is None:
+            out["start_date"] = _to_date(out.get("startDate") or out.get("issStartDate"))
+        else:
+            out["start_date"] = _to_date(out.get("start_date"))
+
+        if "end_date" not in out or out.get("end_date") is None:
+            out["end_date"] = _to_date(out.get("endDate"))
+        else:
+            out["end_date"] = _to_date(out.get("end_date"))
+
+        if "student_name" not in out or out.get("student_name") is None:
+            student_obj = out.get("student") or {}
+            if isinstance(student_obj, dict):
+                fn = student_obj.get("firstName") or student_obj.get("first_name") or ""
+                ln = student_obj.get("lastName") or student_obj.get("last_name") or ""
+                full = (fn + " " + ln).strip()
+                out["student_name"] = full if full else None
+
+        if "student_id" not in out or out.get("student_id") is None:
+            out["student_id"] = out.get("studentId") or (out.get("student") or {}).get("_id")
+
+        if "iss_periods_served" not in out or out.get("iss_periods_served") is None:
+            out["iss_periods_served"] = out.get("issPeriodsServed")
+
+        if "iss_total_required_periods" not in out or out.get("iss_total_required_periods") is None:
+            out["iss_total_required_periods"] = out.get("issTotalRequiredPeriods") or out.get("requiredTotalPeriods")
+
+        if "iss_remaining_days" not in out or out.get("iss_remaining_days") is None:
+            out["iss_remaining_days"] = out.get("issRemainingDays")
+
+        if "id" not in out or out.get("id") is None:
+            out["id"] = out.get("_id")
+
+        return out
+
+    placements_for_date = [normalize_placement(p) for p in (placements_for_date or [])]
+
     def _dbg_get(p, key, default=None):
         if isinstance(p, dict):
             return p.get(key, default)

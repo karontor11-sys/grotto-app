@@ -1,0 +1,83 @@
+Normalize placement dicts right after fetching
+
+You’ll add a small normalization function in app.py (Dashboard page), then run your UI logic on the normalized list.
+
+Exact paste-in code
+Step 1) In app.py, on the Dashboard page, find the line where you fetch placements, like:
+placements = db.get_active_placements_for_date(selected_date, school_year_start)
+Step 2) Immediately AFTER it, paste this entire block:
+# ==============================
+# Normalize placement dicts (camelCase -> snake_case)
+# Fixes dashboard filters that expect snake_case keys.
+# ==============================
+from datetime import date as _date
+
+def _to_date(x):
+    if x is None:
+        return None
+    if isinstance(x, _date):
+        return x
+    # common stored format: "YYYY-MM-DD"
+    try:
+        return datetime.fromisoformat(str(x)).date()
+    except Exception:
+        try:
+            return datetime.strptime(str(x), "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+def normalize_placement(p: dict) -> dict:
+    if not isinstance(p, dict):
+        return p
+
+    # Start with a shallow copy
+    out = dict(p)
+
+    # Placement type
+    if "placement_type" not in out or out.get("placement_type") is None:
+        out["placement_type"] = out.get("placementType") or out.get("type")
+
+    # Dates
+    if "start_date" not in out or out.get("start_date") is None:
+        out["start_date"] = _to_date(out.get("startDate") or out.get("issStartDate"))
+    else:
+        out["start_date"] = _to_date(out.get("start_date"))
+
+    if "end_date" not in out or out.get("end_date") is None:
+        out["end_date"] = _to_date(out.get("endDate"))
+    else:
+        out["end_date"] = _to_date(out.get("end_date"))
+
+    # Student fields
+    # Prefer explicit student_name; otherwise build from nested student dict
+    if "student_name" not in out or out.get("student_name") is None:
+        student_obj = out.get("student") or {}
+        if isinstance(student_obj, dict):
+            fn = student_obj.get("firstName") or student_obj.get("first_name") or ""
+            ln = student_obj.get("lastName") or student_obj.get("last_name") or ""
+            full = (fn + " " + ln).strip()
+            out["student_name"] = full if full else None
+
+    if "student_id" not in out or out.get("student_id") is None:
+        out["student_id"] = out.get("studentId") or (out.get("student") or {}).get("_id")
+
+    # ISS fields (normalize the ones your UI commonly checks)
+    if "iss_periods_served" not in out or out.get("iss_periods_served") is None:
+        out["iss_periods_served"] = out.get("issPeriodsServed")
+
+    if "iss_total_required_periods" not in out or out.get("iss_total_required_periods") is None:
+        out["iss_total_required_periods"] = out.get("issTotalRequiredPeriods") or out.get("requiredTotalPeriods")
+
+    if "iss_remaining_days" not in out or out.get("iss_remaining_days") is None:
+        out["iss_remaining_days"] = out.get("issRemainingDays")
+
+    # Optional: keep legacy id fields consistent
+    if "id" not in out or out.get("id") is None:
+        out["id"] = out.get("_id")
+
+    return out
+
+placements = [normalize_placement(p) for p in (placements or [])]
+# ==============================
+# End normalization block
+# ==============================

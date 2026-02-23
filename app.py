@@ -1249,53 +1249,6 @@ if page == "Dashboard":
 
     placements_for_date = [normalize_placement(p) for p in (placements_for_date or [])]
 
-    def _dbg_get(p, key, default=None):
-        if isinstance(p, dict):
-            return p.get(key, default)
-        return getattr(p, key, default)
-
-    if st.session_state.get("show_admin_tools", False):
-        st.markdown("## 🔍 DEBUG: Placements Returned From DB (Raw)")
-        st.write(f"Selected Date: {selected_date}")
-        st.write(f"Type(placements): {type(placements_for_date)}")
-        st.write(f"Total placements fetched: {len(placements_for_date) if placements_for_date is not None else 'None'}")
-
-        for i, p in enumerate(placements_for_date or []):
-            st.markdown(f"### Item #{i+1}")
-            st.write(f"type(p): {type(p)}")
-
-            row = {
-                "id": _dbg_get(p, "id"),
-                "_id": _dbg_get(p, "_id"),
-                "placement_id": _dbg_get(p, "placement_id"),
-                "uuid": _dbg_get(p, "uuid"),
-                "student": _dbg_get(p, "student_name"),
-                "student_name": _dbg_get(p, "student_name"),
-                "studentName": _dbg_get(p, "studentName"),
-                "student_id": _dbg_get(p, "student_id"),
-                "studentId": _dbg_get(p, "studentId"),
-                "placement_type": _dbg_get(p, "placement_type"),
-                "placementType": _dbg_get(p, "placementType"),
-                "category": _dbg_get(p, "category"),
-                "status": _dbg_get(p, "status"),
-                "start_date": _dbg_get(p, "start_date"),
-                "end_date": _dbg_get(p, "end_date"),
-                "date": _dbg_get(p, "date"),
-                "iss_periods_served": _dbg_get(p, "iss_periods_served"),
-                "iss_total_required_periods": _dbg_get(p, "iss_total_required_periods"),
-                "iss_remaining_days": _dbg_get(p, "iss_remaining_days"),
-            }
-
-            st.write(row)
-
-            if isinstance(p, dict):
-                st.write("dict keys:", sorted(list(p.keys())))
-            else:
-                attrs = [a for a in dir(p) if not a.startswith("_")]
-                st.write("object attrs sample:", attrs[:60])
-
-            st.write("raw p:", p)
-
     # Date display
     st.subheader(f"{selected_date.strftime('%B %d, %Y')}")
     

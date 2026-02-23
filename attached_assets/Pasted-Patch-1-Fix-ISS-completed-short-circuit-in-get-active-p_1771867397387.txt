@@ -1,0 +1,84 @@
+Patch 1 — Fix ISS “completed” short-circuit in get_active_placements_for_date()
+
+File: db_manager.py
+Function: get_active_placements_for_date(...)
+Section: inside if placement_type == 'ISS': and inside “For today/future: Current active logic”
+
+Find this block (it’s in your ZIP exactly like this)
+# If ISS is completed, only show it on the dates it was actually active.
+if placement.status == PlacementStatus.completed:
+    if end_date:
+        if iss_start_date <= target_date <= end_date:
+            result.append(placement_dict)
+    elif target_date == iss_start_date:
+        result.append(placement_dict)
+    continue
+Replace it with this exact paste-in block
+# If ISS is marked completed, normally show it only during its historical active window.
+# HOWEVER: If it still owes time (data/status mismatch), treat it like needs_makeup on dates after end_date.
+if placement.status == PlacementStatus.completed:
+    if owes_time and end_date and target_date > end_date:
+        # Force visibility past end_date so staff can schedule/serve make-up time
+        result.append(placement_dict)
+        continue
+
+    if end_date:
+        if iss_start_date <= target_date <= end_date:
+            result.append(placement_dict)
+    elif target_date == iss_start_date:
+        result.append(placement_dict)
+    continue
+
+✅ This is the single most important fix for “Feb 24 shows nothing.”
+
+Patch 2 — Harden mark_absent() so it flips to needs_makeup even if end_date isn’t exactly that day
+
+Right now your “flip to needs_makeup” logic is too strict (it checks date_obj == placement.end_date). If the placement got completed early and end_date is earlier, it won’t flip.
+
+File: db_manager.py
+Function: mark_absent(self, placement_id: str, absent_date: str) -> bool:
+
+Find the existing ISS patch area you added near the bottom (right before session.commit())
+
+You currently have something like:
+
+if placement.placement_type == PlacementCategory.ISS:
+    try:
+        if placement.end_date and date_obj == placement.end_date:
+            served = placement.iss_periods_served or 0
+            required = placement.iss_total_required_periods or 0
+            ...
+            if served < required:
+                placement.status = PlacementStatus.needs_makeup
+    except Exception as e:
+        print(...)
+Replace that whole ISS block with this version (exact paste-in)
+# --- ISS: If the student is marked absent and still owes required time,
+# ensure the placement remains actionable (needs_makeup), especially once the original schedule is exhausted.
+if placement.placement_type == PlacementCategory.ISS:
+    try:
+        served = placement.iss_periods_served or 0
+
+        # Robust required-periods fallback (legacy-safe)
+        required = placement.iss_total_required_periods or 0
+        if required <= 0:
+            base_days = (
+                placement.original_day_count
+                or placement.iss_days_assigned
+                or placement.iss_total_days
+                or placement.days_assigned
+                or 1
+            )
+            required = int(base_days) * 10
+
+        owes_time = (served < required)
+
+        # If the placement owes time and this absent mark happens on/after the current end_date
+        # (or end_date is missing), force needs_makeup so it doesn't disappear on future dates.
+        if owes_time:
+            if placement.end_date is None or date_obj >= placement.end_date:
+                placement.status = PlacementStatus.needs_makeup
+                placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+
+    except Exception as e:
+        print(f"[ISS ABSENT -> NEEDS_MAKEUP] failed: {e}")

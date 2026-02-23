@@ -1206,8 +1206,11 @@ class DatabaseManager:
                     needs_makeup = (iss_remaining_days <= 0 and iss_periods_served < iss_total_required)
                     is_needs_makeup_status = placement.status == PlacementStatus.needs_makeup
                     
-                    # If ISS is completed, only show it on the dates it was actually active.
                     if placement.status == PlacementStatus.completed:
+                        if owes_time and end_date and target_date > end_date:
+                            result.append(placement_dict)
+                            continue
+
                         if end_date:
                             if iss_start_date <= target_date <= end_date:
                                 result.append(placement_dict)
@@ -1937,18 +1940,28 @@ class DatabaseManager:
 
             if placement.placement_type == PlacementCategory.ISS:
                 try:
-                    if placement.end_date and date_obj == placement.end_date:
-                        served = placement.iss_periods_served or 0
-                        required = placement.iss_total_required_periods or 0
+                    served = placement.iss_periods_served or 0
 
-                        if required <= 0:
-                            days_assigned = placement.iss_days_assigned or 1
-                            required = days_assigned * 10
+                    required = placement.iss_total_required_periods or 0
+                    if required <= 0:
+                        base_days = (
+                            placement.original_day_count
+                            or placement.iss_days_assigned
+                            or placement.iss_total_days
+                            or placement.days_assigned
+                            or 1
+                        )
+                        required = int(base_days) * 10
 
-                        if served < required:
+                    owes_time = (served < required)
+
+                    if owes_time:
+                        if placement.end_date is None or date_obj >= placement.end_date:
                             placement.status = PlacementStatus.needs_makeup
+                            placement.progress_status = PlacementProgressStatus.IN_PROGRESS
+
                 except Exception as e:
-                    print(f"[ISS ABSENT FINAL DAY -> NEEDS_MAKEUP] failed: {e}")
+                    print(f"[ISS ABSENT -> NEEDS_MAKEUP] failed: {e}")
             
             session.commit()
             return True

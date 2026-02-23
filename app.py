@@ -3891,12 +3891,48 @@ if page == "Dashboard":
     ]
     
     st.markdown("#### In-School Suspension (ISS)")
-    
+
+    def _safe_int(x, default=0):
+        try:
+            return int(x)
+        except Exception:
+            return default
+
+    def _to_date_str(x):
+        return str(x) if x else None
+
+    def _date_after(a: str, b: str) -> bool:
+        return bool(a and b and a > b)
+
+    selected_date_str_iss = selected_date.isoformat()
+
+    carryover_iss = []
+    for p in iss_placements:
+        p_id = p.get('_id')
+        if p_id in iss_session_placement_ids:
+            continue
+        status = (p.get("status") or "").lower()
+        if status not in ("active", "needs_makeup"):
+            continue
+
+        end_date_str = _to_date_str(p.get("endDate"))
+        if end_date_str and not _date_after(selected_date_str_iss, end_date_str):
+            continue
+
+        served = _safe_int(p.get("issPeriodsServed"))
+        required = _safe_int(p.get("issTotalRequiredPeriods") or p.get("requiredTotalPeriods"))
+        if required <= 0:
+            required = _safe_int(p.get("daysAssigned") or p.get("issDaysAssigned") or p.get("issTotalDays") or 1) * 10
+
+        if served < required:
+            carryover_iss.append(p)
+
     # First, show active sessions for the selected date
     has_active_sessions = len(iss_sessions) > 0
     has_completed_iss = len(completed_iss_without_session) > 0
-    
-    if not has_active_sessions and not has_completed_iss:
+    has_carryover = len(carryover_iss) > 0
+
+    if not has_active_sessions and not has_completed_iss and not has_carryover:
         st.caption("No students")
     else:
         # Show active sessions first
@@ -4130,6 +4166,11 @@ if page == "Dashboard":
                     placement_id=comp_pid,
                     show_admin_tools=show_admin_tools
                 )
+
+        if has_carryover:
+            st.markdown("**Needs Scheduling / Make-Up**")
+            for p in carryover_iss:
+                render_iss_full_card(p, target_date=selected_date)
     
     st.divider()
     

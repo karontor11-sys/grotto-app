@@ -1,0 +1,77 @@
+Exact paste-in patch (Dashboard ISS section)
+Where
+
+In app.py, search for this exact line:
+
+st.markdown("#### In-School Suspension (ISS)")
+
+A few lines below it you’ll see something like:
+
+# First, show active sessions for the selected date
+has_active_sessions = len(iss_sessions) > 0
+has_completed_iss = len(completed_iss_without_session) > 0
+
+if not has_active_sessions and not has_completed_iss:
+    st.info("No students")
+Replace that whole block with this
+st.markdown("#### In-School Suspension (ISS)")
+
+# --- NEW: show "carryover" ISS placements even if there is no ISS session row for this date ---
+def _safe_int(x, default=0):
+    try:
+        return int(x)
+    except Exception:
+        return default
+
+def _to_date_str(x):
+    # placement dict stores dates as "YYYY-MM-DD"
+    return str(x) if x else None
+
+def _date_after(a: str, b: str) -> bool:
+    # compare ISO strings safely
+    return bool(a and b and a > b)
+
+selected_date_str = selected_date.isoformat()
+
+carryover_iss = []
+for p in iss_placements:
+    status = (p.get("status") or "").lower()
+    if status not in ("active", "needs_makeup"):
+        continue
+
+    end_date_str = _to_date_str(p.get("endDate"))
+    # only treat as carryover if we're beyond original scheduled end date
+    if end_date_str and not _date_after(selected_date_str, end_date_str):
+        continue
+
+    served = _safe_int(p.get("issPeriodsServed"))
+    required = _safe_int(p.get("issTotalRequiredPeriods") or p.get("requiredTotalPeriods"))
+    if required <= 0:
+        required = _safe_int(p.get("daysAssigned") or p.get("issDaysAssigned") or p.get("issTotalDays") or 1) * 10
+
+    if served < required:
+        carryover_iss.append(p)
+
+# First, show active sessions for the selected date
+has_active_sessions = len(iss_sessions) > 0
+has_completed_iss = len(completed_iss_without_session) > 0
+has_carryover = len(carryover_iss) > 0
+
+if not has_active_sessions and not has_completed_iss and not has_carryover:
+    st.info("No students")
+else:
+    # 1) session-based ISS students (existing behavior)
+    if has_active_sessions:
+        for s in iss_sessions:
+            render_iss_session_card(s, target_date=selected_date)
+
+    # 2) completed ISS that have no session row (existing behavior)
+    if has_completed_iss:
+        for p in completed_iss_without_session:
+            render_completed_iss_collapsed_card(p, target_date=selected_date)
+
+    # 3) NEW: carryover ISS placements that still owe time (no session exists for today)
+    if has_carryover:
+        st.markdown("**Needs Scheduling / Make-Up**")
+        for p in carryover_iss:
+            render_iss_full_card(p, target_date=selected_date)

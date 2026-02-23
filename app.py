@@ -3925,6 +3925,17 @@ if page == "Dashboard":
             required = _safe_int(p.get("daysAssigned") or p.get("issDaysAssigned") or p.get("issTotalDays") or 1) * 10
 
         if served < required:
+            try:
+                today_local = central_today()
+            except Exception:
+                today_local = datetime.now().date()
+
+            if selected_date > today_local:
+                placement_id = p.get("_id") or p.get("id")
+                if placement_id:
+                    if dm.has_present_dailylog_on_date(placement_id, today_local.isoformat()):
+                        continue
+
             carryover_iss.append(p)
 
     # First, show active sessions for the selected date

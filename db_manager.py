@@ -582,6 +582,48 @@ class DatabaseManager:
             except Exception:
                 pass
     
+    def has_present_dailylog_on_date(self, placement_id: str, date_str: str) -> bool:
+        """
+        Returns True if this placement has a DailyLog on date_str that indicates the student
+        is present/working that day (checked_in True OR daily_fulfillment == 'yes'),
+        and NOT marked absent.
+        """
+        if not placement_id or not date_str:
+            return False
+
+        try:
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            return False
+
+        session = self.get_session()
+        try:
+            log = (
+                session.query(DailyLog)
+                .filter(
+                    DailyLog.placement_id == placement_id,
+                    DailyLog.date == d,
+                )
+                .first()
+            )
+
+            if not log:
+                return False
+
+            if getattr(log, "day_type", None) == "absent":
+                return False
+
+            checked_in = bool(getattr(log, "checked_in", False))
+            fulfilled = (getattr(log, "daily_fulfillment", None) == "yes")
+
+            return checked_in or fulfilled
+
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
+
     def generate_id(self) -> str:
         """Generate a unique identifier."""
         return str(uuid.uuid4())

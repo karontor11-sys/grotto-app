@@ -1,0 +1,96 @@
+ou’re going to do two tiny changes:
+
+Add one helper method to db_manager.py so the UI can ask: “Is this student present today for this placement?”
+
+In app.py (Dashboard → ISS → carryover bucket), skip those students when previewing a future date.
+
+# ==============================
+# PATCH 1/2 — db_manager.py
+# Add a helper to detect "present today" DailyLog for a placement
+# ==============================
+
+# In db_manager.py, inside the DatabaseManager class (same indentation as other methods),
+# paste this method anywhere below your get_session()/get_db_session() helpers.
+
+from datetime import datetime
+from contextlib import suppress
+
+def has_present_dailylog_on_date(self, placement_id: str, date_str: str) -> bool:
+    """
+    Returns True if this placement has a DailyLog on date_str that indicates the student
+    is present/working that day (checked_in True OR daily_fulfillment == 'yes'),
+    and NOT marked absent.
+
+    Used to prevent "previewing tomorrow" from showing students who are already in-seat today.
+    """
+    if not placement_id or not date_str:
+        return False
+
+    # Parse date_str (expects "YYYY-MM-DD")
+    try:
+        d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except Exception:
+        return False
+
+    session = self.get_session()
+    try:
+        log = (
+            session.query(DailyLog)
+            .filter(
+                DailyLog.placement_id == placement_id,
+                DailyLog.date == d,
+            )
+            .first()
+        )
+
+        if not log:
+            return False
+
+        # If absent, we do NOT treat as present (we WANT them to show tomorrow)
+        if getattr(log, "day_type", None) == "absent":
+            return False
+
+        checked_in = bool(getattr(log, "checked_in", False))
+        fulfilled = (getattr(log, "daily_fulfillment", None) == "yes")
+
+        return checked_in or fulfilled
+
+    finally:
+        with suppress(Exception):
+            session.close()
+
+
+
+# ==============================
+# PATCH 2/2 — app.py (Dashboard)
+# Suppress carryover ISS students when previewing a future date
+# if they are already "present today" in DailyLog.
+# ==============================
+
+# In app.py, find your "Needs Scheduling / Make-Up" carryover block under the ISS section,
+# where you build carryover_iss = [] and loop: for p in iss_placements:
+#
+# Inside that loop, AFTER you confirm they owe_time (served < required)
+# and BEFORE you append to carryover_iss, paste the block below.
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+# ... inside your carryover loop, right before carryover_iss.append(p):
+
+# Preview suppression:
+# If you're previewing a future date (e.g., Feb 24 while it's still Feb 23),
+# do NOT show students who are already present/working today.
+# Exception: if they were absent today, they should still show tomorrow (handled in DB helper).
+try:
+    today_local = datetime.now(ZoneInfo("America/Chicago")).date()
+except Exception:
+    today_local = datetime.now().date()
+
+# Only suppress when previewing a future day
+if selected_date > today_local:
+    placement_id = p.get("_id") or p.get("id")
+    if placement_id:
+        if dm.has_present_dailylog_on_date(placement_id, today_local.isoformat()):
+            # They're already in-seat today, so don't clutter tomorrow's preview
+            continue

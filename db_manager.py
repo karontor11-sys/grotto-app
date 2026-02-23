@@ -1918,6 +1918,21 @@ class DatabaseManager:
                 self._sync_lunch_detention_schedule_for_absences(
                     session, placement, trim_extras=False
                 )
+
+            if placement.placement_type == PlacementCategory.ISS:
+                try:
+                    if placement.end_date and date_obj == placement.end_date:
+                        served = placement.iss_periods_served or 0
+                        required = placement.iss_total_required_periods or 0
+
+                        if required <= 0:
+                            days_assigned = placement.iss_days_assigned or 1
+                            required = days_assigned * 10
+
+                        if served < required:
+                            placement.status = PlacementStatus.needs_makeup
+                except Exception as e:
+                    print(f"[ISS ABSENT FINAL DAY -> NEEDS_MAKEUP] failed: {e}")
             
             session.commit()
             return True

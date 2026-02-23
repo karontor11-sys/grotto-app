@@ -1,0 +1,90 @@
+A) Patch mark_absent() so “Absent on final scheduled day” triggers needs_makeup
+Where
+
+db_manager.py → find:
+
+def mark_absent(self, placement_id: str, absent_date: str) -> bool:
+
+Inside that function, scroll down to this part (you already have it):
+
+# Do NOT update progress_status - absent days don't affect status
+
+if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+    self._sync_lunch_detention_schedule_for_absences(
+        session, placement, trim_extras=False
+    )
+
+session.commit()
+return True
+Paste this block RIGHT BEFORE session.commit() (so it runs for ISS too)
+# --- ISS: If the final scheduled day is marked absent and the student still owes time,
+# flip the placement to needs_makeup so it remains visible going forward.
+if placement.placement_type == PlacementCategory.ISS:
+    try:
+        # Only apply when we're marking the last scheduled/end_date day absent
+        if placement.end_date and date_obj == placement.end_date:
+            served = placement.iss_periods_served or 0
+            required = placement.iss_total_required_periods or 0
+
+            # Fallback for legacy records with missing required periods
+            if required <= 0:
+                days_assigned = placement.iss_days_assigned or 1
+                required = days_assigned * 10
+
+            # If still owes periods, force needs_makeup (even if something else set it to completed)
+            if served < required:
+                placement.status = PlacementStatus.needs_makeup
+    except Exception as e:
+        print(f"[ISS ABSENT FINAL DAY -> NEEDS_MAKEUP] failed: {e}")
+
+So that bottom section becomes:
+
+if placement.placement_type == PlacementCategory.LUNCH_DETENTION:
+    self._sync_lunch_detention_schedule_for_absences(
+        session, placement, trim_extras=False
+    )
+
+# --- ISS patch block here ---
+
+session.commit()
+return True
+B) Patch get_active_placements_for_date() to always show ISS past end_date if not completed
+Where
+
+db_manager.py → find:
+
+def get_active_placements_for_date(self, target_date: date, school_year_start: int = None) -> List[Dict[str, Any]]:
+
+Inside the ISS block, find this exact section (you already have most of it):
+
+# For today/future: Current active logic
+iss_periods_served = placement.iss_periods_served or 0
+iss_total_required = placement.iss_total_required_periods or 0
+...
+# Include if has remaining days, needs makeup, or has needs_makeup status
+if iss_remaining_days > 0 or needs_makeup or is_needs_makeup_status:
+    result.append(placement_dict)
+Paste this block RIGHT BEFORE the final include check:
+# If we're beyond the original end_date and the placement is not completed,
+# keep it visible so staff can serve/schedule make-up time.
+if end_date and target_date > end_date and placement.status != PlacementStatus.completed:
+    result.append(placement_dict)
+    continue
+
+So it becomes:
+
+# Skip fully served ISS that hasn't been formally completed yet
+if iss_periods_served >= iss_total_required and iss_remaining_days <= 0 and not is_needs_makeup_status:
+    continue
+
+# --- PASTE-IN FIX START
+# If we're beyond the original end_date and the placement is not completed,
+# keep it visible so staff can serve/schedule make-up time.
+if end_date and target_date > end_date and placement.status != PlacementStatus.completed:
+    result.append(placement_dict)
+    continue
+# --- PASTE-IN FIX END
+
+# Include if has remaining days, needs makeup, or has needs_makeup status
+if iss_remaining_days > 0 or needs_makeup or is_needs_makeup_status:
+    result.append(placement_dict)

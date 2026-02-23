@@ -1,0 +1,129 @@
+"""
+REPLIT BUILD MODE PATCH
+
+Goal:
+Fix multi-day ISS where the final scheduled day is marked Absent:
+1) The placement should still appear on future dashboard dates (e.g., the next school day).
+2) The system should offer make-up days when all ORIGINAL scheduled dates are "accounted for"
+   (completed OR absent) AND the student still owes periods.
+
+This patch makes two targeted changes in db_manager.py:
+A) should_offer_makeup_days_strict(): treat absent original days as "accounted for" + require periods shortfall
+B) get_active_placements_for_date(): do NOT drop ISS placements just because target_date > end_date
+   when the placement still owes periods (make-up model).
+"""
+
+# =========================
+# (A) FIX: strict make-up offer logic
+# =========================
+# In db_manager.py, FIND this function:
+#     def should_offer_makeup_days_strict(self, placement: dict) -> bool:
+# Replace the ENTIRE function with the version below.
+
+def should_offer_makeup_days_strict(self, placement: dict) -> bool:
+    """
+    Strict make-up offer (ISS only).
+
+    Offer make-up days when:
+    - All ORIGINAL scheduled dates are "accounted for" (either completed OR marked absent),
+      ignoring make-up sessions, AND
+    - The student still owes periods under strict required total (originalDayCount * 10).
+
+    This fixes the real-world case where the FINAL scheduled day is Absent:
+    the schedule is exhausted, so the placement must transition into make-up flow.
+    """
+    if not placement:
+        return False
+
+    # Collect original scheduled dates from scheduled ISS sessions (ignore make-up)
+    original_dates = set()
+    scheduled_sessions = placement.get("scheduledIssSessions") or placement.get("scheduled_iss_sessions") or []
+    for sess in scheduled_sessions:
+        is_makeup = sess.get("isMakeup", False) or sess.get("is_makeup", False)
+        if not is_makeup:
+            d = sess.get("date", "")
+            if d:
+                original_dates.add(d)
+
+    # If no original dates, can't determine
+    if not original_dates:
+        return False
+
+    placement_id = placement.get("_id")
+    if not placement_id:
+        return False
+
+    session = self.get_session()
+    try:
+        logs = session.query(DailyLog).filter(DailyLog.placement_id == placement_id).all()
+
+        # Dates that are "accounted for" for ORIGINAL schedule:
+        # - Completed present day (daily_fulfillment == 'yes' and not absent)
+        # - OR marked absent (day_type == 'absent')
+        # Ignore make-up sessions (is_makeup_session == True)
+        accounted_dates = set()
+
+        for log in logs:
+            if not log.date:
+                continue
+
+            # Only explicit True means make-up; False/NULL treated as original (legacy-safe)
+            is_makeup = (log.is_makeup_session is True)
+            if is_makeup:
+                continue
+
+            iso = log.date.isoformat()
+
+            if log.day_type == "absent":
+                accounted_dates.add(iso)
+            elif log.daily_fulfillment == "yes" and log.day_type != "absent":
+                accounted_dates.add(iso)
+
+        # Only proceed if the ORIGINAL schedule is exhausted (every original date accounted for)
+        if not original_dates.issubset(accounted_dates):
+            return False
+
+        # Strict shortfall check (originalDayCount * 10)
+        periods_served = self.get_iss_periods_served(placement)
+        periods_required = self.get_iss_total_periods_required_strict(placement)
+
+        return periods_served < periods_required
+
+    finally:
+        session.close()
+
+
+# =========================
+# (B) FIX: dashboard visibility AFTER end_date for ISS make-up model
+# =========================
+# In db_manager.py, FIND get_active_placements_for_date() and locate this block inside:
+#     if placement_type == 'ISS':
+#         ...
+#         end_date = placement.end_date
+#         if end_date and target_date > end_date:
+#             continue
+#
+# Replace ONLY that end_date block with the version below.
+
+# --- REPLACEMENT BLOCK START ---
+end_date = placement.end_date
+
+# IMPORTANT:
+# For ISS, end_date often represents the last *original scheduled* day.
+# If the student is absent on the final scheduled day, they still owe periods and need make-up days.
+# In that situation, we must NOT hide the placement on future dates.
+if end_date and target_date > end_date:
+    # If the placement is truly completed, it should not appear after end_date.
+    if placement.status == PlacementStatus.completed:
+        continue
+
+    # If the placement still owes periods, allow it to show on future dates (make-up model).
+    iss_total_required = placement.iss_total_required_periods or 0
+    iss_periods_served = placement.iss_periods_served or 0
+
+    # If somehow fully served but not formally completed, don't keep showing it in the future.
+    if iss_total_required > 0 and iss_periods_served >= iss_total_required:
+        continue
+
+    # Otherwise: keep it visible for future dates so staff can schedule/serve make-up time.
+# --- REPLACEMENT BLOCK END ---

@@ -1133,10 +1133,17 @@ class DatabaseManager:
                     if target_date < iss_start_date:
                         continue
                     
-                    # Check if placement had ended by target_date (using authoritative end_date)
                     end_date = placement.end_date
+
                     if end_date and target_date > end_date:
-                        continue
+                        if placement.status == PlacementStatus.completed:
+                            continue
+
+                        iss_total_required = placement.iss_total_required_periods or 0
+                        iss_periods_served = placement.iss_periods_served or 0
+
+                        if iss_total_required > 0 and iss_periods_served >= iss_total_required:
+                            continue
                     
                     # For past dates: Use authoritative completion signals
                     if is_past:
@@ -3910,54 +3917,32 @@ class DatabaseManager:
 
     def should_offer_makeup_days_strict(self, placement: dict) -> bool:
         """
-        Strict trigger for offering make-up days (ISS only).
+        Strict make-up offer (ISS only).
 
-        Same intent as should_offer_makeup_days(), except the required total is computed
-        as (original_day_count * 10) regardless of partial schedules/overrides.
+        Offer make-up days when:
+        - All ORIGINAL scheduled dates are "accounted for" (either completed OR marked absent),
+          ignoring make-up sessions, AND
+        - The student still owes periods under strict required total (originalDayCount * 10).
+
+        This fixes the real-world case where the FINAL scheduled day is Absent:
+        the schedule is exhausted, so the placement must transition into make-up flow.
         """
         if not placement:
             return False
 
-        # Must be ISS placement
-        if placement.get('placementType', '') != 'ISS':
-            return False
-
-        # If already in make-up mode, don't prompt again
-        if placement.get('status', '') == 'needs_makeup':
-            return False
-
-        # Must have at least 1 assigned day
-        original_day_count = placement.get('originalDayCount') or placement.get('issDaysAssigned') or 0
-        if original_day_count < 1:
-            return False
-
-        # Strict served vs required
-        periods_served = self.get_iss_periods_served(placement)
-        periods_required_strict = self.get_iss_total_periods_required_strict(placement)
-
-        if periods_served >= periods_required_strict:
-            return False
-
-        # Must have original scheduled dates (non-make-up)
-        scheduled_iss_dates = placement.get('scheduledIssDates') or []
-        scheduled_sessions = placement.get('scheduledIssSessions') or []
-
         original_dates = set()
-
-        for date_str in scheduled_iss_dates:
-            original_dates.add(date_str)
-
+        scheduled_sessions = placement.get("scheduledIssSessions") or placement.get("scheduled_iss_sessions") or []
         for sess in scheduled_sessions:
-            is_makeup = sess.get('isMakeup', False) or sess.get('is_makeup', False)
+            is_makeup = sess.get("isMakeup", False) or sess.get("is_makeup", False)
             if not is_makeup:
-                d = sess.get('date', '')
+                d = sess.get("date", "")
                 if d:
                     original_dates.add(d)
 
         if not original_dates:
             return False
 
-        placement_id = placement.get('_id')
+        placement_id = placement.get("_id")
         if not placement_id:
             return False
 
@@ -3965,24 +3950,31 @@ class DatabaseManager:
         try:
             logs = session.query(DailyLog).filter(DailyLog.placement_id == placement_id).all()
 
-            completed_dates = set()
+            accounted_dates = set()
+
             for log in logs:
-                # Completed + present
-                if log.daily_fulfillment == 'yes' and log.day_type != 'absent':
-                    # Only explicit True means make-up; False/NULL = original day (legacy-safe)
-                    is_makeup = (log.is_makeup_session is True)
-                    if not is_makeup:
-                        # DailyLog uses "date" (Date), while scheduled dates are stored as "YYYY-MM-DD" strings.
-                        # Convert to ISO string so comparisons are consistent.
-                        if log.date:
-                            completed_dates.add(log.date.isoformat())
+                if not log.date:
+                    continue
 
-            # All original scheduled dates must be completed
-            for d in original_dates:
-                if d not in completed_dates:
-                    return False
+                is_makeup = (log.is_makeup_session is True)
+                if is_makeup:
+                    continue
 
-            return True
+                iso = log.date.isoformat()
+
+                if log.day_type == "absent":
+                    accounted_dates.add(iso)
+                elif log.daily_fulfillment == "yes" and log.day_type != "absent":
+                    accounted_dates.add(iso)
+
+            if not original_dates.issubset(accounted_dates):
+                return False
+
+            periods_served = self.get_iss_periods_served(placement)
+            periods_required = self.get_iss_total_periods_required_strict(placement)
+
+            return periods_served < periods_required
+
         finally:
             session.close()
 

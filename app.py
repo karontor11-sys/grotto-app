@@ -1187,7 +1187,24 @@ if page == "Dashboard":
     selected_sy_start = int(selected_sy[0])
 
     placements_for_date = get_active_placements_for_date_cached(selected_date.isoformat(), school_year_start=selected_sy_start)
-    
+
+    if st.session_state.get("show_admin_tools", False):
+        st.markdown("## 🔍 DEBUG: Placements Returned From DB")
+        st.write(f"Selected Date: {selected_date}")
+        st.write(f"Total placements fetched: {len(placements_for_date)}")
+
+        for p in placements_for_date:
+            st.write({
+                "id": p.get("id"),
+                "student": p.get("student_name"),
+                "placement_type": p.get("placement_type"),
+                "status": p.get("status"),
+                "start_date": p.get("start_date"),
+                "end_date": p.get("end_date"),
+                "iss_periods_served": p.get("iss_periods_served"),
+                "iss_total_required": p.get("iss_total_required_periods"),
+            })
+
     # Date display
     st.subheader(f"{selected_date.strftime('%B %d, %Y')}")
     

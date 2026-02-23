@@ -1,0 +1,66 @@
+1) db_manager.py — Expand future base_query to include completed
+
+In db_manager.py, inside:
+
+def get_active_placements_for_date(self, target_date: date, ...)
+
+Find this block:
+
+if is_future:
+    base_query = session.query(Placement).filter(
+        Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled]),
+        Placement.start_date <= target_date
+    )
+
+Replace it with:
+
+if is_future:
+    # Include COMPLETED as well so type-specific logic can decide what actually displays.
+    # This prevents "vanishing" records when a placement is mistakenly marked completed
+    # but still owes periods (common edge case after absences).
+    base_query = session.query(Placement).filter(
+        Placement.status.in_([
+            PlacementStatus.active,
+            PlacementStatus.needs_makeup,
+            PlacementStatus.scheduled,
+            PlacementStatus.completed
+        ]),
+        Placement.start_date <= target_date
+    )
+2) db_manager.py — Make ISS “owes time” override win even if status is completed
+
+Still inside get_active_placements_for_date(), in the ISS section (you already have this area), locate:
+
+# For today/future: Current active logic
+iss_periods_served = placement.iss_periods_served or 0
+iss_total_required = placement.iss_total_required_periods or 0
+
+Immediately after that, paste this required/owes block:
+
+# Robust required-periods fallback (handles legacy/edge cases)
+iss_total_required = placement.iss_total_required_periods or 0
+if iss_total_required <= 0:
+    base_days = (
+        placement.original_day_count
+        or placement.iss_days_assigned
+        or placement.iss_total_days
+        or placement.days_assigned
+        or 1
+    )
+    iss_total_required = int(base_days) * 10
+
+owes_time = (iss_periods_served < iss_total_required)
+
+Then find this existing block (you already added something similar earlier):
+
+if end_date and target_date > end_date and placement.status != PlacementStatus.completed:
+    result.append(placement_dict)
+    continue
+
+Replace that block with this stronger version:
+
+# If we're beyond the original end_date and the student still owes time,
+# ALWAYS keep it visible (even if status is incorrectly set to completed).
+if end_date and target_date > end_date and owes_time:
+    result.append(placement_dict)
+    continue

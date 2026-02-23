@@ -1087,7 +1087,12 @@ class DatabaseManager:
             
             if is_future:
                 base_query = session.query(Placement).filter(
-                    Placement.status.in_([PlacementStatus.active, PlacementStatus.needs_makeup, PlacementStatus.scheduled]),
+                    Placement.status.in_([
+                        PlacementStatus.active,
+                        PlacementStatus.needs_makeup,
+                        PlacementStatus.scheduled,
+                        PlacementStatus.completed
+                    ]),
                     Placement.start_date <= target_date
                 )
             elif is_past:
@@ -1179,6 +1184,17 @@ class DatabaseManager:
                     # For today/future: Current active logic
                     iss_periods_served = placement.iss_periods_served or 0
                     iss_total_required = placement.iss_total_required_periods or 0
+                    if iss_total_required <= 0:
+                        base_days = (
+                            placement.original_day_count
+                            or placement.iss_days_assigned
+                            or placement.iss_total_days
+                            or placement.days_assigned
+                            or 1
+                        )
+                        iss_total_required = int(base_days) * 10
+
+                    owes_time = (iss_periods_served < iss_total_required)
                     
                     # Calculate remaining days
                     iss_remaining_days = placement.iss_remaining_days or 0
@@ -1203,7 +1219,7 @@ class DatabaseManager:
                     if iss_periods_served >= iss_total_required and iss_remaining_days <= 0 and not is_needs_makeup_status:
                         continue
                     
-                    if end_date and target_date > end_date and placement.status != PlacementStatus.completed:
+                    if end_date and target_date > end_date and owes_time:
                         result.append(placement_dict)
                         continue
                     

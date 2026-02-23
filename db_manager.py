@@ -1138,12 +1138,6 @@ class DatabaseManager:
                     if end_date and target_date > end_date:
                         if placement.status == PlacementStatus.completed:
                             continue
-
-                        iss_total_required = placement.iss_total_required_periods or 0
-                        iss_periods_served = placement.iss_periods_served or 0
-
-                        if iss_total_required > 0 and iss_periods_served >= iss_total_required:
-                            continue
                     
                     # For past dates: Use authoritative completion signals
                     if is_past:

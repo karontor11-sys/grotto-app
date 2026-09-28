@@ -1365,13 +1365,9 @@ if page == "Dashboard":
             st.markdown(f"### {status_icon} {student_name}")
             st.caption(f"Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
             
-            # Summary line: "{issDaysAssigned}-day ISS Session for {Student Name}"
-            st.markdown(f"**{iss_days_assigned}-day ISS Session for {student_name}**")
-            
-            # Progress line: "Periods served: X of Y"
-            # Grey summary snapshot (date-aware)
-            st.info(
-                f"📊 **ISS:** Required **{iss_total_required_periods}** periods | "
+            st.markdown(
+                f"**{iss_days_assigned}-Day ISS Session** | "
+                f"Required **{iss_total_required_periods}** periods | "
                 f"Served **{iss_periods_served}** | "
                 f"Remaining **{iss_periods_remaining}**"
             )
@@ -1386,30 +1382,16 @@ if page == "Dashboard":
             # Check if this is a make-up session (days_completed >= iss_days_assigned but still needs periods)
             is_makeup_day = days_completed >= iss_days_assigned and not is_session_complete
             
-            # Day label or completion message
+            # Completion message
             if is_session_complete:
                 st.success("✅ **ISS Session complete**")
-            elif is_makeup_day or needs_makeup:
-                # Make-up days do NOT show a day number
-                st.warning(f"⚠️ **{iss_days_assigned}-Day ISS Session (Active – Needs Make-Up Periods)**")
-                st.caption(f"🔢 **Remaining Periods Needed:** {remaining_periods}")
-            else:
-                st.markdown(f"📅 **Day {current_day} of {iss_days_assigned} ISS Session**")
-                # Show remaining periods needed (for late arrivals and multi-day tracking)
-                if remaining_periods > 0:
-                    st.caption(f"🔢 **Remaining Periods Needed:** {remaining_periods}")
             
             # Check-in buttons (only for active ISS or needs_makeup, not completed Session)
             if not is_session_complete or needs_makeup:
                 st.markdown("---")
                 
-                # Show appropriate session label
                 if needs_makeup:
                     periods_remaining = iss_periods_remaining_total
-                    st.markdown("**Make-Up Session**")
-                    st.info(f"🔄 **Make-Up Session Needed:** {periods_remaining} periods remaining to complete ISS")
-                else:
-                    st.markdown("**Today's Session**")
                 
                 # Get day_type from daily log (safe access - daily_log may be None)
                 day_type = daily_log.get('dayType', None) if daily_log else None
@@ -1430,12 +1412,7 @@ if page == "Dashboard":
                     # card_uid for Full Day sessions (session_id is None for full-day)
                     card_uid = f"{placement_id}_full_{date_str}"
                     
-                    if is_makeup_session or is_makeup_day:
-                        st.markdown(f"### 📋 Make-Up Full Day Session ({full_day_periods} periods)")
-                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Make-Up Session")
-                    else:
-                        st.markdown(f"### 📋 Full Day ISS Session ({full_day_periods} periods)")
-                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
+                    st.markdown(f"**Full Day Session ({full_day_periods} periods)**")
                     
                     # Behaviors section
                     col_left, col_right = st.columns([1, 1])
@@ -1648,12 +1625,7 @@ if page == "Dashboard":
                     # Show Partial Day ISS Session Panel
                     is_makeup_session = daily_log.get('isMakeupSession', False)
                     
-                    if is_makeup_session or is_makeup_day:
-                        st.markdown("### 📋 Make-Up Partial Day Session")
-                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Make-Up Session")
-                    else:
-                        st.markdown("### 📋 Partial Day ISS Session")
-                        st.info(f"**{iss_days_assigned}-day ISS Session for {student_name}** · Day {current_day} of {iss_days_assigned} ISS Session")
+                    st.markdown("**Partial Day Session**")
                     
                     # Get stored period values from daily log (set during check-in)
                     start_period = daily_log.get('startPeriod') or 1
@@ -1905,9 +1877,6 @@ if page == "Dashboard":
                 
                 # Show schedule builder if "Yes" was clicked
                 if st.session_state.get(schedule_builder_key, False):
-                    st.info("**ISS Make-Up Days – Add additional dates and periods to complete remaining time.**")
-                    st.caption(f"Periods remaining: **{periods_remaining}**")
-                    
                     # Date picker for make-up dates
                     makeup_dates_key = f"makeup_dates_{placement_id}"
                     if makeup_dates_key not in st.session_state:
@@ -1999,15 +1968,7 @@ if page == "Dashboard":
                             st.rerun()
                 else:
                     # Show initial prompt
-                    st.warning(f"""
-                    **Make-up time needed**
-                    
-                    The original ISS session is complete, but the credited periods are short.
-                    
-                    - Expected: **{periods_required_display}** periods
-                    - Credited: **{periods_served_display}** periods
-                    - Short by: **{periods_remaining}** periods
-                    """)
+                    st.caption("Would you like to schedule make-up dates now?")
                     
                     col_yes, col_no, col_close = st.columns(3)
                     with col_yes:

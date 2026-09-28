@@ -1,0 +1,165 @@
+# ============================================================
+# STAGE 1 — ISS NEEDS SCHEDULING / MAKE-UP UI CLEANUP
+# ============================================================
+#
+# Make ONLY the Stage 1 UI changes described below.
+#
+# IMPORTANT:
+# Do NOT change the ISS points engine.
+# Do NOT change make-up scheduling logic.
+# Do NOT change required-period or served-period calculations.
+# Do NOT change placement completion logic.
+# Do NOT change database models or migrate any data.
+# Do NOT yet reroute make-up days through render_iss_session_card().
+# That will be handled separately in Stage 2.
+#
+#
+# ------------------------------------------------------------
+# 1. "NEEDS SCHEDULING / MAKE-UP" SUBTITLE
+# ------------------------------------------------------------
+#
+# In app.py, locate the Dashboard ISS section and the existing
+# carryover_iss / needs_makeup rendering logic.
+#
+# Keep the primary Dashboard heading:
+#
+#     In-School Suspension
+#
+# When carryover_iss contains at least one ISS placement that
+# genuinely still owes periods, display the smaller subtitle:
+#
+#     Needs Scheduling / Make-Up
+#
+# directly above the carryover/make-up records.
+#
+# Use the EXISTING carryover_iss determination rather than creating
+# a new ISS state or new database logic.
+#
+# The subtitle should only render when there is at least one
+# carryover/make-up record to display.
+#
+# When carryover_iss is empty, do not display the subtitle.
+#
+# If this subtitle already exists in approximately the correct
+# location, keep it and simply clean up its placement/styling as
+# necessary. Do not create a duplicate subtitle.
+#
+#
+# ------------------------------------------------------------
+# 2. CLEAN UP THE CARRYOVER / MAKE-UP CARD
+# ------------------------------------------------------------
+#
+# Locate render_iss_full_card() and specifically the UI rendered
+# when an ISS placement is in needs_makeup / carryover status.
+#
+# The current card repeats the same information several times with
+# messages/headings such as:
+#
+#     Needs Make-Up Periods
+#     Remaining Periods
+#     Make-Up Session
+#     additional info boxes explaining how many periods remain
+#
+# Simplify this presentation.
+#
+# At the top of the carryover/make-up card, display ONE concise
+# summary line using the values the app already calculates:
+#
+#     [X]-Day ISS Session | Required [required] periods |
+#     Served [served] | Remaining [remaining]
+#
+# For example:
+#
+#     3-Day ISS Session | Required 30 periods | Served 20 | Remaining 10
+#
+# Continue using the existing placement/session values to calculate
+# required, served, and remaining. Do NOT introduce a second
+# calculation method.
+#
+#
+# ------------------------------------------------------------
+# 3. REMOVE REDUNDANT MAKE-UP UI TEXT
+# ------------------------------------------------------------
+#
+# Within the needs_makeup/carryover portion of
+# render_iss_full_card(), remove or consolidate redundant
+# user-facing text that repeats information already communicated by:
+#
+#     Needs Scheduling / Make-Up
+#
+# and the new summary line.
+#
+# In particular, avoid displaying several consecutive headings,
+# warnings, captions, or info boxes that all say that the student
+# owes make-up periods.
+#
+# The resulting card should be visually simple:
+#
+#     Student information
+#
+#     3-Day ISS Session | Required 30 periods |
+#     Served 20 | Remaining 10
+#
+#     [existing make-up scheduling/day controls]
+#
+# For Stage 1, KEEP the existing functional controls underneath.
+# We are only cleaning up their presentation at this stage.
+#
+#
+# ------------------------------------------------------------
+# 4. DO NOT CHANGE FUNCTIONAL BEHAVIOR YET
+# ------------------------------------------------------------
+#
+# This is critical.
+#
+# Preserve the existing functionality underneath the cleaned-up
+# card, even if some of that functionality will be replaced during
+# Stage 2.
+#
+# Specifically, do NOT yet remove or rewrite:
+#
+# - make-up date creation
+# - Full Day / Partial Day make-up controls
+# - make-up period selection
+# - point-entry behavior
+# - DailyLog creation/update behavior
+# - ISSSession creation/update behavior
+# - absent handling
+# - remaining-period calculations
+# - placement completion
+# - Completed Placements behavior
+#
+# Stage 1 is VISUAL CLEANUP ONLY.
+#
+#
+# ------------------------------------------------------------
+# 5. PRESERVE THE EXISTING FUTURE-PREVIEW FIX
+# ------------------------------------------------------------
+#
+# Do not change the existing carryover_iss logic that prevents a
+# student who is actively serving ISS today from prematurely
+# appearing in tomorrow's "Needs Scheduling / Make-Up" preview.
+#
+# Preserve that behavior exactly.
+#
+#
+# ------------------------------------------------------------
+# EXPECTED RESULT AFTER STAGE 1
+# ------------------------------------------------------------
+#
+# A student who still owes ISS periods should appear beneath:
+#
+#     In-School Suspension
+#     Needs Scheduling / Make-Up
+#
+# Their card should clearly and concisely show something like:
+#
+#     3-Day ISS Session | Required 30 periods |
+#     Served 20 | Remaining 10
+#
+# The repeated make-up warnings/headings should be removed.
+#
+# The existing controls underneath should continue functioning
+# exactly as they did before this change.
+#
+# Do not make any broader refactors while completing Stage 1.

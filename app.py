@@ -114,7 +114,12 @@ def do_logout():
     st.rerun()
 
 # Authorized staff list for placement creation/editing
-AUTHORIZED_STAFF = ["Aaron Toronto", "Matthew Christie", "Todd Foster", "Chad Adamson"]
+AUTHORIZED_STAFF = [
+    "Aaron Toronto",
+    "Matthew Christie",
+    "Chris Gruenhagen",
+    "Chad Adamson",
+]
 
 # =========== DEBUG FLAG (remove after investigation) ===========
 DEBUG_PREPLANNED_DIAG = True

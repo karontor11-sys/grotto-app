@@ -125,6 +125,25 @@ AUTHORIZED_STAFF = [
 DEBUG_PREPLANNED_DIAG = True
 STAFF_OPTIONS = AUTHORIZED_STAFF + ["Add Staff"]  # "Add Staff" is a non-functional placeholder
 
+PERIOD_LABELS = {
+    1: "Advisory & Period 1",
+    2: "Period 2",
+    3: "Period 3",
+    4: "Period 4",
+    5: "Period 5",
+    6: "Period 6",
+    7: "Period 7",
+    8: "WIN",
+    9: "Period 8",
+    10: "Period 9",
+}
+
+def format_period(period):
+    """Return the current-school-year display label for an internal period slot."""
+    return PERIOD_LABELS.get(period, f"Period {period}")
+
+FULL_DAY_PERIOD_LABEL = "Advisory & Period 1, Periods 2-7, WIN, Periods 8-9"
+
 def build_points_hover_tooltip_html(total_points, required_points, point_events, positive_menu):
     """
     Builds the hover tooltip HTML for the big Points Total (e.g., 8 / 10).
@@ -653,7 +672,7 @@ def detect_session_conflicts(sessions):
                     if period in periods_used:
                         conflicts.append({
                             "indices": [periods_used[period], i],
-                            "message": f"Period {period} conflict on {session['date'].strftime('%m/%d/%Y')}"
+                            "message": f"{format_period(period)} conflict on {session['date'].strftime('%m/%d/%Y')}"
                         })
                     else:
                         periods_used[period] = i
@@ -1586,6 +1605,7 @@ if page == "Dashboard":
                             convert_start = st.selectbox(
                                 "Start Period",
                                 options=list(range(1, 11)),
+                                format_func=format_period,
                                 index=0,
                                 key=f"convert_start_{placement_id}_{date_str}"
                             )
@@ -1593,6 +1613,7 @@ if page == "Dashboard":
                             convert_end = st.selectbox(
                                 "End Period",
                                 options=list(range(1, 11)),
+                                format_func=format_period,
                                 index=min(convert_start - 1, 9) if convert_start else 0,
                                 key=f"convert_end_{placement_id}_{date_str}"
                             )
@@ -1603,7 +1624,7 @@ if page == "Dashboard":
                             st.error("End period must be >= start period")
                         
                         convert_periods = convert_end - convert_start + 1 if valid_range else 0
-                        st.info(f"This will set the session to **{convert_periods} periods** (periods {convert_start}-{convert_end})")
+                        st.info(f"This will set the session to **{convert_periods} periods** ({format_period(convert_start)}–{format_period(convert_end)})")
                         st.caption(f"Points earned so far: {total_points} · New target: {convert_periods} points")
                         
                         col_confirm_conv, col_cancel_conv = st.columns(2)
@@ -1641,7 +1662,7 @@ if page == "Dashboard":
                     
                     # Display period info (read-only since already checked in)
                     periods_count = end_period - start_period + 1
-                    st.markdown(f"**Periods:** {start_period} to {end_period} ({periods_count} periods)")
+                    st.markdown(f"**Periods:** {format_period(start_period)} to {format_period(end_period)} ({periods_count} periods)")
                     
                     # Show remaining periods after this session
                     periods_after_this_session = remaining_periods - periods_count
@@ -1812,6 +1833,7 @@ if page == "Dashboard":
                             partial_start = st.selectbox(
                                 "Start Period",
                                 options=list(range(1, 11)),
+                                format_func=format_period,
                                 index=0,
                                 key=f"partial_start_{placement_id}_{date_str}"
                             )
@@ -1821,13 +1843,14 @@ if page == "Dashboard":
                             partial_end = st.selectbox(
                                 "End Period",
                                 options=end_options,
+                                format_func=format_period,
                                 index=len(end_options) - 1,
                                 key=f"partial_end_{placement_id}_{date_str}"
                             )
                         
                         # Calculate and display periods covered and required points
                         periods_count = partial_end - partial_start + 1
-                        st.info(f"**Periods Covered:** {periods_count} (Period {partial_start} to {partial_end})")
+                        st.info(f"**Periods Covered:** {periods_count} ({format_period(partial_start)} to {format_period(partial_end)})")
                         st.markdown(f"**Required Points for this Session:** {periods_count}")
                         
                         col_confirm, col_cancel = st.columns(2)
@@ -1913,11 +1936,13 @@ if page == "Dashboard":
                     if makeup_day_type == "Partial Day":
                         col_start, col_end = st.columns(2)
                         with col_start:
-                            start_p = st.number_input("Start period", min_value=1, max_value=10, value=1, 
-                                                      key=f"makeup_start_{placement_id}")
+                            start_p = st.selectbox("Start period", options=list(range(1, 11)),
+                                                   format_func=format_period, index=0,
+                                                   key=f"makeup_start_{placement_id}")
                         with col_end:
-                            end_p = st.number_input("End period", min_value=1, max_value=10, value=10,
-                                                    key=f"makeup_end_{placement_id}")
+                            end_p = st.selectbox("End period", options=list(range(1, 11)),
+                                                 format_func=format_period, index=9,
+                                                 key=f"makeup_end_{placement_id}")
                     
                     # Add date button
                     if st.button("➕ Add Date", key=f"add_makeup_date_{placement_id}"):
@@ -1941,7 +1966,7 @@ if page == "Dashboard":
                             if entry['day_type'] == 'full':
                                 period_info = "Full Day (10 periods)"
                             else:
-                                period_info = f"Periods {entry['start_period']}–{entry['end_period']}"
+                                period_info = f"{format_period(entry['start_period'])}–{format_period(entry['end_period'])}"
                             col_info, col_remove = st.columns([4, 1])
                             with col_info:
                                 st.caption(f"• {entry_date}: {period_info}")
@@ -2071,9 +2096,9 @@ if page == "Dashboard":
         start_period = placement.get('startPeriod', 'N/A')
         end_period = placement.get('endPeriod', 'N/A')
         if start_period == end_period:
-            period_label = f"Period {start_period}"
+            period_label = format_period(start_period)
         else:
-            period_label = f"Periods {start_period}–{end_period}"
+            period_label = f"{format_period(start_period)}–{format_period(end_period)}"
         
         # Get points (lazy loading - only fetch if needed for display)
         point_events = dm.get_point_events_for_date(placement_id, date_str)
@@ -2645,13 +2670,13 @@ if page == "Dashboard":
             if periods_today:
                 periods_today.sort()
                 if len(periods_today) == 1:
-                    period_label = f"Period {periods_today[0]}"
+                    period_label = format_period(periods_today[0])
                 else:
                     # Check if consecutive
                     if periods_today == list(range(periods_today[0], periods_today[-1] + 1)):
-                        period_label = f"Periods {periods_today[0]}–{periods_today[-1]}"
+                        period_label = f"{format_period(periods_today[0])}–{format_period(periods_today[-1])}"
                     else:
-                        period_label = f"Periods {', '.join(map(str, periods_today))}"
+                        period_label = ", ".join(map(format_period, periods_today))
             else:
                 period_label = "No periods scheduled"
         else:
@@ -2659,21 +2684,21 @@ if page == "Dashboard":
             periods_today = dm.get_referral_periods_for_date(placement_id, target_date)
             if periods_today:
                 if len(periods_today) == 1:
-                    period_label = f"Period {periods_today[0]}"
+                    period_label = format_period(periods_today[0])
                 else:
                     # Check if consecutive
                     if periods_today == list(range(periods_today[0], periods_today[-1] + 1)):
-                        period_label = f"Periods {periods_today[0]}–{periods_today[-1]}"
+                        period_label = f"{format_period(periods_today[0])}–{format_period(periods_today[-1])}"
                     else:
-                        period_label = f"Periods {', '.join(map(str, periods_today))}"
+                        period_label = ", ".join(map(format_period, periods_today))
             else:
                 # Fallback to startPeriod/endPeriod for backward compatibility
                 start_period = placement.get('startPeriod', 'N/A')
                 end_period = placement.get('endPeriod', 'N/A')
                 if start_period == end_period:
-                    period_label = f"Period {start_period}"
+                    period_label = format_period(start_period)
                 else:
-                    period_label = f"Periods {start_period}–{end_period}"
+                    period_label = f"{format_period(start_period)}–{format_period(end_period)}"
                 periods_today = list(range(start_period, end_period + 1)) if isinstance(start_period, int) else []
         
         # Get reason
@@ -2709,7 +2734,7 @@ if page == "Dashboard":
             # Add Periods control (only for Behavior and Cool-Down, not completed)
             if subtype_key in ['behavior', 'cool_down'] and not is_completed:
                 # Calculate available periods (periods not already assigned)
-                all_periods = list(range(1, 11))  # P1-P10
+                all_periods = list(range(1, 11))  # Ten internal period slots
                 assigned_periods = periods_today if periods_today else []
                 available_periods = [p for p in all_periods if p not in assigned_periods]
                 
@@ -2722,7 +2747,7 @@ if page == "Dashboard":
                             selected_new_periods = st.multiselect(
                                 "Available Periods",
                                 options=available_periods,
-                                format_func=lambda x: f"Period {x}",
+                                format_func=format_period,
                                 label_visibility="collapsed"
                             )
                             
@@ -3245,14 +3270,14 @@ if page == "Dashboard":
                     
                     if day_type == "Full Day" and not is_day_type_locked:
                         # Show Confirm button for Full Day (requires explicit user action)
-                        st.caption("Full Day: Periods 1-10 (all periods)")
+                        st.caption(f"Full Day (10 periods): {FULL_DAY_PERIOD_LABEL}")
                         if st.button("Confirm Full Day", key=f"confirm_full_{card_uid}", type="primary"):
                             dm.update_iss_day_type(placement_id, date_str, 'full', 1, 10)
                             clear_dashboard_caches()
                             st.rerun()
                     elif day_type == "Full Day" and is_day_type_locked:
                         # Full Day already locked
-                        st.caption("Full Day: Periods 1-10 (all periods)")
+                        st.caption(f"Full Day (10 periods): {FULL_DAY_PERIOD_LABEL}")
                     elif day_type == "Partial Day" and not is_day_type_locked:
                         # Show Start and End Period dropdowns (only if not locked)
                         period_options = list(range(1, 11))  # 1-10
@@ -3269,12 +3294,14 @@ if page == "Dashboard":
                             selected_start_period = st.selectbox(
                                 "Start Period*",
                                 options=period_options,
+                                format_func=format_period,
                                 key=start_period_key
                             )
                         with period_col2:
                             selected_end_period = st.selectbox(
                                 "End Period*",
                                 options=period_options,
+                                format_func=format_period,
                                 key=end_period_key
                             )
                         
@@ -3297,7 +3324,7 @@ if page == "Dashboard":
                                     st.rerun()
                     elif day_type == "Partial Day" and is_day_type_locked:
                         # Show locked partial day info
-                        st.caption(f"Partial Day: Periods {stored_start_period}-{stored_end_period}")
+                        st.caption(f"Partial Day: {format_period(stored_start_period)}–{format_period(stored_end_period)}")
                 
                 # Show message only until the user chooses Partial Day (scheduler visible) OR the day type is locked.
                 # This is a UI-only tweak; it does not affect save/lock/validation logic.
@@ -3694,11 +3721,13 @@ if page == "Dashboard":
                     if makeup_day_type == "Partial Day":
                         col_start, col_end = st.columns(2)
                         with col_start:
-                            start_p = st.number_input("Start period", min_value=1, max_value=10, value=1, 
-                                                      key=f"makeup_start_final_{placement_id}")
+                            start_p = st.selectbox("Start period", options=list(range(1, 11)),
+                                                   format_func=format_period, index=0,
+                                                   key=f"makeup_start_final_{placement_id}")
                         with col_end:
-                            end_p = st.number_input("End period", min_value=1, max_value=10, value=10,
-                                                    key=f"makeup_end_final_{placement_id}")
+                            end_p = st.selectbox("End period", options=list(range(1, 11)),
+                                                 format_func=format_period, index=9,
+                                                 key=f"makeup_end_final_{placement_id}")
                     
                     # Add date button
                     if st.button("➕ Add Date", key=f"add_makeup_date_final_{placement_id}"):
@@ -3722,7 +3751,7 @@ if page == "Dashboard":
                             if entry['day_type'] == 'full':
                                 period_info = "Full Day (10 periods)"
                             else:
-                                period_info = f"Periods {entry['start_period']}–{entry['end_period']}"
+                                period_info = f"{format_period(entry['start_period'])}–{format_period(entry['end_period'])}"
                             col_info, col_remove = st.columns([4, 1])
                             with col_info:
                                 st.caption(f"• {entry_date}: {period_info}")
@@ -4668,7 +4697,7 @@ elif page == "Placements":
             with sched_col1:
                 start_date = st.date_input("Date*", value=central_today(), key="br_start_date")
             with sched_col2:
-                selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="br_period")
+                selected_period = st.selectbox("Period*", options=list(range(1, 11)), format_func=format_period, key="br_period")
             
             created_by = st.selectbox("Created By*", STAFF_OPTIONS, key="br_created_by")
             
@@ -4745,7 +4774,7 @@ elif page == "Placements":
             with sched_col1:
                 cooldown_date = st.date_input("Date*", value=central_today(), key="cd_date")
             with sched_col2:
-                selected_period = st.selectbox("Period*", options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"P{x}", key="cd_period")
+                selected_period = st.selectbox("Period*", options=list(range(1, 11)), format_func=format_period, key="cd_period")
             
             created_by = st.selectbox("Created By*", STAFF_OPTIONS, key="cd_created_by")
             
@@ -4864,7 +4893,7 @@ elif page == "Placements":
                         f"Periods",
                         options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                         default=row_data.get("periods", [1]),
-                        format_func=lambda x: f"Period {x}",
+                        format_func=format_period,
                         key=f"pp_periods_0",
                         label_visibility="collapsed"
                     )
@@ -4893,7 +4922,7 @@ elif page == "Placements":
                             f"Periods",
                             options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                             default=row_data.get("periods", [1]),
-                            format_func=lambda x: f"Period {x}",
+                            format_func=format_period,
                             key=f"pp_periods_{idx}",
                             label_visibility="collapsed"
                         )
@@ -5672,7 +5701,7 @@ elif page == "ISS Detail":
     periods_covered = []
     if selected_day_type == "full":
         st.subheader("2. Periods Covered")
-        st.success("✓ All 10 periods automatically marked (Periods 1-10)")
+        st.success(f"✓ All 10 periods automatically marked ({FULL_DAY_PERIOD_LABEL})")
         periods_covered = list(range(1, 11))
         
     elif selected_day_type == "partial":
@@ -5687,7 +5716,7 @@ elif page == "ISS Detail":
             period = i + 1
             with cols_row1[i]:
                 checked = period in existing_periods if is_completed else False
-                if st.checkbox(f"Period {period}", key=f"period_{period}", value=checked, disabled=is_completed):
+                if st.checkbox(format_period(period), key=f"period_{period}", value=checked, disabled=is_completed):
                     periods_covered.append(period)
         
         col6, col7, col8, col9, col10 = st.columns(5)
@@ -5697,7 +5726,7 @@ elif page == "ISS Detail":
             period = i + 6
             with cols_row2[i]:
                 checked = period in existing_periods if is_completed else False
-                if st.checkbox(f"Period {period}", key=f"period_{period}", value=checked, disabled=is_completed):
+                if st.checkbox(format_period(period), key=f"period_{period}", value=checked, disabled=is_completed):
                     periods_covered.append(period)
         
         if not periods_covered and not is_completed:

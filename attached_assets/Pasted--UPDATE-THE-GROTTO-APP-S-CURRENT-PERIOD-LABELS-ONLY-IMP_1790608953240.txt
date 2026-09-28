@@ -1,0 +1,157 @@
+# UPDATE THE GROTTO APP'S CURRENT PERIOD LABELS ONLY.
+#
+# IMPORTANT:
+# Keep the existing internal period values 1 through 10.
+# Do NOT change PERIODS_PER_FULL_DAY.
+# Do NOT change the 10-point daily system.
+# Do NOT change ISS required-period calculations.
+# Do NOT migrate or modify historical database records.
+#
+# The ten internal period slots should now DISPLAY as:
+#
+# 1  = Advisory & Period 1
+# 2  = Period 2
+# 3  = Period 3
+# 4  = Period 4
+# 5  = Period 5
+# 6  = Period 6
+# 7  = Period 7
+# 8  = WIN
+# 9  = Period 8
+# 10 = Period 9
+#
+# Add this shared display mapping near the other app-level constants in app.py:
+
+PERIOD_LABELS = {
+    1: "Advisory & Period 1",
+    2: "Period 2",
+    3: "Period 3",
+    4: "Period 4",
+    5: "Period 5",
+    6: "Period 6",
+    7: "Period 7",
+    8: "WIN",
+    9: "Period 8",
+    10: "Period 9",
+}
+
+def format_period(period):
+    """Return the current-school-year display label for an internal period slot."""
+    return PERIOD_LABELS.get(period, f"Period {period}")
+
+
+# NOW UPDATE ALL USER-FACING PERIOD SELECTION CONTROLS IN app.py.
+#
+# Wherever a selectbox/multiselect currently uses:
+#
+#     options=list(range(1, 11))
+#
+# or:
+#
+#     options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+#
+# keep those SAME numeric options, but display them with:
+#
+#     format_func=format_period
+#
+# This includes ALL placement workflows where the user chooses periods,
+# including:
+#
+# - ISS partial-day Start Period / End Period
+# - ISS scheduling
+# - ISS make-up/additional periods
+# - Behavior Referral period selection
+# - Cool Down period selection
+# - Class Period placements
+# - Pre-Planned placements
+# - Any other user-facing control that selects one or more periods
+#
+# For example, change a control like:
+#
+# selected_period = st.selectbox(
+#     "Period*",
+#     options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+#     format_func=lambda x: f"P{x}",
+#     key="br_period"
+# )
+#
+# to:
+#
+# selected_period = st.selectbox(
+#     "Period*",
+#     options=list(range(1, 11)),
+#     format_func=format_period,
+#     key="br_period"
+# )
+#
+# Apply the same display formatting to the Cool Down period selector and
+# every other equivalent period selector.
+#
+#
+# NUMBER INPUTS:
+#
+# There are also Start Period / End Period controls currently implemented
+# as st.number_input() with values 1-10. A number_input cannot display the
+# new descriptive labels properly.
+#
+# Replace USER-FACING period number_inputs with selectboxes while preserving
+# the numeric value returned to the existing logic.
+#
+# Example:
+#
+# start_p = st.selectbox(
+#     "Start period",
+#     options=list(range(1, 11)),
+#     format_func=format_period,
+#     index=0,
+#     key=<KEEP THE EXISTING UNIQUE KEY>
+# )
+#
+# end_p = st.selectbox(
+#     "End period",
+#     options=list(range(1, 11)),
+#     format_func=format_period,
+#     index=9,
+#     key=<KEEP THE EXISTING UNIQUE KEY>
+# )
+#
+# Preserve each existing widget's current unique key and surrounding logic.
+#
+#
+# USER-FACING TEXT:
+#
+# Update CURRENT workflow text that explicitly tells the user
+# "Periods 1-10", "P1-P10", or similar language when it is describing
+# today's full school day.
+#
+# A current full day should be described as the complete 10-slot day:
+#
+# Advisory & Period 1, Periods 2-7, WIN, Periods 8-9
+#
+# Do NOT rewrite historical saved placement information merely because it
+# contains an old Period 1-10 description.
+#
+#
+# CRITICAL LOGIC REQUIREMENTS:
+#
+# 1. Internal period values MUST remain integers 1 through 10.
+# 2. A full day MUST remain exactly 10 periods.
+# 3. Maximum daily points MUST remain exactly 10.
+# 4. A 3-day full ISS MUST still require 30 periods, not 33.
+# 5. Existing list(range(1, 11)) database/business logic should remain
+#    unchanged when it represents the ten internal period slots.
+# 6. Do NOT change PERIODS_PER_FULL_DAY from 10.
+# 7. Do NOT perform any database migration.
+# 8. Do NOT replace period values stored in existing records.
+# 9. Do NOT alter historical completed placements.
+# 10. Preserve all existing ISS completion, make-up, partial-day, points,
+#     and period-credit calculations.
+#
+# The purpose of this change is to RELABEL the existing ten internal
+# period slots for the school's new schedule, NOT to redesign the
+# underlying ten-period Grotto system.
+#
+# After making the changes, search app.py for all user-facing period
+# selectors and verify that none still present the old P1-P10 labels.
+# Also verify that the underlying database/business logic continues
+# treating a full day as 10 periods.

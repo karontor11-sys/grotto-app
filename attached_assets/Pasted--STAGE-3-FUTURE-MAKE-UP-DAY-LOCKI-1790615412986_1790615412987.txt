@@ -1,0 +1,377 @@
+# ============================================================
+# STAGE 3 — FUTURE MAKE-UP DAY LOCKING + FINAL WORKFLOW
+# SAFEGUARDS
+# ============================================================
+#
+# Stage 1 cleaned up the Needs Scheduling / Make-Up UI.
+#
+# Stage 2 changed scheduled make-up dates so they create normal
+# PartialDaySession records and are serviced through the normal
+# render_iss_session_card() ISS day/points engine.
+#
+# Stage 3 should now make sure FUTURE scheduled make-up days behave
+# exactly like other future ISS sessions and that the existing
+# final placement-completion behavior remains intact.
+#
+# IMPORTANT:
+#
+# Do NOT redesign the ISS workflow.
+# Do NOT change the 10-period / 10-point system.
+# Do NOT change historical records.
+# Do NOT rewrite placement completion logic that is already working.
+# Do NOT create a separate make-up locking system if the existing
+# future-session lock can be reused.
+#
+#
+# ============================================================
+# PART 1 — USE THE EXISTING FUTURE-DATE LOCK
+# ============================================================
+#
+# Locate:
+#
+#     render_iss_session_card()
+#
+# This function already contains logic that prevents staff from
+# interacting with a normal ISS session when the selected Dashboard
+# date is in the future.
+#
+# Make sure a make-up session created in Stage 2 follows this EXACT
+# same future-date protection.
+#
+# A scheduled make-up session where:
+#
+#     session_date > today
+#
+# must NOT expose:
+#
+# - Check In
+# - Absent
+# - Full Day / Partial Day controls
+# - period selection
+# - point-entry controls
+# - behavior controls
+# - completion buttons
+#
+# Do NOT duplicate the existing future-date comparison if the
+# current render_iss_session_card() guard already covers the
+# make-up session naturally.
+#
+# Prefer allowing the Stage 2 PartialDaySession to flow through the
+# existing guard.
+#
+#
+# ============================================================
+# PART 2 — COLLAPSED FUTURE MAKE-UP CARD
+# ============================================================
+#
+# When a scheduled make-up ISS session is being viewed BEFORE its
+# scheduled date, display it in the same compact/collapsed style
+# used for other future ISS records.
+#
+# The user should be able to identify:
+#
+# - Student name
+# - Grade / team if normally shown
+# - That this is an ISS make-up session
+# - The scheduled date
+# - That the record is locked until that date
+#
+# Use concise wording such as:
+#
+#     Make-Up Day — Scheduled for [date]
+#     Locked until the day of the event
+#
+# or match the wording/style already used by the app's existing
+# future ISS lock.
+#
+# DO NOT build a new expanded make-up interface for future dates.
+#
+# The future card should remain visually compact.
+#
+#
+# ============================================================
+# PART 3 — UNLOCK NATURALLY ON THE MAKE-UP DATE
+# ============================================================
+#
+# When:
+#
+#     session_date == today
+#
+# the future-date lock should no longer apply.
+#
+# The make-up session should then automatically display the normal
+# active ISS controls already provided by:
+#
+#     render_iss_session_card()
+#
+# Staff should be able to:
+#
+#     Check In
+#       ->
+#     choose Full Day / Partial Day as appropriate
+#       ->
+#     enter normal period-by-period points
+#       ->
+#     complete the day
+#
+# Do NOT require a separate "unlock" action.
+#
+# Do NOT create a separate make-up check-in workflow.
+#
+#
+# ============================================================
+# PART 4 — PRESERVE ABSENCE HANDLING
+# ============================================================
+#
+# Once the make-up date is actually current, preserve the normal
+# Absent functionality already available in the ISS session card.
+#
+# If the student is absent again on the scheduled make-up date,
+# use the existing ISS absence / remaining-period behavior.
+#
+# Do NOT automatically award periods or points for an absent
+# make-up day.
+#
+# Do NOT force the overall placement complete merely because the
+# scheduled make-up date has passed.
+#
+# The placement should remain active / needs_makeup whenever:
+#
+#     served_periods < required_periods
+#
+#
+# ============================================================
+# PART 5 — PRESERVE THE FUTURE-PREVIEW CARRYOVER GUARD
+# ============================================================
+#
+# Keep the previously implemented Dashboard protection that prevents
+# a student who is actively serving ISS TODAY from prematurely
+# appearing in tomorrow's Needs Scheduling / Make-Up section.
+#
+# Do NOT remove or weaken that condition.
+#
+# A future make-up session should appear only when it has actually
+# been scheduled or when the existing carryover logic legitimately
+# determines that additional scheduling is required.
+#
+#
+# ============================================================
+# PART 6 — PREVENT DUPLICATE CARDS
+# ============================================================
+#
+# Reconfirm the Stage 2 behavior:
+#
+# If a make-up PartialDaySession exists for the selected Dashboard
+# date, that placement must be rendered through the normal
+# iss_sessions pathway.
+#
+# It must NOT simultaneously appear again as a carryover_iss card
+# under Needs Scheduling / Make-Up for the same selected date.
+#
+# Continue using the existing:
+#
+#     iss_session_placement_ids
+#
+# exclusion logic where possible.
+#
+# Do NOT introduce a second duplicate-prevention system unless
+# absolutely necessary.
+#
+#
+# ============================================================
+# PART 7 — PRESERVE FINAL PLACEMENT COMPLETION
+# ============================================================
+#
+# The existing overall ISS completion behavior already worked in
+# the previous test and should remain authoritative.
+#
+# After a make-up day is completed, use the existing calculations
+# to determine:
+#
+#     required_periods
+#     served_periods
+#     remaining_periods
+#
+# If:
+#
+#     served_periods >= required_periods
+#
+# allow the EXISTING completion pathway to close the overall ISS
+# placement.
+#
+# Preserve the behavior that:
+#
+# - the active ISS placement disappears from the Dashboard
+# - needs_makeup is cleared/resolved as appropriate
+# - the placement is marked complete
+# - the completed placement is stored/displayed in Completed
+#   Placements
+# - the existing completed-placement status indicator remains intact
+#
+# Do NOT create a second completion routine specifically for
+# make-up sessions.
+#
+#
+# ============================================================
+# PART 8 — IF PERIODS STILL REMAIN, KEEP THE PLACEMENT ACTIVE
+# ============================================================
+#
+# This is especially important for partial make-up days.
+#
+# Example:
+#
+# Required = 30
+# Served before make-up = 20
+# Make-up day serves only 5 periods
+# New served total = 25
+# Remaining = 5
+#
+# In that situation:
+#
+# DO NOT complete the placement.
+#
+# It should return/remain in the existing:
+#
+#     Needs Scheduling / Make-Up
+#
+# state so another make-up date can be scheduled for the final
+# remaining periods.
+#
+# Continue using the existing required-vs-served calculation as
+# the source of truth.
+#
+#
+# ============================================================
+# PART 9 — CACHE / DASHBOARD REFRESH
+# ============================================================
+#
+# When a make-up day is completed or its state changes in a way that
+# affects Dashboard visibility, use the app's EXISTING cache clearing
+# mechanism:
+#
+#     clear_dashboard_caches()
+#
+# before the appropriate st.rerun().
+#
+# This should allow:
+#
+# - completed make-up sessions to disappear correctly
+# - still-incomplete placements to return to Needs Scheduling /
+#   Make-Up correctly
+# - fully completed placements to disappear from active ISS
+# - the Dashboard to show the current state after rerun
+#
+# Do NOT create a new cache system.
+#
+#
+# ============================================================
+# EXPECTED END-TO-END BEHAVIOR
+# ============================================================
+#
+# EXAMPLE:
+#
+# Student has a 3-Day ISS:
+#
+#     Required: 30 periods
+#
+# Student serves:
+#
+#     Day 1 = 10
+#     Day 2 = 10
+#     Day 3 = Absent
+#
+# Placement becomes:
+#
+#     Required 30 | Served 20 | Remaining 10
+#
+# and appears under:
+#
+#     Needs Scheduling / Make-Up
+#
+# Staff schedules Tuesday as the make-up day.
+#
+#
+# BEFORE TUESDAY:
+#
+# If Tuesday is viewed in advance, the scheduled make-up session
+# appears as a compact future record:
+#
+#     Make-Up Day — Scheduled for Tuesday
+#     Locked until the day of the event
+#
+# No attendance or points controls are available.
+#
+#
+# ON TUESDAY:
+#
+# The same session automatically unlocks and uses the normal ISS
+# workflow:
+#
+#     Check In
+#       ->
+#     Full Day / Partial Day
+#       ->
+#     normal points entry
+#       ->
+#     Complete Day
+#
+#
+# IF ALL 10 REMAINING PERIODS ARE SERVED:
+#
+#     Required 30
+#     Served 30
+#     Remaining 0
+#
+# The existing completion system closes the overall placement and
+# it behaves like any other completed ISS placement.
+#
+#
+# IF ONLY 5 ARE SERVED:
+#
+#     Required 30
+#     Served 25
+#     Remaining 5
+#
+# The overall placement remains active and returns to:
+#
+#     Needs Scheduling / Make-Up
+#
+# so the remaining five periods can be scheduled later.
+#
+#
+# ============================================================
+# FINAL VERIFICATION
+# ============================================================
+#
+# Before finishing Stage 3, verify:
+#
+# 1. Future scheduled make-up sessions cannot be checked in early.
+#
+# 2. Future scheduled make-up sessions cannot have points entered.
+#
+# 3. Future make-up cards use the existing compact/locked future
+#    presentation rather than an expanded active-day card.
+#
+# 4. The session unlocks naturally when its date becomes current.
+#
+# 5. The normal ISS points engine is still used on the make-up day.
+#
+# 6. A second absence does not award periods and does not falsely
+#    complete the placement.
+#
+# 7. Partial make-up completion leaves the correct remaining periods
+#    and returns the placement to Needs Scheduling / Make-Up.
+#
+# 8. Full completion uses the existing placement completion pathway.
+#
+# 9. No duplicate active/carryover card appears for the same
+#    placement/date.
+#
+# 10. PERIODS_PER_FULL_DAY remains 10 and the daily points maximum
+#     remains 10.
+#
+# 11. Historical records remain untouched.
+#
+# 12. Preserve all Stage 1 and Stage 2 changes.
+#
+# Do not perform unrelated refactoring.

@@ -1125,7 +1125,8 @@ if page == "Dashboard":
                     st.error(result.get("message", "Failed to complete ISS day"))
 
         finally:
-            # Clear caches after processing
+            # Refresh Dashboard lists after points, completion, or attendance changes.
+            clear_dashboard_caches()
             if hasattr(st, "cache_data"):
                 st.cache_data.clear()
 
@@ -2968,7 +2969,7 @@ if page == "Dashboard":
             is_future_placement = True
         
         # If this is a future-dated placement, show locked card
-        if is_future_placement:
+        if is_future_placement and not is_makeup_session:
             # Get ISS days for the label
             placement_data = dm.get_placement(placement_id)
             iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
@@ -3021,7 +3022,10 @@ if page == "Dashboard":
                 iss_total_days = 1
 
             days_label = "Day" if iss_total_days == 1 else "Days"
-            title_line = f"{iss_total_days}-{days_label} ISS Session"
+            title_line = (
+                f"Make-Up Day — Scheduled for {_format_date_with_ordinal_shared(target_date)}"
+                if is_makeup_session else f"{iss_total_days}-{days_label} ISS Session"
+            )
 
             _render_standard_future_day_expanded_view(
                 progress_status=iss_session.get('progressStatus', 'NOT_STARTED'),
@@ -4089,10 +4093,21 @@ if page == "Dashboard":
                 # Build a stable ISS card_uid that matches render_iss_session_card()
                 session_key = session_id if session_id is not None else "full"
                 iss_card_uid = f"{placement_id}_{session_key}_{date_str}"
+                future_makeup = bool(iss_session.get('is_makeup_session')) and selected_date > central_today()
+                if future_makeup:
+                    grade_line = _format_grade_homeroom_line(
+                        iss_session.get('grade'), iss_session.get('homeroom_teacher')
+                    )
+                    card_title = (
+                        f"{status_circle} {student_name} · Make-Up Day — Scheduled for "
+                        f"{_format_date_with_ordinal_shared(selected_date)} · {grade_line} · 🔒 Locked until this date"
+                    )
+                else:
+                    card_title = f"{status_circle} {student_name}{' · In Progress' if status_circle == '🟡' else ''}"
 
                 with st.expander(
-                    f"{status_circle} {student_name}{' · In Progress' if status_circle == '🟡' else ''}",
-                    expanded=_dashboard_should_expand(iss_card_uid)
+                    card_title,
+                    expanded=False if future_makeup else _dashboard_should_expand(iss_card_uid)
                 ):
                     render_iss_session_card(iss_session, selected_date)
         

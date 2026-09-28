@@ -3083,6 +3083,10 @@ class DatabaseManager:
                 if placement and placement.status in [PlacementStatus.active, PlacementStatus.scheduled, PlacementStatus.needs_makeup, PlacementStatus.completed]:
                     student = db_session.query(Student).filter(Student.id == placement.student_id).first()
                     if student:
+                        makeup_log = db_session.query(DailyLog).filter(
+                            DailyLog.placement_id == sess.placement_id,
+                            DailyLog.date == target_date
+                        ).first()
                         periods = sess.periods if sess.periods else list(range(1, 11))
                         if len(periods) == 10 and periods == list(range(1, 11)):
                             period_display = "Full Day (Periods 1–10)"
@@ -3115,6 +3119,7 @@ class DatabaseManager:
                             'periods': periods,
                             'date': sess.date.isoformat(),
                             'status': sess.status.value,
+                            'is_makeup_session': bool(makeup_log and makeup_log.is_makeup_session),
                             'iss_total_days': placement.iss_total_days,
                             'iss_remaining_days': placement.iss_remaining_days,
                             'reason': placement.reason,
@@ -5517,7 +5522,7 @@ class DatabaseManager:
     def add_iss_makeup_dates(self, placement_id: str, makeup_dates: list) -> Dict[str, Any]:
         """Add make-up dates to an ISS placement.
         
-        Creates DailyLog and ISSSession entries for each make-up date,
+        Creates DailyLog and PartialDaySession entries for each make-up date,
         and updates placement's scheduled_iss_sessions with make-up entries.
         Does NOT modify original_day_count.
         
@@ -5599,17 +5604,15 @@ class DatabaseManager:
                 )
                 session.add(daily_log)
                 
-                # Create ISS session for this make-up date
+                # Create a normal ISS session for this make-up date
                 session_id = self.generate_id()
-                iss_session = ISSSession(
+                iss_session = PartialDaySession(
                     id=session_id,
                     placement_id=placement_id,
-                    student_id=placement.student_id,
                     date=date_obj,
-                    day_type=day_type,
-                    status='pending',
+                    type=SessionType.iss_full_day,
                     periods=periods_list,
-                    is_makeup=True
+                    status=SessionStatus.scheduled
                 )
                 session.add(iss_session)
                 

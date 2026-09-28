@@ -1,0 +1,1 @@
+- [Streamlit preview capture](streamlit-preview-capture.md) — blank captures have occurred despite a healthy server; verify runtime separately.

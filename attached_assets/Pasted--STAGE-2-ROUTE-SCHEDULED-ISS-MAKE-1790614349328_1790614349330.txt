@@ -1,0 +1,354 @@
+# ============================================================
+# STAGE 2 — ROUTE SCHEDULED ISS MAKE-UP DAYS THROUGH THE
+# NORMAL ISS DAY / POINTS ENGINE
+# ============================================================
+#
+# GOAL:
+#
+# Once an ISS make-up date has been scheduled, that date should
+# appear in the normal Dashboard ISS session list and be rendered
+# through:
+#
+#     render_iss_session_card()
+#
+# just like a regular ISS day.
+#
+# The existing carryover / render_iss_full_card() pathway should
+# remain responsible for the UNSCHEDULED state:
+#
+#     "This placement still owes periods and needs scheduling."
+#
+# Once a make-up date is actually scheduled, the normal ISS
+# session renderer should take over.
+#
+#
+# CRITICAL:
+#
+# - Do NOT rewrite the normal ISS points engine.
+# - Do NOT create a second make-up points engine.
+# - Do NOT change the 10-point / 10-period daily system.
+# - Do NOT change historical records.
+# - Do NOT change final ISS completion calculations.
+# - Preserve the Stage 1 UI cleanup.
+# - Preserve the existing future-preview carryover guard.
+#
+#
+# ============================================================
+# PART 1 — FIX add_iss_makeup_dates() IN db_manager.py
+# ============================================================
+#
+# Locate:
+#
+#     def add_iss_makeup_dates(self, placement_id: str, makeup_dates: list)
+#
+# This function already correctly creates:
+#
+# - a DailyLog
+# - is_makeup_session=True
+# - scheduled_iss_sessions metadata
+# - placement.status = needs_makeup
+#
+# KEEP all of that.
+#
+# However, the current function also attempts to create:
+#
+#     ISSSession(...)
+#
+# That is NOT the session model used by the Dashboard's normal ISS
+# renderer.
+#
+# The Dashboard's get_iss_sessions_for_date() function retrieves
+# ISS days from PartialDaySession records in the existing "sessions"
+# table where:
+#
+#     type == SessionType.iss_full_day
+#
+# Therefore, replace ONLY the current ISSSession creation block
+# inside add_iss_makeup_dates() with the normal session model below.
+#
+# REMOVE the existing block that begins approximately:
+#
+#     session_id = self.generate_id()
+#     iss_session = ISSSession(
+#         ...
+#     )
+#     session.add(iss_session)
+#
+# and replace it with:
+
+session_id = self.generate_id()
+
+iss_session = PartialDaySession(
+    id=session_id,
+    placement_id=placement_id,
+    date=date_obj,
+    type=SessionType.iss_full_day,
+    periods=periods_list,
+    status=SessionStatus.scheduled
+)
+
+session.add(iss_session)
+
+#
+# Do NOT create a new database table or model.
+# Do NOT create a new ISSSession class.
+#
+# We specifically want make-up dates stored in the SAME session
+# system that normal ISS dates already use.
+#
+#
+# ============================================================
+# PART 2 — KEEP THE MAKE-UP DailyLog
+# ============================================================
+#
+# Keep the existing DailyLog creation inside add_iss_makeup_dates().
+#
+# It should continue creating a log for the make-up date with:
+#
+#     placement_id=placement_id
+#     date=date_obj
+#     day_type=day_type
+#     start_period=start_period
+#     end_period=end_period
+#     required_points=periods
+#     daily_fulfillment='pending'
+#     is_makeup_session=True
+#
+# and the existing zeroed point totals/readiness values.
+#
+# Do NOT mark the student checked in when scheduling the date.
+#
+# checked_in must remain False/default until the staff member
+# actually checks the student in on the make-up day.
+#
+#
+# ============================================================
+# PART 3 — PRESERVE scheduled_iss_sessions MAKE-UP METADATA
+# ============================================================
+#
+# Keep the existing scheduled_iss_sessions entry:
+#
+#     {
+#         'date': date_iso,
+#         'dayType': day_type,
+#         'periods': periods_list,
+#         'startPeriod': start_period,
+#         'endPeriod': end_period,
+#         'isMakeup': True
+#     }
+#
+# This metadata is still useful for identifying the date as a
+# make-up session.
+#
+# Do NOT remove it.
+#
+#
+# ============================================================
+# PART 4 — EXPOSE MAKE-UP STATUS TO THE NORMAL SESSION RENDERER
+# ============================================================
+#
+# Locate:
+#
+#     def get_iss_sessions_for_date(self, target_date: date)
+#
+# This function builds the dictionary returned for each normal ISS
+# session.
+#
+# Because the make-up DailyLog already contains:
+#
+#     is_makeup_session = True
+#
+# check for the DailyLog belonging to this placement/date while
+# building the session dictionary.
+#
+# Add a boolean field to the returned dictionary:
+#
+#     'is_makeup_session': True/False
+#
+# based primarily on DailyLog.is_makeup_session.
+#
+# If no DailyLog exists, it should safely default to False.
+#
+# Do NOT use this flag to create a second rendering pathway.
+# It is informational only and allows the normal renderer to know
+# that this particular normal ISS day happens to be a make-up day.
+#
+#
+# ============================================================
+# PART 5 — NORMAL DASHBOARD SESSION PATH SHOULD TAKE OVER
+# ============================================================
+#
+# The Dashboard already does this:
+#
+#     iss_sessions = get_iss_sessions_for_date_cached(...)
+#
+# and builds:
+#
+#     iss_session_placement_ids
+#
+# The carryover logic already skips a placement when that placement
+# has an actual ISS session on the selected date.
+#
+# KEEP that behavior.
+#
+# Once the new PartialDaySession record is created correctly,
+# a scheduled make-up date should therefore naturally:
+#
+# 1. appear in iss_sessions for that date
+# 2. be excluded from carryover_iss for that same date
+# 3. be rendered through render_iss_session_card()
+#
+# Do NOT manually call render_iss_session_card() a second time from
+# the carryover loop.
+#
+# Do NOT create duplicate cards.
+#
+#
+# ============================================================
+# PART 6 — MAKE-UP DAY DISPLAY INSIDE render_iss_session_card()
+# ============================================================
+#
+# In render_iss_session_card(), read:
+#
+#     is_makeup_session = iss_session.get('is_makeup_session', False)
+#
+# This flag may be used ONLY for light labeling.
+#
+# For example, where the normal card identifies the current ISS day,
+# it may additionally show a small caption such as:
+#
+#     Make-Up Day
+#
+# or:
+#
+#     ISS Make-Up Session
+#
+# Keep this subtle.
+#
+# DO NOT build a separate set of controls for make-up sessions.
+#
+# The make-up session must use the SAME:
+#
+# - Absent checkbox
+# - Check In button
+# - Full Day / Partial Day handling
+# - behavior point dropdowns
+# - points calculations
+# - completion controls
+# - notes
+# - DailyLog updates
+#
+# already contained in render_iss_session_card().
+#
+#
+# ============================================================
+# PART 7 — REMOVE THE OLD MAKE-UP SERVICING PATH, BUT KEEP
+# UNSCHEDULED MAKE-UP SCHEDULING
+# ============================================================
+#
+# render_iss_full_card() should remain available for an ISS
+# placement that still owes periods but does NOT yet have a
+# scheduled session on the selected date.
+#
+# That card may still provide the controls needed to SCHEDULE a
+# make-up date.
+#
+# However, once add_iss_makeup_dates() successfully creates the
+# new make-up session, staff should NOT service that scheduled day
+# through the old make-up-specific point-entry interface.
+#
+# The newly created date should instead appear through the normal
+# Dashboard ISS session path described above.
+#
+# Do NOT remove the make-up scheduling form itself.
+#
+# Do NOT remove add_iss_makeup_dates().
+#
+#
+# ============================================================
+# PART 8 — CACHE / RERUN AFTER SCHEDULING
+# ============================================================
+#
+# After a make-up date is successfully added, make sure the
+# Dashboard ISS-session cache is cleared using the app's existing
+# cache-clearing mechanism before st.rerun().
+#
+# Use the existing helper already used elsewhere in app.py:
+#
+#     clear_dashboard_caches()
+#
+# where appropriate.
+#
+# This is important because get_iss_sessions_for_date_cached()
+# otherwise may temporarily continue displaying the old carryover
+# state instead of the newly created normal ISS session.
+#
+# Do not create a new caching system.
+#
+#
+# ============================================================
+# EXPECTED RESULT
+# ============================================================
+#
+# Example:
+#
+# A student has a 3-Day ISS requiring 30 periods.
+#
+# Day 3 is missed, leaving:
+#
+#     Required 30 | Served 20 | Remaining 10
+#
+# The placement appears under:
+#
+#     Needs Scheduling / Make-Up
+#
+# Staff schedules the next available school day as a make-up date.
+#
+# add_iss_makeup_dates() creates:
+#
+# - the existing make-up DailyLog
+# - a normal PartialDaySession of type iss_full_day
+# - the existing scheduled_iss_sessions make-up metadata
+#
+# When that scheduled date is displayed on the Dashboard, it is now
+# found by get_iss_sessions_for_date() and rendered through:
+#
+#     render_iss_session_card()
+#
+# Staff can therefore use the SAME normal ISS workflow:
+#
+#     Check In
+#       ->
+#     normal day controls
+#       ->
+#     normal points engine
+#       ->
+#     complete the day
+#
+# Once the required total has been reached, preserve the EXISTING
+# overall ISS completion logic that closes the placement and moves
+# it to Completed Placements.
+#
+#
+# ============================================================
+# IMPORTANT FINAL CHECK
+# ============================================================
+#
+# Before finishing Stage 2, verify:
+#
+# 1. There is no remaining reference to an undefined/new
+#    ISSSession(...) object in add_iss_makeup_dates().
+#
+# 2. Make-up dates use PartialDaySession + SessionType.iss_full_day,
+#    exactly like the Dashboard expects.
+#
+# 3. A scheduled make-up date is not simultaneously displayed as
+#    both an iss_session and carryover_iss card.
+#
+# 4. Make-up days use render_iss_session_card() for point entry.
+#
+# 5. No changes were made to the 10-period/10-point daily logic.
+#
+# 6. No changes were made to historical placement data.
+#
+# 7. Do not perform unrelated refactoring.

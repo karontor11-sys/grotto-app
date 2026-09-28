@@ -1295,8 +1295,8 @@ if page == "Dashboard":
             unified_class_referral_placements.append(placement)
     
     # Helper function to render ISS Full Day student card with period-based tracking
-    def render_iss_full_card(placement: dict, target_date: date):
-        """Render ISS Full Day card with period-based tracking, Check In workflow, and behaviors.
+    def render_iss_full_card(placement: dict, target_date: date, scheduling_only: bool = True):
+        """Render an unscheduled ISS carryover card with make-up scheduling.
         
         Uses lazy loading: only fetches daily log when student is checked in or has existing log.
         """
@@ -1386,8 +1386,8 @@ if page == "Dashboard":
             if is_session_complete:
                 st.success("✅ **ISS Session complete**")
             
-            # Check-in buttons (only for active ISS or needs_makeup, not completed Session)
-            if not is_session_complete or needs_makeup:
+            # Scheduled days are serviced by render_iss_session_card, never from a carryover card.
+            if not scheduling_only and (not is_session_complete or needs_makeup):
                 st.markdown("---")
                 
                 if needs_makeup:
@@ -1860,6 +1860,11 @@ if page == "Dashboard":
             
             # Make-up prompt - OUTSIDE the if not is_session_complete block
             # Shows after final day completion when periods are short
+            if scheduling_only and not st.session_state.get(f"show_makeup_prompt_{placement_id}", False):
+                if st.button("Schedule Make-Up Dates", key=f"schedule_makeup_{placement_id}"):
+                    st.session_state[f"show_makeup_prompt_{placement_id}"] = True
+                    st.rerun()
+
             if st.session_state.get(f"show_makeup_prompt_{placement_id}", False):
                 makeup_info = st.session_state.get(f"makeup_info_{placement_id}", {})
                 periods_remaining = makeup_info.get('periodsRemaining', 0)
@@ -1956,8 +1961,7 @@ if page == "Dashboard":
                                 st.session_state[schedule_builder_key] = False
                                 st.session_state[makeup_dates_key] = []
                                 st.success(result.get('message', 'Make-up dates added!'))
-                                if hasattr(st, 'cache_data'):
-                                    st.cache_data.clear()
+                                clear_dashboard_caches()
                                 st.rerun()
                             else:
                                 st.error(result.get('message', 'Failed to add make-up dates'))
@@ -2937,6 +2941,7 @@ if page == "Dashboard":
         student_id = iss_session['student_id']
         student_name = iss_session['student_name']
         date_str = iss_session['date']
+        is_makeup_session = iss_session.get('is_makeup_session', False)
         
         # Unique per-card namespace (prevents key collisions for full-day ISS where session_id can be None)
         session_key = session_id if session_id is not None else "full"
@@ -3139,6 +3144,8 @@ if page == "Dashboard":
             
             with header_col1:
                 st.markdown(f"**{day_progress_label}**")
+                if is_makeup_session:
+                    st.caption("Make-Up Day")
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
             
             with header_col2:
@@ -3189,7 +3196,7 @@ if page == "Dashboard":
                         # Ensure absent is cleared (check-in implies present)
                         dm.unmark_absent(placement_id, date_str)
                         # IMPORTANT: do not lock day type at check-in time
-                        dm.check_in_student(placement_id, date_str, day_type=None)
+                        dm.check_in_student(placement_id, date_str, day_type=None, is_makeup=is_makeup_session)
                         clear_dashboard_caches()
                         st.rerun()
             
@@ -3733,8 +3740,7 @@ if page == "Dashboard":
                                 st.session_state[schedule_builder_key] = False
                                 st.session_state[makeup_dates_key] = []
                                 st.success(result.get('message', 'Make-up dates added!'))
-                                if hasattr(st, 'cache_data'):
-                                    st.cache_data.clear()
+                                clear_dashboard_caches()
                                 st.rerun()
                             else:
                                 st.error(result.get('message', 'Failed to add make-up dates'))

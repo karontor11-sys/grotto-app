@@ -1,0 +1,79 @@
+Stages 1 and 2 have now been tested in real-world use. The app is functioning correctly and feels somewhat faster.
+
+Before making any further performance changes, perform a Stage 3 DIAGNOSTIC ONLY.
+
+DO NOT MODIFY CODE.
+
+Stage 2 identified remaining per-card reads involving:
+
+- ISS progress
+- completed-day calculations
+- placement-wide point eligibility
+- any other remaining database work performed separately for each Dashboard card
+
+I want to know whether these remaining operations are significant enough to justify the additional risk of optimizing them.
+
+### TEST A BUSY DASHBOARD
+
+If possible, use isolated/test data to simulate representative Dashboard loads such as:
+
+- 1 ISS card
+- 5 ISS cards
+- 10 ISS cards
+- 20 ISS cards
+
+Do not modify real production records.
+
+For each scenario, measure or estimate:
+
+- Total database query count for the affected Dashboard path
+- Number of queries attributable to each remaining per-card calculation
+- SQL execution time
+- Relevant method/wall time
+- How query count scales as cards increase
+
+### IDENTIFY REMAINING N+1 PATTERNS
+
+Specifically identify which operations still add database queries for every additional ISS card.
+
+For each one, explain:
+
+1. What information is being retrieved.
+2. Why the existing business logic needs it.
+3. Whether it can be batch-loaded without changing the authoritative calculation itself.
+4. Whether batching would merely change data retrieval or would require rewriting business logic.
+5. Expected performance benefit.
+6. Risk: Low / Medium / High.
+
+### DO NOT OPTIMIZE YET
+
+Do not:
+
+- Rewrite progress calculations.
+- Rewrite completion calculations.
+- Rewrite points eligibility.
+- Change attendance behavior.
+- Change make-up logic.
+- Change future-date behavior.
+- Change caches.
+- Add indexes.
+- Change database schema.
+- Change UI.
+- Perform unrelated refactoring.
+
+This stage is intended to answer one question:
+
+**Is there enough remaining Dashboard performance cost to justify another optimization stage, and if so, what is the safest high-value target?**
+
+Also consider the possibility that further Dashboard optimization is NOT worthwhile. If the remaining costs are small, say so.
+
+At the end, STOP and provide:
+
+- Results for 1, 5, 10, and 20-card scenarios where practical
+- Remaining per-card query sources
+- Estimated contribution of each to Dashboard load
+- Which, if any, can safely be batched without rewriting business logic
+- Expected benefit and risk of each possible optimization
+- Your recommendation for whether we should proceed with another Dashboard optimization stage or leave the current implementation alone
+
+Do not make any changes.

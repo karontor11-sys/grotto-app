@@ -1,1 +1,2 @@
 - [Streamlit preview capture](streamlit-preview-capture.md) — blank captures have occurred despite a healthy server; verify runtime separately.
+- [Grotto query optimization validation](query-optimization-validation.md) — small, behavior-preserving query cuts were confirmed working and somewhat faster in real use.

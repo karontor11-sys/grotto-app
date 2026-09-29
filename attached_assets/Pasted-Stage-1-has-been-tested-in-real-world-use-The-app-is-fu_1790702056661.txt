@@ -1,0 +1,181 @@
+Stage 1 has been tested in real-world use. The app is functioning correctly and appears somewhat faster.
+
+Proceed with Stage 2 of the Grotto App performance optimization.
+
+The purpose of Stage 2 is to address the #1 issue identified in the diagnostic:
+
+DASHBOARD QUERY FAN-OUT.
+
+The diagnostic found that Dashboard rendering performs repeated database reads for individual sessions, placements, students, DailyLogs, point events, and progress information.
+
+I want to reduce those repeated database calls WITHOUT changing Dashboard behavior or any underlying business logic.
+
+### PRIMARY GOAL
+
+For a selected Dashboard date, efficiently batch-load the records needed to construct the Dashboard rather than repeatedly querying the database separately for each individual Dashboard card or placement.
+
+Where practical, retrieve the necessary:
+
+- Sessions
+- Placements
+- Students
+- DailyLogs
+- Point events
+- Progress/completion information
+
+in efficient grouped/batched queries and reuse those results while rendering the Dashboard.
+
+The Dashboard should produce exactly the same result as it does now.
+
+### IMPORTANT DESIGN PRINCIPLE
+
+This is a DATABASE ACCESS optimization, not a rewrite of Grotto business logic.
+
+Existing functions that determine:
+
+- attendance
+- periods served
+- points
+- completion
+- placement status
+- make-up requirements
+- scheduled dates
+- future-date behavior
+- referrals
+- partial days
+- absence behavior
+
+should continue to produce the same results.
+
+If replacing an existing per-record function with batched data would require duplicating or substantially rewriting important business logic, STOP and report that issue rather than making a risky change.
+
+### SCOPE
+
+Focus specifically on Dashboard query fan-out identified in:
+
+`db_manager.py:3073–3089`
+
+and Dashboard card rendering around:
+
+`app.py:3907–4138`
+
+Use the current code as authoritative if those line numbers have shifted.
+
+Look for N+1 query patterns where one Dashboard record causes additional individual database queries.
+
+Replace those patterns with batched retrieval where it can be done safely.
+
+### DATA FRESHNESS
+
+Preserve immediate visibility of changes.
+
+Do NOT extend the lifetime of existing caches.
+
+Do NOT add long-lived caching of attendance, points, placement status, completion information, or DailyLogs.
+
+This stage should primarily reduce the number of database queries required to construct a Dashboard from fresh data.
+
+Existing cache invalidation after writes must remain intact.
+
+### DO NOT CHANGE
+
+Do not change:
+
+- UI appearance
+- Dashboard card layout
+- Dashboard ordering
+- placement creation
+- placement editing
+- student behavior
+- attendance behavior
+- points behavior
+- completion calculations
+- ISS period calculations
+- make-up session logic
+- future scheduled make-up behavior
+- absence logic
+- partial-day logic
+- referrals
+- pre-planned support behavior
+- calendar behavior
+- historical placement behavior
+- the existing 60-second Dashboard cache strategy
+- database schema
+- indexes
+
+Do not perform unrelated refactoring.
+
+### SPECIAL ATTENTION — MAKE-UP ISS
+
+We recently completed significant work involving ISS make-up sessions.
+
+Verify specifically that:
+
+- Future scheduled make-up days remain collapsed/read-only until their scheduled date.
+- Attendance and points controls are not exposed early.
+- On the scheduled date, normal ISS controls become available.
+- Absence behavior remains correct.
+- Partial completion remains correct.
+- Full completion closes the placement correctly.
+- Required, served, and remaining periods remain accurate.
+
+Do not simplify or rewrite this logic merely for performance.
+
+### MEASUREMENT
+
+Before changing the Dashboard query path, establish a baseline query count for rendering representative Dashboard data if practical.
+
+After optimization, repeat the same measurement.
+
+Report both:
+
+BEFORE:
+- Number of database queries
+- Approximate database time
+
+AFTER:
+- Number of database queries
+- Approximate database time
+
+Also explain which former per-record queries were eliminated.
+
+Because the configured development database is small, query-count reduction is particularly important even if absolute millisecond differences are small.
+
+### VERIFICATION
+
+After implementation, verify representative cases including:
+
+- Standard one-day ISS
+- Multi-day ISS
+- Current-day ISS
+- Future scheduled ISS/make-up
+- Absent ISS student
+- Partial-day/partial-period completion
+- Completed placement
+- Single-period referral
+- Pre-planned referral/support if applicable
+- Points display and totals
+- Served/required/remaining periods
+- Dashboard navigation and refresh after a write
+
+Use isolated/test data where necessary. Do not alter real production records merely to perform tests.
+
+### STOP CONDITION
+
+If you discover that safely batching the Dashboard data requires substantial changes to core placement/completion logic, STOP before implementing that portion and explain what you found.
+
+Safety and behavioral correctness are more important than performance.
+
+When Stage 2 is complete, STOP and report:
+
+1. Exactly what changed.
+2. Files and functions affected.
+3. N+1/per-record queries eliminated.
+4. Before/after query counts.
+5. Before/after timing where measurable.
+6. Tests performed.
+7. Any behavior that could not be tested.
+8. Any risks or concerns.
+9. Whether you recommend any further Dashboard optimization.
+
+Do not proceed to another performance stage without explicit authorization.

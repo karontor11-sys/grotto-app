@@ -425,7 +425,7 @@ def _completed_suffix_for_day(*, placement_type_label: str, total_days: int, tar
 # Circle Color Logic — Day-level overrides placement-level
 # =========================================================
 
-def _is_absent_for_date(dm, placement_id: str, date_str: str, *, daily_log: dict = None) -> bool:
+def _is_absent_for_date(dm, placement_id: str, date_str: str, *, daily_log: dict = None, prefetched: bool = False) -> bool:
     """
     Returns True if the given placement/day is marked absent or no-show.
     Uses DailyLog.dayType when available.
@@ -435,8 +435,9 @@ def _is_absent_for_date(dm, placement_id: str, date_str: str, *, daily_log: dict
         placement_id: Placement ID
         date_str: ISO format date string
         daily_log: Optional pre-fetched daily log to avoid duplicate fetch
+        prefetched: True when the lookup was already performed, even if no log exists
     """
-    if daily_log is None:
+    if daily_log is None and not prefetched:
         try:
             daily_log = dm.get_daily_log(placement_id, date_str)
         except Exception:
@@ -2929,7 +2930,7 @@ if page == "Dashboard":
             st.divider()
     
     # Helper function to render enhanced ISS session card
-    def render_iss_session_card(iss_session: dict, target_date: date):
+    def render_iss_session_card(iss_session: dict, target_date: date, card_records: dict):
         """Render enhanced ISS session card with full functionality.
         
         Handles three states:
@@ -2971,7 +2972,7 @@ if page == "Dashboard":
         # If this is a future-dated placement, show locked card
         if is_future_placement and not is_makeup_session:
             # Get ISS days for the label
-            placement_data = dm.get_placement(placement_id)
+            placement_data = card_records['placements'].get(placement_id)
             iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
             if iss_total_days is None:
                 iss_total_days = 1
@@ -3016,7 +3017,7 @@ if page == "Dashboard":
         
         if is_future_day_view:
             # Get ISS days for the title line
-            placement_data = dm.get_placement(placement_id)
+            placement_data = card_records['placements'].get(placement_id)
             iss_total_days = placement_data.get('issTotalDays', 1) if placement_data else 1
             if iss_total_days is None:
                 iss_total_days = 1
@@ -3036,8 +3037,8 @@ if page == "Dashboard":
             )
             return  # Exit early for future day views
         
-        # LAZY LOADING: Only fetch daily log if it exists (read-only check)
-        daily_log = dm.get_daily_log(placement_id, date_str)
+        # Use the fresh date-specific log, if one exists.
+        daily_log = card_records['daily_logs'].get(placement_id)
         
         # Stabilize override flag across all Streamlit rerun states (daily_log can be None early in the flow)
         override_used = bool(daily_log and daily_log.get('overrideUsed', False))
@@ -3045,7 +3046,7 @@ if page == "Dashboard":
         # Get progress status and use centralized helpers for day-level absent/completion (pass pre-fetched daily_log)
         progress_status = iss_session.get('progressStatus', 'NOT_STARTED')
         session_status = iss_session.get('status', 'scheduled')
-        is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+        is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log, prefetched=True)
         is_day_completed = _is_day_completed_for_date(daily_log, session_status=session_status)
         
         # Use centralized helpers for circle and text
@@ -3055,12 +3056,12 @@ if page == "Dashboard":
         # Display status at top of expanded card
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
         
-        # Only fetch point events if student is checked in (lazy loading)
+        # Only use point events if the student is checked in.
         # (A) Explicit normalization for multi-day gating when daily_log is None
         has_daily_log = daily_log is not None
         is_checked_in = bool(daily_log and daily_log.get('checkedIn', False))
         if is_checked_in:
-            point_events = dm.get_point_events_for_date(placement_id, date_str)
+            point_events = card_records['point_events'].get(placement_id, [])
             positive_points = sum([e['value'] for e in point_events if e['type'] == 'positive'])
             negative_points = sum([e['value'] for e in point_events if e['type'] == 'negative'])
             total_points = positive_points + negative_points
@@ -3090,7 +3091,7 @@ if page == "Dashboard":
             status_color = 'yellow'
         
         served_dates = []
-        placement_data = dm.get_placement(placement_id)
+        placement_data = card_records['placements'].get(placement_id)
         if placement_data:
             served_dates = placement_data.get('servedDates', [])
         is_present = date_str in served_dates
@@ -3847,6 +3848,13 @@ if page == "Dashboard":
         p for p in iss_placements
         if p.get('status') == 'completed' and p['_id'] not in iss_session_placement_ids
     ]
+
+    # These card inputs are fresh on every Dashboard rerun, including reruns after writes.
+    dashboard_iss_card_records = dm.get_dashboard_iss_card_records(
+        [s['placement_id'] for s in iss_sessions],
+        selected_date,
+        point_only_ids=[p['_id'] for p in completed_iss_without_session]
+    )
     
     st.markdown("#### In-School Suspension (ISS)")
 
@@ -3924,8 +3932,8 @@ if page == "Dashboard":
             )
 
             # Fetch daily log once for both absent and completion checks
-            daily_log = dm.get_daily_log(placement_id, date_str)
-            is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log)
+            daily_log = dashboard_iss_card_records['daily_logs'].get(placement_id)
+            is_absent_day = _is_absent_for_date(dm, placement_id, date_str, daily_log=daily_log, prefetched=True)
 
             # 1-day ISS exception: Absent should NEVER cause the row to be treated as Completed/fulfilled for UI collapse
             is_one_day_iss_absent = (int(iss_days_assigned or 1) == 1) and bool(is_absent_day)
@@ -3934,7 +3942,7 @@ if page == "Dashboard":
             # Keep it interactive so it can be served later.
             if progress_status == "COMPLETED" and not is_one_day_iss_absent:
                 # Pull placement to get endDate reliably
-                placement_obj = dm.get_placement(placement_id) or {}
+                placement_obj = dashboard_iss_card_records['placements'].get(placement_id) or {}
                 end_date = _parse_iso_date_safe(placement_obj.get('endDate'))
 
                 day_info = dm.get_iss_days_served_info(placement_id, date_str)
@@ -3968,7 +3976,11 @@ if page == "Dashboard":
                         except Exception:
                             positive_menu_for_breakdown = ps.get_positive_point_menu()
 
-                        point_events_for_final_day = dm.get_point_events_for_date(placement_id, final_date_str)
+                        point_events_for_final_day = (
+                            dashboard_iss_card_records['point_events'].get(placement_id, [])
+                            if final_date_str == date_str
+                            else dm.get_point_events_for_date(placement_id, final_date_str)
+                        )
 
                         if point_events_for_final_day:
                             breakdown = build_iss_points_breakdown_tooltip(point_events_for_final_day, positive_menu_for_breakdown)
@@ -3996,7 +4008,7 @@ if page == "Dashboard":
                         except Exception:
                             positive_menu_for_breakdown = ps.get_positive_point_menu()
 
-                        point_events_for_tooltip_day = dm.get_point_events_for_date(placement_id, tooltip_date_str)
+                        point_events_for_tooltip_day = dashboard_iss_card_records['point_events'].get(placement_id, [])
 
                         if point_events_for_tooltip_day:
                             breakdown = build_iss_points_breakdown_tooltip(point_events_for_tooltip_day, positive_menu_for_breakdown)
@@ -4070,7 +4082,7 @@ if page == "Dashboard":
                 except Exception:
                     positive_menu_for_breakdown = ps.get_positive_point_menu()
 
-                point_events_for_day = dm.get_point_events_for_date(placement_id, date_str)
+                point_events_for_day = dashboard_iss_card_records['point_events'].get(placement_id, [])
                 tooltip_text = build_iss_points_breakdown_tooltip(point_events_for_day, positive_menu_for_breakdown)
                 completion_label_html = build_completion_label_with_tooltip(completion_label, tooltip_text)
 
@@ -4109,7 +4121,7 @@ if page == "Dashboard":
                     card_title,
                     expanded=False if future_makeup else _dashboard_should_expand(iss_card_uid)
                 ):
-                    render_iss_session_card(iss_session, selected_date)
+                    render_iss_session_card(iss_session, selected_date, dashboard_iss_card_records)
         
         for comp_iss in completed_iss_without_session:
             comp_student = comp_iss['student']
@@ -4123,7 +4135,7 @@ if page == "Dashboard":
             except Exception:
                 positive_menu_comp = ps.get_positive_point_menu()
 
-            point_events_comp = dm.get_point_events_for_date(comp_pid, selected_date.isoformat())
+            point_events_comp = dashboard_iss_card_records['point_events'].get(comp_pid, [])
             tooltip_comp = build_iss_points_breakdown_tooltip(point_events_comp, positive_menu_comp)
             completion_label_html_comp = build_completion_label_with_tooltip(completion_label_comp, tooltip_comp)
 

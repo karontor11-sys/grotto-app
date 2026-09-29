@@ -3084,19 +3084,36 @@ class DatabaseManager:
                 PartialDaySession.date == target_date,
                 PartialDaySession.type == SessionType.iss_full_day
             ).all()
+
+            if not sessions:
+                return []
+            placement_ids = {sess.placement_id for sess in sessions}
+            placements = {
+                placement.id: placement
+                for placement in db_session.query(Placement).filter(Placement.id.in_(placement_ids)).all()
+            }
+            student_ids = {placement.student_id for placement in placements.values() if placement.student_id}
+            students = {
+                student.id: student
+                for student in db_session.query(Student).filter(Student.id.in_(student_ids)).all()
+            } if student_ids else {}
+            makeup_logs = {
+                log.placement_id: log
+                for log in db_session.query(DailyLog).filter(
+                    DailyLog.placement_id.in_(placement_ids),
+                    DailyLog.date == target_date
+                ).all()
+            }
             
             result = []
             for sess in sessions:
-                placement = db_session.query(Placement).filter(Placement.id == sess.placement_id).first()
+                placement = placements.get(sess.placement_id)
                 # Include active, scheduled, needs_makeup, AND completed placements
                 # Completed placements should still show on dates within their scheduled range
                 if placement and placement.status in [PlacementStatus.active, PlacementStatus.scheduled, PlacementStatus.needs_makeup, PlacementStatus.completed]:
-                    student = db_session.query(Student).filter(Student.id == placement.student_id).first()
+                    student = students.get(placement.student_id)
                     if student:
-                        makeup_log = db_session.query(DailyLog).filter(
-                            DailyLog.placement_id == sess.placement_id,
-                            DailyLog.date == target_date
-                        ).first()
+                        makeup_log = makeup_logs.get(sess.placement_id)
                         periods = sess.periods if sess.periods else list(range(1, 11))
                         if len(periods) == 10 and periods == list(range(1, 11)):
                             period_display = "Full Day (Periods 1–10)"
@@ -3146,6 +3163,37 @@ class DatabaseManager:
             return result
         finally:
             db_session.close()
+
+    def get_dashboard_iss_card_records(
+        self, placement_ids: List[str], target_date: date, point_only_ids: List[str] = None
+    ) -> Dict[str, Dict]:
+        """Fetch fresh ISS card inputs for one Dashboard render, without caching them."""
+        ids = set(placement_ids)
+        point_ids = ids | set(point_only_ids or [])
+        if not point_ids:
+            return {'placements': {}, 'daily_logs': {}, 'point_events': {}}
+
+        session = self.get_session()
+        try:
+            placements = {
+                row.id: self._placement_to_dict(row)
+                for row in session.query(Placement).filter(Placement.id.in_(ids)).all()
+            } if ids else {}
+            daily_logs = {
+                row.placement_id: self._daily_log_to_dict(row)
+                for row in session.query(DailyLog).filter(
+                    DailyLog.placement_id.in_(ids), DailyLog.date == target_date
+                ).all()
+            } if ids else {}
+            point_events = {placement_id: [] for placement_id in point_ids}
+            for row in session.query(PointEvent).filter(
+                PointEvent.placement_id.in_(point_ids), PointEvent.date == target_date
+            ).all():
+                point_events[row.placement_id].append(self._point_event_to_dict(row))
+
+            return {'placements': placements, 'daily_logs': daily_logs, 'point_events': point_events}
+        finally:
+            session.close()
     
     def get_scheduled_iss_placements(self, school_year_start: int = None) -> List[Dict[str, Any]]:
         """Get all scheduled ISS placements that haven't started yet.

@@ -1,0 +1,77 @@
+Proceed with Stage 1 of the Grotto App performance optimization.
+
+The diagnostic is complete. For this stage, I want ONLY the three lowest-risk optimizations identified in the report.
+
+Do not perform any broader refactoring or optimization.
+
+### CHANGE 1 — Completed Placements Count
+
+On the Placements screen, the app currently loads the completed-placement archive in order to determine the number displayed on the Completed Placements button.
+
+Replace this with an efficient count-only database query.
+
+The button should display exactly the same count it displays now, but the application should not load the full completed-placement archive merely to calculate that number.
+
+Do NOT change how the actual Completed Placements/archive screen works yet.
+
+### CHANGE 2 — Remove Unused Student Fetch
+
+The diagnostic identified an all-active-students database fetch on the Placements screen that is not currently used.
+
+Remove that unnecessary database operation.
+
+Do not change any student creation, student selection, placement creation, or student-record behavior.
+
+### CHANGE 3 — Reuse Calendar Results Within One Dashboard Rerun
+
+The diagnostic found that calendar status/results can be queried multiple times during a single Dashboard rerun.
+
+Where safe, retrieve the required calendar information once during that rerun and reuse the result.
+
+This optimization should apply ONLY within the current rerun.
+
+Do NOT introduce longer-lived caching of calendar, placement, attendance, points, or completion data as part of this change.
+
+### IMPORTANT SAFETY REQUIREMENTS
+
+Preserve all existing behavior.
+
+In particular:
+
+- Do not change placement logic.
+- Do not change attendance logic.
+- Do not change points logic.
+- Do not change ISS completion calculations.
+- Do not change make-up session behavior.
+- Do not change future-date behavior.
+- Do not change referral behavior.
+- Do not change placement visibility rules.
+- Do not change existing Dashboard cache invalidation after writes.
+- Do not change the current 60-second Dashboard caching strategy.
+- Do not modify the database schema or add indexes during this stage.
+- Do not make unrelated UI changes.
+
+After implementing these three changes, verify that:
+
+1. The Placements screen still displays the correct Completed Placements count.
+2. New placements can still be created normally.
+3. Student handling behaves exactly as before.
+4. Dashboard navigation works normally.
+5. Calendar-dependent Dashboard behavior remains correct.
+6. Saves/writes still cause fresh Dashboard information to appear as expected.
+7. No attendance, points, completion, make-up, or placement behavior has changed.
+
+If practical, compare database query counts before and after these changes for the affected screens.
+
+Then STOP.
+
+Report:
+
+- Exactly what was changed
+- Files/functions affected
+- Tests/checks performed
+- Before/after query counts where measurable
+- Any performance improvement observed
+- Any concerns or unexpected behavior
+
+Do not proceed to Dashboard query batching or any additional optimization until I explicitly authorize the next stage.

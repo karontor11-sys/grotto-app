@@ -2386,6 +2386,16 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def count_completed_placements_with_students(self) -> int:
+        """Count completed placements that have a matching student record."""
+        session = self.get_session()
+        try:
+            return session.query(func.count(Placement.id)).join(
+                Student, Placement.student_id == Student.id
+            ).filter(Placement.status == PlacementStatus.completed).scalar() or 0
+        finally:
+            session.close()
+
     def get_completed_placements_with_students(self) -> List[Dict[str, Any]]:
         """Get all completed placements with student info.
         

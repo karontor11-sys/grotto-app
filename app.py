@@ -955,7 +955,7 @@ if page == "Dashboard":
                             st.rerun()
 
                 # After at least one saved entry exists: show Finalize Year underneath the list
-                if not dm.is_school_calendar_finalized(current_sy):
+                if not finalized_calendar:
                     if st.button("✅ Finalize Year", use_container_width=True):
                         dm.finalize_school_calendar(current_sy)
 
@@ -4419,7 +4419,6 @@ if page == "Dashboard":
     # =========================
     # SCHOOL CALENDAR — FINALIZED SUMMARY (BOTTOM OF DASHBOARD)
     # =========================
-    finalized_calendar = dm.is_school_calendar_finalized(current_sy)
     edit_mode = st.session_state.get("school_calendar_edit_mode", False)
 
     if finalized_calendar and (not edit_mode):
@@ -4453,7 +4452,7 @@ elif page == "Placements":
     st.header("Placement Manager")
     
     # Navigation button to Completed Placements (right-justified)
-    completed_count = len(dm.get_completed_placements_with_students())
+    completed_count = dm.count_completed_placements_with_students()
     left_col, right_col = st.columns([5, 1])
     with right_col:
         if st.button(f"📋 Completed Placements ({completed_count})", key="placements_completed_btn", type="secondary"):
@@ -4463,8 +4462,6 @@ elif page == "Placements":
     st.divider()
     
     # Create Placement content
-    students = dm.get_all_students()
-    
     st.subheader("Create New Placement")
     
     # Initialize session state for placement type selection

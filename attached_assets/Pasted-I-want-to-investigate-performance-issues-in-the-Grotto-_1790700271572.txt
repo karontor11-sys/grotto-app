@@ -1,0 +1,79 @@
+I want to investigate performance issues in the Grotto App before making any changes.
+
+The app currently works correctly, and I DO NOT want you to modify, refactor, optimize, or rewrite any code yet. This step is DIAGNOSTIC ONLY.
+
+The issue:
+
+The app often feels sluggish during normal use. There can be noticeable waiting/loading when:
+
+- Switching between screens/pages
+- Opening different sections of the app
+- Selecting or adding student names
+- Saving or updating placements
+- Returning to the Dashboard
+- Performing other routine interactions
+
+Because this is a Streamlit application, I understand that interactions can trigger script reruns. I want to determine whether the delay is primarily caused by Streamlit's rerun behavior, database access, repeated calculations, inefficient queries, unnecessary data loading, hosting/resources, or something else.
+
+Please analyze the entire application specifically for performance.
+
+Pay particular attention to:
+
+1. STREAMLIT RERUNS
+Identify expensive operations that execute again every time Streamlit reruns the script, including operations that do not actually need to be repeated.
+
+2. DATABASE ACTIVITY
+Look for:
+- Repeated database queries
+- Loading entire tables when only a subset of records is needed
+- Multiple queries retrieving the same information during one screen load
+- Inefficient joins or filtering
+- Queries that may benefit from indexes
+- Database connections being repeatedly created unnecessarily
+
+3. CACHING
+Identify operations that could safely benefit from:
+- `st.cache_data`
+- `st.cache_resource`
+- `st.session_state`
+- Other appropriate caching or persistence techniques
+
+IMPORTANT: Do not recommend caching data in a way that could cause the user to see stale placement, attendance, point, student, or completion information. Data integrity and immediate visibility of important changes are more important than speed.
+
+4. DASHBOARD AND PLACEMENT CALCULATIONS
+Determine whether placement status, completed periods, points, make-up requirements, student information, historical information, statistics, or other values are being unnecessarily recalculated during routine navigation.
+
+5. PAGE/SCREEN NAVIGATION
+Trace what happens when the user switches from one major screen to another. Identify operations that cause unnecessary loading or processing even though they are unrelated to the screen being displayed.
+
+6. STUDENT NAME OPERATIONS
+Investigate why selecting, adding, editing, or loading student names may cause noticeable delays.
+
+7. SESSION STATE
+Identify information that is repeatedly reconstructed but could safely remain in Streamlit session state.
+
+8. REPLIT/HOSTING
+Determine whether any meaningful portion of the delay appears to come from Replit hosting, application wake-up, available resources, database latency, or infrastructure rather than the application code itself.
+
+If possible, use timing/profiling information rather than assumptions.
+
+At the end, give me a PERFORMANCE DIAGNOSTIC REPORT containing:
+
+- The five biggest likely causes of slowness, ranked by expected impact
+- Where each problem occurs in the code
+- What operation is consuming the time
+- Actual timing information where practical
+- How frequently that operation is triggered
+- Your recommended fix
+- Estimated performance improvement: Small / Moderate / Significant
+- Risk of the proposed change: Low / Medium / High
+
+Also identify any "quick wins" that could noticeably improve responsiveness with very little risk.
+
+DO NOT IMPLEMENT ANY OF THE RECOMMENDATIONS YET.
+
+Do not change application behavior, database structure, caching, queries, navigation, session state, or UI.
+
+The goal of this step is simply to understand exactly where the Grotto App is spending its time so we can optimize it carefully, one change at a time, without breaking functionality.
+
+When finished, stop and give me the diagnostic report.

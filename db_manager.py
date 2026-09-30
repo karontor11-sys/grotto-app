@@ -3,7 +3,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_, func
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Date, JSON, Text, Enum as SQLEnum, UniqueConstraint, or_, func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -94,6 +94,7 @@ class Placement(Base):
     id = Column(String, primary_key=True)
     student_id = Column(String, nullable=False)
     homeroom_teacher_id = Column(String)
+    referring_teacher = Column(String, nullable=True)
     reason = Column(Text, nullable=False)
     type = Column(SQLEnum(PlacementType), default=PlacementType.iss_full_day)  # iss_full_day or partial
     placement_type = Column(SQLEnum(PlacementCategory), default=PlacementCategory.ISS)  # ISS, LUNCH_DETENTION, CLASS_REFERRAL, COOL_DOWN
@@ -348,6 +349,22 @@ class DatabaseManager:
     def _run_migrations(self):
         """Run database migrations to add missing columns."""
         session = self.get_session()
+        # Do not hide failures of this new column migration behind the older
+        # best-effort migrations below.
+        try:
+            column_exists = session.execute(text("""
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'placements'
+                  AND column_name = 'referring_teacher'
+            """)).scalar()
+            if not column_exists:
+                session.execute(text("ALTER TABLE placements ADD COLUMN IF NOT EXISTS referring_teacher VARCHAR"))
+                session.commit()
+        except Exception:
+            session.rollback()
+            session.close()
+            raise
         try:
             # Check which columns exist in placements table
             result = session.execute("""
@@ -961,6 +978,7 @@ class DatabaseManager:
                 id=placement_id,
                 student_id=placement_data['studentId'],
                 homeroom_teacher_id=placement_data.get('homeroomTeacherId'),
+                referring_teacher=placement_data.get('referringTeacher'),
                 reason=placement_data['reason'],
                 type=placement_type,
                 placement_type=placement_category,
@@ -2101,6 +2119,7 @@ class DatabaseManager:
             placement_data = {
                 "studentId": original.get('studentId'),
                 "homeroomTeacherId": original.get('homeroomTeacherId'),
+                "referringTeacher": original.get('referringTeacher'),
                 "reason": original.get('reason', ''),
                 "type": "iss_full_day",
                 "placementType": "LUNCH_DETENTION",
@@ -3142,6 +3161,7 @@ class DatabaseManager:
                             'student_last_name': student.last_name,
                             'grade': student.grade,
                             'homeroom_teacher': student.homeroom_teacher,
+                            'referring_teacher': placement.referring_teacher,
                             'period_display': period_display,
                             'periods': periods,
                             'date': sess.date.isoformat(),
@@ -3225,6 +3245,7 @@ class DatabaseManager:
                         'student_last_name': student.last_name,
                         'grade': student.grade,
                         'homeroom_teacher': student.homeroom_teacher,
+                        'referring_teacher': placement.referring_teacher,
                         'iss_total_days': placement.iss_total_days,
                         'iss_days_assigned': placement.iss_days_assigned,
                         'reason': placement.reason,
@@ -6474,6 +6495,7 @@ class DatabaseManager:
             '_id': placement.id,
             'studentId': placement.student_id,
             'homeroomTeacherId': placement.homeroom_teacher_id,
+            'referringTeacher': placement.referring_teacher,
             'reason': placement.reason,
             'type': placement.type.value,
             'placementType': placement.placement_type.value,

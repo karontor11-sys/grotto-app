@@ -1,0 +1,152 @@
+Please make the following **small, additive change** to the Grotto App.
+
+## Goal
+
+Add a new placement-level field called:
+
+**Referring Teacher**
+
+This field should identify the teacher who referred the student for that specific placement.
+
+It is important that this be stored **on the individual placement record**, not on the student record, because the same student may be referred by different teachers on different occasions.
+
+## Requirements
+
+### 1. Database
+
+Add a new nullable field to the existing `Placement` model:
+
+`referring_teacher`
+
+Use the app’s existing migration system in `db_manager.py` to safely add the new column to the existing PostgreSQL `placements` table if it does not already exist.
+
+Do **not** alter or recreate existing tables.
+
+Existing historical placements must remain untouched and valid. Older placements without this information should simply have a null/blank value.
+
+### 2. Placement Creation Forms
+
+Add a **Referring Teacher** field to every placement creation path, including:
+
+- ISS
+- Lunch Detention
+- Behavior Referral
+- Cool-Down Referral
+- Pre-Planned Referral
+
+Display **Referring Teacher directly underneath Homeroom Teacher** in the placement-entry interface.
+
+Make Referring Teacher required for all newly created placements.
+
+Do not change the behavior or validation of any other fields.
+
+### 3. Save the Field
+
+Pass the Referring Teacher value through the existing placement data structure and save it when `add_placement()` creates the placement.
+
+Use the existing naming conventions consistently, for example:
+
+`referringTeacher`
+
+in application dictionaries and:
+
+`referring_teacher`
+
+in the database model.
+
+Also expose the value through `_placement_to_dict()` so it is available anywhere the placement data is used.
+
+### 4. Placement Displays
+
+Where placement cards or placement-detail views currently display identifying information such as:
+
+- Student
+- Grade
+- Homeroom Teacher
+- Placement Type
+- Reason
+
+add:
+
+**Referring Teacher: [teacher name]**
+
+directly underneath Homeroom Teacher where practical.
+
+For historical placements that do not contain this field, display either blank or `N/A`.
+
+Do not redesign the placement cards or change their existing expanded/collapsed behavior.
+
+### 5. Completed Records
+
+Ensure Referring Teacher remains associated with the placement after it is completed.
+
+In Completed Placements / Completed Records, display:
+
+**Referring Teacher**
+
+along with the other placement details.
+
+Historical completed records without this information must continue to load normally.
+
+### 6. Reports and Data Export
+
+Add **Referring Teacher** to the existing Completed Records report/export data.
+
+It should appear in:
+
+- the on-screen report table
+- CSV exports
+- Excel exports
+- print-friendly HTML exports
+
+Also include **Homeroom Teacher** in the exported data if it is not already included.
+
+The purpose is to preserve this information for future analysis, including identifying:
+
+- number of referrals by teacher
+- referral trends over time
+- referrals by placement type
+- referrals by grade/reason
+
+Do **not** build new analytics or charts as part of this task. Just make sure the data is stored and exported correctly so those analytics can be added later.
+
+## Important Scope Protection
+
+This should be an **additive metadata change only**.
+
+Do NOT change any existing logic involving:
+
+- ISS service/completion
+- attendance
+- periods served
+- make-up days
+- placement scheduling
+- points
+- repair options
+- behavior/referral outcomes
+- placement status
+- completion rules
+- Dashboard caching or performance
+- historical data
+- student records
+- homeroom logic
+- `created_by` / Staff logic
+- existing Completed Records calculations
+
+`Homeroom Teacher`, `Referring Teacher`, and `Created By / Staff` must remain three separate concepts.
+
+## Verification
+
+After implementing the change, verify the following:
+
+1. All five placement types can be created with a Referring Teacher.
+2. The value is correctly stored in PostgreSQL.
+3. It remains attached to the placement after completion.
+4. It appears correctly in Completed Records.
+5. It appears in CSV, Excel, and HTML exports.
+6. Historical placements without a Referring Teacher still load normally.
+7. Existing placement, ISS, points, attendance, make-up, completion, and Dashboard behavior remains unchanged.
+
+Please inspect the existing implementation first and use the app’s current patterns rather than introducing a new architecture.
+
+Keep this change as narrow and low-risk as possible.

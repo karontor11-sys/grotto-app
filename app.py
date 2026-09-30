@@ -1366,6 +1366,7 @@ if page == "Dashboard":
             # Header row: Student name with status
             st.markdown(f"### {status_icon} {student_name}")
             st.caption(f"Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
+            st.caption(f"Referring Teacher: {placement.get('referringTeacher') or 'N/A'}")
             
             st.markdown(
                 f"**{iss_days_assigned}-Day ISS Session** | "
@@ -2082,6 +2083,7 @@ if page == "Dashboard":
             
             with col2:
                 st.caption(f"Grade {student.get('grade', 'N/A')}")
+                st.caption(f"Referring Teacher: {placement.get('referringTeacher') or 'N/A'}")
             
             with col3:
                 # Disable Complete until checked in for the day
@@ -2153,7 +2155,8 @@ if page == "Dashboard":
         title_line: str,
         grade,
         homeroom,
-        lock_until_date: date
+        lock_until_date: date,
+        referring_teacher=None
     ) -> None:
         """
         Standard future-day expanded view:
@@ -2169,6 +2172,7 @@ if page == "Dashboard":
         st.markdown(f"**Status:** {progress_circle} {progress_text}")
         st.markdown(f"**{title_line}**")
         st.caption(_format_grade_homeroom_line(grade, homeroom))
+        st.caption(f"Referring Teacher: {referring_teacher or 'N/A'}")
 
         formatted_lock_date = _format_date_with_ordinal_shared(lock_until_date)
         st.info(f"🔒 Locked until {formatted_lock_date}")
@@ -2255,7 +2259,8 @@ if page == "Dashboard":
                 title_line=title_line,
                 grade=grade,
                 homeroom=homeroom,
-                lock_until_date=target_date
+                lock_until_date=target_date,
+                referring_teacher=placement.get('referringTeacher')
             )
             return
         # ---------- END: ISS-style future-day and future-placement locks ----------
@@ -2284,6 +2289,7 @@ if page == "Dashboard":
             st.caption(f"Grade {grade} — {homeroom}")
         else:
             st.caption(f"Grade {grade}")
+        st.caption(f"Referring Teacher: {placement.get('referringTeacher') or 'N/A'}")
         
         # Day X of Y for multi-day lunch detention (completion-based, not calendar-based)
         total_days = placement.get('daysAssigned', 0)
@@ -2485,7 +2491,8 @@ if page == "Dashboard":
                 title_line=title_line,
                 grade=grade_early,
                 homeroom=homeroom_early,
-                lock_until_date=target_date
+                lock_until_date=target_date,
+                referring_teacher=placement.get('referringTeacher')
             )
             return
         
@@ -2534,6 +2541,7 @@ if page == "Dashboard":
             st.caption(f"Grade {grade} — {homeroom}")
         else:
             st.caption(f"Grade {grade}")
+        st.caption(f"Referring Teacher: {placement.get('referringTeacher') or 'N/A'}")
         
         if daily_log:
             fulfillment = daily_log.get('dailyFulfillment') or ''
@@ -2611,7 +2619,8 @@ if page == "Dashboard":
                     title_line=title_line,
                     grade=grade,
                     homeroom=homeroom,
-                    lock_until_date=target_date
+                    lock_until_date=target_date,
+                    referring_teacher=placement.get('referringTeacher')
                 )
                 return
         # ---------- END: ISS-style locks for Pre-Planned only ----------
@@ -2999,6 +3008,7 @@ if page == "Dashboard":
                     days_label = "Day" if iss_total_days == 1 else "Days"
                     st.markdown(f"**{iss_total_days}-{days_label} ISS Session**")
                     st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
+                    st.caption(f"Referring Teacher: {iss_session.get('referring_teacher') or 'N/A'}")
                 
                 with header_col2:
                     # Disabled Check In button
@@ -3033,7 +3043,8 @@ if page == "Dashboard":
                 title_line=title_line,
                 grade=iss_session.get('grade', 'N/A'),
                 homeroom=iss_session.get('homeroom_teacher', ''),
-                lock_until_date=target_date
+                lock_until_date=target_date,
+                referring_teacher=iss_session.get('referring_teacher')
             )
             return  # Exit early for future day views
         
@@ -3152,6 +3163,7 @@ if page == "Dashboard":
                 if is_makeup_session:
                     st.caption("Make-Up Day")
                 st.caption(f"Grade {iss_session.get('grade', 'N/A')} · {iss_session.get('homeroom_teacher', 'N/A')}")
+                st.caption(f"Referring Teacher: {iss_session.get('referring_teacher') or 'N/A'}")
             
             with header_col2:
                 pass
@@ -4517,6 +4529,7 @@ elif page == "Placements":
         with col2:
             last_name = st.text_input("Last Name*", key="iss_last_name")
             homeroom_teacher = st.text_input("Homeroom Teacher*", key="iss_homeroom")
+            referring_teacher = st.text_input("Referring Teacher*", key="iss_referring_teacher")
         
         st.divider()
         st.markdown("### Placement Details")
@@ -4539,7 +4552,7 @@ elif page == "Placements":
         iss_submit = st.button("Create ISS Placement", type="primary", use_container_width=True, key="iss_submit")
         
         if iss_submit:
-            if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+            if not first_name or not last_name or not homeroom_teacher or not referring_teacher.strip() or not reason or not created_by:
                 st.error("Please fill in all required fields marked with *")
             elif created_by == "Add Staff":
                 st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
@@ -4558,6 +4571,7 @@ elif page == "Placements":
                     placement_data = {
                         "studentId": student_id,
                         "homeroomTeacherId": homeroom_teacher,
+                        "referringTeacher": referring_teacher.strip(),
                         "reason": reason,
                         "type": "iss_full_day",
                         "placementType": "ISS",
@@ -4596,6 +4610,7 @@ elif page == "Placements":
         with col2:
             last_name = st.text_input("Last Name*", key="ld_last_name")
             homeroom_teacher = st.text_input("Homeroom Teacher*", key="ld_homeroom")
+            referring_teacher = st.text_input("Referring Teacher*", key="ld_referring_teacher")
         
         st.divider()
         st.markdown("### Placement Details")
@@ -4616,7 +4631,7 @@ elif page == "Placements":
             st.warning("Note: 'Add Staff' is a placeholder for future use. Please select a valid staff member to create a placement.")
         
         if st.button("Create Lunch Detention", type="primary", use_container_width=True, key="ld_submit"):
-            if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+            if not first_name or not last_name or not homeroom_teacher or not referring_teacher.strip() or not reason or not created_by:
                 st.error("Please fill in all required fields marked with *")
             elif created_by == "Add Staff":
                 st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
@@ -4638,6 +4653,7 @@ elif page == "Placements":
                     placement_data = {
                         "studentId": student_id,
                         "homeroomTeacherId": homeroom_teacher,
+                        "referringTeacher": referring_teacher.strip(),
                         "reason": reason,
                         "type": "iss_full_day",
                         "placementType": "LUNCH_DETENTION",
@@ -4677,6 +4693,7 @@ elif page == "Placements":
             with col2:
                 last_name = st.text_input("Last Name*", key="br_last_name")
                 homeroom_teacher = st.text_input("Homeroom Teacher*", key="br_homeroom")
+                referring_teacher = st.text_input("Referring Teacher*", key="br_referring_teacher")
             
             st.divider()
             st.markdown("### Placement Details")
@@ -4697,7 +4714,7 @@ elif page == "Placements":
                 st.warning("Note: 'Add Staff' is a placeholder for future use. Please select a valid staff member to create a placement.")
             
             if st.button("Create Behavior Referral", type="primary", use_container_width=True, key="br_submit"):
-                if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                if not first_name or not last_name or not homeroom_teacher or not referring_teacher.strip() or not reason or not created_by:
                     st.error("Please fill in all required fields marked with *")
                 elif created_by == "Add Staff":
                     st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
@@ -4716,6 +4733,7 @@ elif page == "Placements":
                         placement_data = {
                             "studentId": student_id,
                             "homeroomTeacherId": homeroom_teacher,
+                            "referringTeacher": referring_teacher.strip(),
                             "reason": reason,
                             "type": "partial",
                             "placementType": "CLASS_REFERRAL",
@@ -4754,6 +4772,7 @@ elif page == "Placements":
             with col2:
                 last_name = st.text_input("Last Name*", key="cd_last_name")
                 homeroom_teacher = st.text_input("Homeroom Teacher*", key="cd_homeroom")
+                referring_teacher = st.text_input("Referring Teacher*", key="cd_referring_teacher")
             
             st.divider()
             st.markdown("### Placement Details")
@@ -4774,7 +4793,7 @@ elif page == "Placements":
                 st.warning("Note: 'Add Staff' is a placeholder for future use. Please select a valid staff member to create a placement.")
             
             if st.button("Create Cool-Down Referral", type="primary", use_container_width=True, key="cd_submit"):
-                if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                if not first_name or not last_name or not homeroom_teacher or not referring_teacher.strip() or not reason or not created_by:
                     st.error("Please fill in all required fields marked with *")
                 elif created_by == "Add Staff":
                     st.error("Please select a valid staff member. 'Add Staff' is a placeholder for future use.")
@@ -4793,6 +4812,7 @@ elif page == "Placements":
                         placement_data = {
                             "studentId": student_id,
                             "homeroomTeacherId": homeroom_teacher,
+                            "referringTeacher": referring_teacher.strip(),
                             "reason": reason,
                             "type": "partial",
                             "placementType": "CLASS_REFERRAL",
@@ -4855,6 +4875,7 @@ elif page == "Placements":
                 with col2:
                     last_name = st.text_input("Last Name*", key="pp_last_name")
                     homeroom_teacher = st.text_input("Homeroom Teacher*", key="pp_homeroom")
+                    referring_teacher = st.text_input("Referring Teacher*", key="pp_referring_teacher")
                 
                 st.divider()
                 st.markdown("### Placement Details")
@@ -4939,7 +4960,7 @@ elif page == "Placements":
                     print(f"[DEBUG] Pre-Planned Referral form submitted - First: '{first_name}', Last: '{last_name}'")
                     validation_error = False
                     
-                    if not first_name or not last_name or not homeroom_teacher or not reason or not created_by:
+                    if not first_name or not last_name or not homeroom_teacher or not referring_teacher.strip() or not reason or not created_by:
                         st.error("Please fill in all required fields marked with *")
                         validation_error = True
                     elif created_by == "Add Staff":
@@ -4978,6 +4999,7 @@ elif page == "Placements":
                             placement_data = {
                                 "studentId": student_id,
                                 "homeroomTeacherId": homeroom_teacher,
+                                "referringTeacher": referring_teacher.strip(),
                                 "reason": reason,
                                 "type": "partial",
                                 "placementType": "CLASS_REFERRAL",
@@ -5204,6 +5226,7 @@ elif page == "Completed Placements":
                                         st.write(f"**Student:** {student_name}")
                                         st.write(f"**Grade:** {student.get('grade', 'N/A')}")
                                         st.write(f"**Homeroom:** {student.get('homeroomTeacher', 'N/A')}")
+                                        st.write(f"**Referring Teacher:** {placement.get('referringTeacher') or 'N/A'}")
                                         st.write(f"**Placement Type:** {type_display}")
                                     with col2:
                                         st.write(f"**Start Date:** {format_date(placement.get('startDate', 'N/A'))}")
@@ -5542,6 +5565,8 @@ elif page == "Completed Placements":
                 student_name = f"{student.get('firstName', '')} {student.get('lastName', '')}".strip()
                 table.append({
                     "Student": student_name,
+                    "Homeroom Teacher": student.get("homeroomTeacher") or "",
+                    "Referring Teacher": p.get("referringTeacher") or "",
                     "Placement": _placement_type_label(p),
                     "Served time": _served_time_label(p),
                     "Reason": (p.get("reason") or "").strip(),
@@ -5636,6 +5661,7 @@ elif page == "ISS Detail":
     with col_header:
         st.header(f"ISS Daily Log - {student_name}")
         st.caption(f"{format_date(date_str)} · Grade {student.get('grade', 'N/A')} · {student.get('homeroomTeacher', 'N/A')}")
+        st.caption(f"Referring Teacher: {placement.get('referringTeacher') or 'N/A'}")
     
     # Calculate Day X of Y (completion-based, not calendar-based)
     iss_total_days = placement.get('issDaysAssigned') or placement.get('issTotalDays', 0)
